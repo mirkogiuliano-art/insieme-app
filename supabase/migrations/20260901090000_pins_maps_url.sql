@@ -1,0 +1,20 @@
+-- Insieme — indirizzo Google Maps del luogo vero e proprio.
+--
+-- Finora "Apri in Google Maps" costruiva l'indirizzo con le sole coordinate
+-- (`?api=1&query=41.89,12.49`). Su una coordinata nuda Google Maps non ha
+-- nessun luogo da mostrare: pianta uno spillo e come titolo scrive i gradi
+-- ("41°53'24.8"N 12°29'32.0"E") invece della scheda del ristorante.
+--
+-- Qui salviamo, quando lo conosciamo, l'indirizzo che apre la scheda del
+-- luogo. Lo conosciamo in due casi:
+--   • si tocca un punto di interesse sulla mappa: react-native-maps
+--     restituisce il placeId di Google, da cui si costruisce l'indirizzo
+--     canonico `?api=1&query=<nome>&query_place_id=<placeId>`;
+--   • si incolla o si condivide un link di Google Maps: quell'indirizzo
+--     apre già la scheda giusta, lo teniamo così com'è.
+--
+-- Resta null per i posti creati toccando un punto qualsiasi della mappa
+-- (dove un "luogo" non esiste) e per tutti quelli già salvati: in quel caso
+-- il codice ricade su una ricerca del nome centrata sulle coordinate, che è
+-- comunque molto meglio dello spillo sulle coordinate.
+alter table public.pins add column maps_url text;
