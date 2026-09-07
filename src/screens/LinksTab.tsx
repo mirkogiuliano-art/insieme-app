@@ -12,15 +12,27 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { PlusIcon, LinkIcon, TrashIcon, AttachIcon, PlayIcon, MapIcon } from '@/components/Icon';
+import { PlusIcon, LinkIcon, TrashIcon, AttachIcon, PlayIcon, MapIcon, StarIcon } from '@/components/Icon';
 import { FilterChip } from '@/components/FilterChip';
 import { BottomSheet } from '@/components/BottomSheet';
 import { CategorySheet } from '@/components/CategorySheet';
+import { AttachMenuSheet } from '@/components/AttachMenuSheet';
 import { LinkCard } from '@/components/LinkCard';
 import { LoadError } from '@/components/LoadError';
 import { PlacePickerSheet } from '@/components/PlacePickerSheet';
-import { dateLabel, platformInfo, normalizeUrl, parseGoogleMapsUrl, withTimeout, WRITE_TIMEOUT, UPLOAD_TIMEOUT, type MapsPlaceInfo } from '@/lib/utils';
+import {
+  dateLabel,
+  platformInfo,
+  normalizeUrl,
+  parseGoogleMapsUrl,
+  fileLabelFor,
+  withTimeout,
+  WRITE_TIMEOUT,
+  UPLOAD_TIMEOUT,
+  type MapsPlaceInfo,
+} from '@/lib/utils';
 import { useAuth } from '@/lib/authStore';
 import { useToast } from '@/components/Toast';
 import {
@@ -31,7 +43,7 @@ import {
   subscribeToCategories,
   type RawLinkCategory,
 } from '@/lib/api/linkCategories';
-import { listLinks, createLink, deleteLink, subscribeToLinks, type RawLink } from '@/lib/api/links';
+import { listLinks, createLink, deleteLink, setFavorite, subscribeToLinks, type RawLink } from '@/lib/api/links';
 import { listPins, createPin, subscribeToPins, type RawPin } from '@/lib/api/pins';
 import {
   listCategories as listPlaceCategories,
@@ -45,7 +57,7 @@ import {
   subscribeToPlaceLinks,
   type RawPlaceLink,
 } from '@/lib/api/placeLinks';
-import { uploadGroupMedia, sweepGroupMedia } from '@/lib/api/mediaUpload';
+import { uploadGroupMedia, uploadGroupFile, sweepGroupMedia } from '@/lib/api/mediaUpload';
 import { getLinkPreview } from '@/lib/api/linkPreviews';
 import { CATEGORY_PALETTE } from '@/types';
 
@@ -76,6 +88,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
 
   const [manageCat, setManageCat] = useState<RawLinkCategory | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
   // Collegamenti con i posti della mappa.
@@ -282,6 +295,49 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     }
   };
 
+  /** Documenti (PDF, Word, Excel, ...): stesso flusso di `pickFile`, ma dal
+   * selettore di file di sistema — che a differenza della galleria foto non
+   * richiede un permesso da chiedere prima. Il nome scelto va nel titolo
+   * (come "Foto"/"Video" per gli altri allegati, ma qui è l'unica cosa
+   * leggibile: non c'è un'anteprima da mostrare al suo posto). */
+  const pickDocument = async () => {
+    if (!session || uploadingFile) return;
+    const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+    const asset = result.canceled ? null : result.assets?.[0];
+    if (!asset) return;
+    const catId = selectedCat || categories[0]?.id;
+    if (!catId) return;
+
+    setUploadingFile(true);
+    try {
+      const uploadedUrl = await withTimeout(uploadGroupFile(groupId, asset), UPLOAD_TIMEOUT);
+      await withTimeout(createLink(groupId, session.user.id, {
+        url: uploadedUrl,
+        title: title.trim() || asset.name,
+        platform: 'file',
+        label: fileLabelFor(asset.name),
+        thumb: null,
+        categoryId: catId,
+      }), WRITE_TIMEOUT);
+      setTitle('');
+    } catch {
+      toast.show('Caricamento del documento non riuscito, riprova.');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  /** Preferito condiviso: nessun aggiornamento ottimistico locale, si
+   * aspetta l'eco dalla sottoscrizione realtime — stesso schema già usato
+   * per le reazioni ai messaggi, che aggiornano lo stato solo da lì. */
+  const toggleFavorite = async (link: RawLink) => {
+    try {
+      await withTimeout(setFavorite(link.id, !link.isFavorite), WRITE_TIMEOUT);
+    } catch {
+      toast.show('Non sono riuscito ad aggiornare il preferito.');
+    }
+  };
+
   const removeLink = async (id: string) => {
     try {
       await deleteLink(id);
@@ -340,7 +396,12 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   };
 
 
-  const filtered = filter === 'all' ? items : items.filter((it) => it.categoryId === filter);
+  const filtered =
+    filter === 'all'
+      ? items
+      : filter === 'favorites'
+        ? items.filter((it) => it.isFavorite)
+        : items.filter((it) => it.categoryId === filter);
   const sectionsForList = categories
     .map((c) => ({
       category: c,
@@ -362,6 +423,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         catColor={cat.color}
         addedBy={addedBy}
         onRemove={() => removeLink(item.id)}
+        onToggleFavorite={() => toggleFavorite(item)}
         onPickPlace={() => setPickerLink(item)}
       >
         <View style={styles.placeRow}>
@@ -405,7 +467,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
             autoCorrect={false}
           />
           <Pressable
-            onPress={pickFile}
+            onPress={() => setAttachMenuOpen(true)}
             disabled={uploadingFile}
             style={[styles.attachBtn, { backgroundColor: colors.surface, borderColor: colors.border, opacity: uploadingFile ? 0.5 : 1 }]}
           >
@@ -452,6 +514,12 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       <View style={[styles.filters, { borderBottomColor: colors.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <FilterChip label="Tutte" dotColor={colors.textFaint} active={filter === 'all'} onPress={() => setFilter('all')} />
+          <FilterChip
+            label="Preferiti"
+            icon={<StarIcon size={12} color={filter === 'favorites' ? colors.amber : colors.textFaint} filled={filter === 'favorites'} />}
+            active={filter === 'favorites'}
+            onPress={() => setFilter('favorites')}
+          />
           {categories.map((c) => (
             <FilterChip
               key={c.id}
@@ -470,10 +538,21 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
 
       {filtered.length === 0 ? (
         <View style={styles.empty}>
-          <LinkIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
-          <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-            Nessun link qui. Incolla un video o un sito, o allega una foto/video dal telefono con la graffetta.
-          </Text>
+          {filter === 'favorites' ? (
+            <>
+              <StarIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
+              <Text style={[styles.emptyText, { color: colors.textFaint }]}>
+                Nessun preferito ancora. Tocca la stella su un link per salvarlo qui.
+              </Text>
+            </>
+          ) : (
+            <>
+              <LinkIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
+              <Text style={[styles.emptyText, { color: colors.textFaint }]}>
+                Nessun link qui. Incolla un video o un sito, o allega una foto, un video o un documento dal telefono con la graffetta.
+              </Text>
+            </>
+          )}
         </View>
       ) : (
         <SectionList
@@ -584,6 +663,13 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
           </>
         ) : null}
       </BottomSheet>
+
+      <AttachMenuSheet
+        visible={attachMenuOpen}
+        onClose={() => setAttachMenuOpen(false)}
+        onPickMedia={pickFile}
+        onPickDocument={pickDocument}
+      />
     </View>
   );
 }

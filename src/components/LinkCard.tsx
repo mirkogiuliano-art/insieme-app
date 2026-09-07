@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, Linking } from 'react-native';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { LinkIcon, TrashIcon, PlayIcon } from '@/components/Icon';
-import { dateLabel, platformInfo } from '@/lib/utils';
+import { LinkIcon, TrashIcon, PlayIcon, StarIcon, FileIcon } from '@/components/Icon';
+import { dateLabel, platformInfo, fileKindFor } from '@/lib/utils';
+import { fileBadgeColor } from '@/components/FileAttachmentBubble';
 import { getLinkPreview } from '@/lib/api/linkPreviews';
 import type { RawLink } from '@/lib/api/links';
 
@@ -24,7 +25,7 @@ function hostOf(url: string): string {
 /** I file che carichiamo noi stanno nello storage: non sono pagine web e
  * non hanno metadati da leggere. */
 function isUploadedFile(item: RawLink): boolean {
-  return item.platform === 'image' || item.platform === 'video';
+  return item.platform === 'image' || item.platform === 'video' || item.platform === 'file';
 }
 
 /**
@@ -92,6 +93,7 @@ export function LinkCard({
   catColor,
   addedBy,
   onRemove,
+  onToggleFavorite,
   onPickPlace,
   children,
 }: {
@@ -100,6 +102,7 @@ export function LinkCard({
   catColor: string;
   addedBy: string;
   onRemove: () => void;
+  onToggleFavorite: () => void;
   onPickPlace: () => void;
   children: React.ReactNode;
 }) {
@@ -116,11 +119,16 @@ export function LinkCard({
           <Image source={{ uri: image }} style={styles.thumbImage} resizeMode="contain" />
         </View>
       ) : item.platform === 'video' ? (
-        <View style={[styles.thumbFallback, { backgroundColor: '#1B2530' }]}>
+        <View style={[styles.thumb, { backgroundColor: '#1B2530' }]}>
           <PlayIcon size={22} color="#fff" />
         </View>
+      ) : item.platform === 'file' ? (
+        <View style={[styles.thumb, { backgroundColor: colors.surface2 }]}>
+          <FileIcon size={28} color={fileBadgeColor(fileKindFor(item.title), colors)} strokeWidth={1.6} />
+          <Text style={[styles.thumbFileLabel, { color: fileBadgeColor(fileKindFor(item.title), colors) }]}>{item.label}</Text>
+        </View>
       ) : (
-        <View style={[styles.thumbFallback, { backgroundColor: colors.surface2 }]}>
+        <View style={[styles.thumb, { backgroundColor: colors.surface2 }]}>
           <LinkIcon size={26} color={catColor} strokeWidth={1.6} />
         </View>
       )}
@@ -134,21 +142,55 @@ export function LinkCard({
         </Text>
         {children}
       </View>
-      <Pressable hitSlop={8} onPress={onRemove} style={styles.delBtn}>
-        <TrashIcon size={16} color={colors.textFaint} />
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          hitSlop={8}
+          onPress={(e) => {
+            // Come per il link toccabile nel testo della chat: senza questo
+            // il tocco proseguirebbe fino alla card e aprirebbe l'indirizzo.
+            e.stopPropagation?.();
+            onToggleFavorite();
+          }}
+          style={styles.actionBtn}
+        >
+          <StarIcon size={16} color={item.isFavorite ? colors.amber : colors.textFaint} filled={item.isFavorite} />
+        </Pressable>
+        <Pressable hitSlop={8} onPress={onRemove} style={styles.actionBtn}>
+          <TrashIcon size={16} color={colors.textFaint} />
+        </Pressable>
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  // `thumb` è posizionato in assoluto invece di usare `alignSelf: 'stretch'`
+  // per riempire l'altezza della card: uno `stretch` senza un'altezza
+  // dichiarata lascia ambigua l'altezza del contenitore, e l'immagine al
+  // suo interno (che usa `height: '100%'`) può risolvere quel 100% contro
+  // il primo antenato con un'altezza vera — nei casi peggiori l'intera
+  // schermata. Con `top/left/bottom` l'altezza di `thumb` è sempre quella
+  // reale della card, senza ambiguità, su web e su nativo.
+  // Il `gap` qui vale solo fra i figli nel flusso normale (cardBody,
+  // delBtn): `thumb` è in posizione assoluta e ne resta fuori, per questo
+  // il suo spazio da cardBody è nel `paddingLeft` di cardBody, non qui.
   card: { flexDirection: 'row', gap: 11, borderWidth: 1, borderLeftWidth: 3, borderRadius: RADIUS.md, overflow: 'hidden', minHeight: 84 },
-  cardBody: { flex: 1, paddingVertical: 10, justifyContent: 'center', gap: 3 },
+  cardBody: { flex: 1, paddingVertical: 10, paddingLeft: THUMB_W + 11, justifyContent: 'center', gap: 3 },
   cardMeta: { fontSize: 10.5 },
   cardTitle: { fontSize: 13.5, fontWeight: '600', lineHeight: 17 },
   catLabel: { fontSize: 10, letterSpacing: 0.5, fontWeight: '700' },
-  delBtn: { paddingHorizontal: 10, justifyContent: 'center' },
-  thumb: { width: THUMB_W, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  thumbFallback: { width: THUMB_W, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
+  actions: { justifyContent: 'center', gap: 2, paddingHorizontal: 8 },
+  actionBtn: { paddingVertical: 7, alignItems: 'center' },
+  thumb: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: THUMB_W,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   thumbImage: { width: THUMB_ZOOM_W, height: '100%' },
+  thumbFileLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4, marginTop: 3 },
 });

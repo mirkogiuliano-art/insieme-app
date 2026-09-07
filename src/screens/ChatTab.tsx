@@ -12,12 +12,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useAudioRecorder, useAudioPlayer, useAudioPlayerStatus, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { SendIcon, ChatIcon, ReplyIcon, CloseIcon, AttachIcon, PlayIcon, MicIcon, StopIcon, PauseIcon, SearchIcon, CheckIcon, ChevronIcon, LinkIcon } from '@/components/Icon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { ChatLinkPreview } from '@/components/ChatLinkPreview';
 import { VoiceBubble } from '@/components/VoiceBubble';
+import { FileAttachmentBubble } from '@/components/FileAttachmentBubble';
+import { AttachMenuSheet } from '@/components/AttachMenuSheet';
 import { LoadError } from '@/components/LoadError';
 import {
   timeLabel,
@@ -35,7 +38,7 @@ import { useAuth } from '@/lib/authStore';
 import { useToast } from '@/components/Toast';
 import { listMessages, sendMessage, subscribeToMessages, type RawMessage } from '@/lib/api/messages';
 import { listReactions, toggleReaction, subscribeToReactions, type RawReaction } from '@/lib/api/reactions';
-import { uploadGroupMedia, type AttachmentKind } from '@/lib/api/mediaUpload';
+import { uploadGroupMedia, uploadGroupFile, type AttachmentKind } from '@/lib/api/mediaUpload';
 import { listLastReads, updateLastRead, subscribeToLastReads } from '@/lib/api/groupMembers';
 import { subscribeToTyping } from '@/lib/api/typing';
 import { getLinkPreview, type LinkPreview as LinkPreviewData } from '@/lib/api/linkPreviews';
@@ -83,6 +86,7 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
   const [reactSheetFor, setReactSheetFor] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<RawMessage | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -342,6 +346,53 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
     }
   };
 
+  /** Documenti (PDF, Word, Excel, ...): passa dal selettore di file di
+   * sistema invece che dalla galleria foto — a differenza di questa,
+   * `expo-document-picker` non richiede un permesso da chiedere prima. */
+  const pickDocument = async () => {
+    if (!session || uploading) return;
+    const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+    const asset = result.canceled ? null : result.assets?.[0];
+    if (!asset) return;
+
+    const replyToId = replyingTo?.id ?? null;
+    setReplyingTo(null);
+    setUploading(true);
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => [
+      {
+        id: tempId,
+        userId: session.user.id,
+        text: null,
+        ts: Date.now(),
+        replyToId,
+        attachmentUrl: asset.uri,
+        attachmentType: 'file',
+        attachmentName: asset.name,
+        attachmentSize: asset.size ?? null,
+      },
+      ...prev,
+    ]);
+    try {
+      const url = await withTimeout(uploadGroupFile(groupId, asset), UPLOAD_TIMEOUT);
+      const sent = await withTimeout(
+        sendMessage(groupId, session.user.id, null, replyToId, {
+          url,
+          type: 'file',
+          name: asset.name,
+          size: asset.size,
+        }),
+        WRITE_TIMEOUT,
+      );
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast.show("Invio del documento non riuscito, riprova.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const toggleRecording = async () => {
     if (!session || uploading) return;
     if (recording) {
@@ -463,6 +514,14 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
             ) : null}
             {item.attachmentUrl && item.attachmentType === 'audio' ? (
               <VoiceBubble uri={item.attachmentUrl} durationSeconds={item.attachmentDurationSeconds} own={own} />
+            ) : null}
+            {item.attachmentUrl && item.attachmentType === 'file' ? (
+              <FileAttachmentBubble
+                url={item.attachmentUrl}
+                name={item.attachmentName || 'Documento'}
+                size={item.attachmentSize ?? null}
+                own={own}
+              />
             ) : null}
             {item.text ? (
               <Text style={[styles.text, { color: own ? colors.inkOnAmber : colors.text, marginTop: item.attachmentUrl ? 6 : 0 }]}>
@@ -649,7 +708,7 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
       ) : (
         <View style={[styles.inputBar, { borderTopColor: colors.border, backgroundColor: colors.bg }]}>
           <Pressable
-            onPress={pickAttachment}
+            onPress={() => setAttachMenuOpen(true)}
             disabled={uploading}
             style={[styles.attachBtn, { backgroundColor: colors.surface, borderColor: colors.border, opacity: uploading ? 0.5 : 1 }]}
           >
@@ -695,6 +754,13 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
           <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.text }}>Rispondi</Text>
         </Pressable>
       </BottomSheet>
+
+      <AttachMenuSheet
+        visible={attachMenuOpen}
+        onClose={() => setAttachMenuOpen(false)}
+        onPickMedia={pickAttachment}
+        onPickDocument={pickDocument}
+      />
     </View>
   );
 }

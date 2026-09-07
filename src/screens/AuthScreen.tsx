@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { PasswordInput } from '@/components/PasswordInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { ChatIcon, BackIcon } from '@/components/Icon';
@@ -126,26 +127,20 @@ export function AuthScreen() {
           />
 
           {mode !== 'forgot' ? (
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            <PasswordInput
               placeholder="Password"
-              placeholderTextColor={colors.textFaint}
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
               returnKeyType={mode === 'signup' ? 'next' : 'done'}
               onSubmitEditing={mode === 'login' ? submit : undefined}
             />
           ) : null}
 
           {mode === 'signup' ? (
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            <PasswordInput
               placeholder="Conferma password"
-              placeholderTextColor={colors.textFaint}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              secureTextEntry
               returnKeyType="done"
               onSubmitEditing={submit}
             />

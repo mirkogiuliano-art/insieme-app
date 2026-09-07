@@ -6,13 +6,16 @@ import { EditIcon } from '@/components/Icon';
 interface FilterChipProps {
   label: string;
   dotColor?: string;
+  /** Al posto del pallino colorato, per i filtri che non sono una categoria
+   * (i preferiti). Le due cose sono alternative: non ha senso averle insieme. */
+  icon?: React.ReactNode;
   active?: boolean;
   dashed?: boolean;
   onPress: () => void;
   onEdit?: () => void;
 }
 
-export function FilterChip({ label, dotColor, active, dashed, onPress, onEdit }: FilterChipProps) {
+export function FilterChip({ label, dotColor, icon, active, dashed, onPress, onEdit }: FilterChipProps) {
   const { colors } = useTheme();
   return (
     <View
@@ -26,7 +29,7 @@ export function FilterChip({ label, dotColor, active, dashed, onPress, onEdit }:
       ]}
     >
       <Pressable onPress={onPress} style={styles.main} hitSlop={onEdit ? undefined : 6}>
-        {dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}
+        {icon ?? (dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null)}
         <Text
           style={{
             fontSize: 12,

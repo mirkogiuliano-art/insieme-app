@@ -139,7 +139,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster }: GroupInfoShe
         </View>
       ) : null}
 
-      <Text style={[styles.sectionLabel, { color: colors.textDim }]}>MEMBRI — {members.length}</Text>
+      <Text style={[styles.sectionLabel, styles.membersLabel, { color: colors.textDim }]}>MEMBRI — {members.length}</Text>
       <View style={{ gap: 2 }}>
         {members.map(([userId, name]) => {
           const isMe = userId === session?.user.id;
@@ -173,6 +173,10 @@ const styles = StyleSheet.create({
   groupAvatarText: { fontSize: 22, fontWeight: '700', color: '#1B2530' },
   groupName: { fontSize: 18, fontWeight: '700' },
   sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, marginBottom: 8 },
+  // Solo qui e non su "LINK DI INVITO": quella etichetta segue già il
+  // margine del blocco con nome e avatar del gruppo, che le dà abbastanza
+  // spazio da sé.
+  membersLabel: { marginTop: 20 },
   inviteNote: { fontSize: 12, lineHeight: 17, marginBottom: 10 },
   inviteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,

@@ -203,6 +203,56 @@ export function BackIcon({ size = 20, color = '#000', strokeWidth = 2 }: IconPro
   );
 }
 
+export function EyeIcon({ size = 19, color = '#000', strokeWidth = 1.7 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M1.8 12S5.6 5.2 12 5.2 22.2 12 22.2 12 18.4 18.8 12 18.8 1.8 12 1.8 12z" />
+      <Circle cx="12" cy="12" r="3.1" />
+    </Svg>
+  );
+}
+
+export function EyeOffIcon({ size = 19, color = '#000', strokeWidth = 1.7 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M10.1 5.4A9.9 9.9 0 0112 5.2c6.4 0 10.2 6.8 10.2 6.8a18.6 18.6 0 01-3.1 4" />
+      <Path d="M6.4 6.7A18.4 18.4 0 001.8 12S5.6 18.8 12 18.8c1.9 0 3.6-.6 5-1.5" />
+      <Path d="M9.9 9.9a3.1 3.1 0 004.4 4.4" />
+      <Line x1="3.2" y1="3.2" x2="20.8" y2="20.8" />
+    </Svg>
+  );
+}
+
+export function ImageIcon({ size = 20, color = '#000', strokeWidth = 1.7 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="4" width="18" height="16" rx="2.2" />
+      <Circle cx="8.5" cy="9.5" r="1.8" />
+      <Path d="M4 17l5.2-5.2a1.5 1.5 0 012.1 0L15 15.5" />
+      <Path d="M13 13.5l1.7-1.7a1.5 1.5 0 012.1 0L20 15" />
+    </Svg>
+  );
+}
+
+export function FileIcon({ size = 20, color = '#000', strokeWidth = 1.7 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M6 2.8h8.2L19 7.6V20a1.2 1.2 0 01-1.2 1.2H6A1.2 1.2 0 014.8 20V4A1.2 1.2 0 016 2.8z" />
+      <Path d="M14.2 2.8V7a1 1 0 001 1h3.8" />
+      <Line x1="8" y1="12.2" x2="15.5" y2="12.2" />
+      <Line x1="8" y1="15.6" x2="15.5" y2="15.6" />
+    </Svg>
+  );
+}
+
+export function StarIcon({ size = 17, color = '#000', strokeWidth = 1.8, filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <Svg {...base(size)} fill={filled ? color : 'none'} stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round">
+      <Polygon points="12 2.5 15.1 8.8 22 9.8 17 14.7 18.2 21.6 12 18.3 5.8 21.6 7 14.7 2 9.8 8.9 8.8 12 2.5" />
+    </Svg>
+  );
+}
+
 export function LocateIcon({ size = 20, color = '#000', strokeWidth = 1.8 }: IconProps) {
   return (
     <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">

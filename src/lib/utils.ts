@@ -256,6 +256,39 @@ export function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
   ]);
 }
 
+// ── Allegati non multimediali (PDF, Word, Excel, ...) ────────────────
+// Il colore vero e proprio lo sceglie chi disegna (dipende dal tema
+// chiaro/scuro), qui si decide solo QUALE categoria è: la UI mappa
+// 'pdf'/'word'/'excel' sui propri token di colore (coral/lilac/teal).
+
+export type FileKind = 'pdf' | 'word' | 'excel' | 'other';
+
+function extensionOf(name: string): string {
+  const m = /\.([a-zA-Z0-9]+)$/.exec(name);
+  return m ? m[1].toLowerCase() : '';
+}
+
+export function fileKindFor(name: string): FileKind {
+  const ext = extensionOf(name);
+  if (ext === 'pdf') return 'pdf';
+  if (ext === 'doc' || ext === 'docx') return 'word';
+  if (ext === 'xls' || ext === 'xlsx' || ext === 'csv') return 'excel';
+  return 'other';
+}
+
+/** Etichetta breve da mostrare sulla card ("PDF", "DOCX"...). Senza
+ * estensione riconoscibile, un'etichetta generica invece di una vuota. */
+export function fileLabelFor(name: string): string {
+  const ext = extensionOf(name);
+  return ext ? ext.toUpperCase() : 'FILE';
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /** Durata in mm:ss, per i messaggi vocali e la registrazione in corso. */
 export function formatSeconds(total: number): string {
   const s = Math.max(0, Math.round(total));

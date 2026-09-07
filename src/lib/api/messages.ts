@@ -10,6 +10,8 @@ interface MessageRow {
   attachment_url: string | null;
   attachment_type: AttachmentKind | null;
   attachment_duration_seconds: number | null;
+  attachment_name: string | null;
+  attachment_size: number | null;
 }
 
 export interface RawMessage {
@@ -21,10 +23,15 @@ export interface RawMessage {
   attachmentUrl?: string | null;
   attachmentType?: AttachmentKind | null;
   attachmentDurationSeconds?: number | null;
+  /** Nome originale del file, per gli allegati documento — per foto/video
+   * non conta nulla (si vede l'anteprima), per un PDF è l'unica cosa
+   * leggibile: senza, in chat comparirebbe solo l'indirizzo dello storage. */
+  attachmentName?: string | null;
+  attachmentSize?: number | null;
 }
 
 const SELECT_COLUMNS =
-  'id, user_id, text, created_at, reply_to_id, attachment_url, attachment_type, attachment_duration_seconds';
+  'id, user_id, text, created_at, reply_to_id, attachment_url, attachment_type, attachment_duration_seconds, attachment_name, attachment_size';
 
 function toRaw(row: MessageRow): RawMessage {
   return {
@@ -36,6 +43,8 @@ function toRaw(row: MessageRow): RawMessage {
     attachmentUrl: row.attachment_url,
     attachmentType: row.attachment_type,
     attachmentDurationSeconds: row.attachment_duration_seconds,
+    attachmentName: row.attachment_name,
+    attachmentSize: row.attachment_size,
   };
 }
 
@@ -68,6 +77,8 @@ export interface NewMessageAttachment {
   url: string;
   type: AttachmentKind;
   durationSeconds?: number;
+  name?: string;
+  size?: number;
 }
 
 export async function sendMessage(
@@ -87,6 +98,8 @@ export async function sendMessage(
       attachment_url: attachment?.url ?? null,
       attachment_type: attachment?.type ?? null,
       attachment_duration_seconds: attachment?.durationSeconds ?? null,
+      attachment_name: attachment?.name ?? null,
+      attachment_size: attachment?.size ?? null,
     })
     .select(SELECT_COLUMNS)
     .single();

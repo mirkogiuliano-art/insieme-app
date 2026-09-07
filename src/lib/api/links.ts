@@ -10,6 +10,9 @@ export interface RawLink {
   label: string;
   thumb: string | null;
   categoryId: string;
+  /** Preferito condiviso: una stellina sola per link, non una per persona.
+   * Vedi supabase/migrations/20260903100000_link_favorites.sql. */
+  isFavorite: boolean;
   ts: number;
 }
 
@@ -22,10 +25,11 @@ interface LinkRow {
   label: string;
   thumb: string | null;
   category_id: string;
+  is_favorite: boolean;
   created_at: string;
 }
 
-const SELECT_COLUMNS = 'id, user_id, url, title, platform, label, thumb, category_id, created_at';
+const SELECT_COLUMNS = 'id, user_id, url, title, platform, label, thumb, category_id, is_favorite, created_at';
 
 function toRaw(row: LinkRow): RawLink {
   return {
@@ -37,6 +41,7 @@ function toRaw(row: LinkRow): RawLink {
     label: row.label,
     thumb: row.thumb,
     categoryId: row.category_id,
+    isFavorite: row.is_favorite,
     ts: new Date(row.created_at).getTime(),
   };
 }
@@ -84,6 +89,14 @@ export async function createLink(groupId: string, userId: string, link: NewLink)
 
 export async function deleteLink(id: string): Promise<void> {
   const { error } = await supabase.from('links').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** Preferito condiviso: chi lo mette o lo toglie lo fa per tutto il
+ * gruppo, non solo per sé — coerente col resto dell'app, dove link e
+ * categorie sono già modificabili da chiunque ne fa parte. */
+export async function setFavorite(id: string, isFavorite: boolean): Promise<void> {
+  const { error } = await supabase.from('links').update({ is_favorite: isFavorite }).eq('id', id);
   if (error) throw error;
 }
 

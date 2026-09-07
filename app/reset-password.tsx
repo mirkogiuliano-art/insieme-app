@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useTheme, RADIUS } from '@/theme/theme';
+import { PasswordInput } from '@/components/PasswordInput';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -83,13 +84,10 @@ export default function ResetPasswordScreen() {
         ) : (
           <>
             <Text style={[styles.subtitle, { color: colors.textDim }]}>Scegli una nuova password.</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            <PasswordInput
               placeholder="Nuova password"
-              placeholderTextColor={colors.textFaint}
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
               onSubmitEditing={submit}
               returnKeyType="done"
             />

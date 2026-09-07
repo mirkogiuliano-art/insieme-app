@@ -26,7 +26,8 @@ export type LinkPlatform =
   | 'web'
   // File caricati direttamente (non un link esterno) — vedi src/lib/api/mediaUpload.ts.
   | 'image'
-  | 'video';
+  | 'video'
+  | 'file';
 
 export const GROUP_PALETTE = [
   '#D9932E',
