@@ -132,7 +132,7 @@ export function SettingsSheet({ visible, onClose, groupId, onLeaveGroup }: Setti
           <Pressable
             onPress={() => setConfirm(null)}
             disabled={busy}
-            style={[styles.btnSecondary, { borderColor: colors.border }]}
+            style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}
           >
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
           </Pressable>
@@ -216,6 +216,6 @@ const styles = StyleSheet.create({
   leaveBtn: { paddingVertical: 14, alignItems: 'center' },
   confirmBody: { fontSize: 12.5, lineHeight: 18, marginTop: 4, marginBottom: 16 },
   confirmActions: { flexDirection: 'row', gap: 10 },
-  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center' },
+  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
   btnPrimary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
 });

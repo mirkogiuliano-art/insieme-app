@@ -107,7 +107,7 @@ export function CategorySheet({
             Contiene ancora {itemCount} {itemLabel}. Verranno spostati nella categoria &quot;{fallbackName}&quot;.
           </Text>
           <View style={styles.actions}>
-            <Pressable onPress={() => setConfirming(false)} disabled={busy} style={[styles.btnSecondary, { borderColor: colors.border }]}>
+            <Pressable onPress={() => setConfirming(false)} disabled={busy} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
               <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
             </Pressable>
             <Pressable onPress={remove} disabled={busy} style={[styles.btnPrimary, { backgroundColor: colors.danger, opacity: busy ? 0.6 : 1 }]}>
@@ -126,7 +126,7 @@ export function CategorySheet({
             onSubmitEditing={rename}
           />
           <View style={styles.actions}>
-            <Pressable onPress={close} style={[styles.btnSecondary, { borderColor: colors.border }]}>
+            <Pressable onPress={close} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
               <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
             </Pressable>
             <Pressable
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   sub: { fontSize: 12.5, marginBottom: 12, lineHeight: 18 },
   input: { borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14.5, marginBottom: 10 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center' },
+  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
   btnPrimary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
   deleteBtn: { alignItems: 'center', paddingTop: 14, marginTop: 4 },
 });

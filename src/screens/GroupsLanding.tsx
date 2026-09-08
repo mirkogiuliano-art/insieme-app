@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { useAppStore, groupColor } from '@/lib/appStore';
 import { useAuth } from '@/lib/authStore';
@@ -17,11 +17,15 @@ import { useToast } from '@/components/Toast';
 import { BottomSheet } from '@/components/BottomSheet';
 import { SettingsSheet } from '@/components/SettingsSheet';
 import { LoadError } from '@/components/LoadError';
-import { SettingsIcon, PlusIcon, ChevronIcon, UsersIcon } from '@/components/Icon';
+import { SettingsIcon, PlusIcon, UsersIcon } from '@/components/Icon';
 import { createGroupWithMembership } from '@/lib/api/groups';
 import { getInviteToken, rotateInvite, inviteUrl } from '@/lib/api/invites';
-import { initials, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
+import { listGroupPreviews, type GroupPreview } from '@/lib/api/groupPreviews';
+import { initials, inkOn, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
 import type { Group } from '@/types';
+
+/** Quante facce stanno sulla scheda prima di riassumere il resto in "+N". */
+const AVATARS_SHOWN = 3;
 
 export function GroupsLanding() {
   const { colors } = useTheme();
@@ -33,11 +37,28 @@ export function GroupsLanding() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState<Group | null>(null);
+  const [previews, setPreviews] = useState<Record<string, GroupPreview>>({});
 
   const [newName, setNewName] = useState('');
   const [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false);
   const [sharing, setSharing] = useState(false);
+
+  // Ricaricate a ogni ritorno sulla schermata, non solo al primo
+  // montaggio: uscendo da una chat i non letti di quel gruppo sono
+  // appena stati azzerati e l'ultimo messaggio è cambiato, e questa
+  // schermata resta montata sotto quella del gruppo.
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      listGroupPreviews().then((p) => {
+        if (alive) setPreviews(p);
+      });
+      return () => {
+        alive = false;
+      };
+    }, [myGroups.length]),
+  );
 
   const createGroup = async () => {
     if (!newName.trim() || creating) return;
@@ -74,25 +95,17 @@ export function GroupsLanding() {
     // navigazione di sistema, che in modalità edge-to-edge si sovrappone al
     // contenuto invece di restringere la finestra.
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <View style={styles.header}>
         <View>
           <Text style={[styles.eyebrow, { color: colors.textFaint }]}>INSIEME</Text>
           <Text style={[styles.headerTitle, { color: colors.text }]}>I tuoi gruppi</Text>
         </View>
         <View style={styles.headerRight}>
-          <Pressable
-            onPress={() => setSettingsOpen(true)}
-            style={[styles.iconBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          >
-            <SettingsIcon size={17} color={colors.textDim} />
+          <Pressable onPress={() => setSettingsOpen(true)} style={[styles.iconBtn, { backgroundColor: colors.surface }]}>
+            <SettingsIcon size={18} color={colors.textDim} />
           </Pressable>
-          <View style={[styles.meChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.meAvatar, { backgroundColor: colors.amber }]}>
-              <Text style={[styles.meAvatarText, { color: colors.inkOnAmber }]}>{initials(profile?.displayName ?? '')}</Text>
-            </View>
-            <Text style={{ color: colors.textDim, fontSize: 12 }} numberOfLines={1}>
-              {profile?.displayName}
-            </Text>
+          <View style={[styles.meAvatar, { backgroundColor: colors.amber }]}>
+            <Text style={[styles.meAvatarText, { color: colors.inkOnAmber }]}>{initials(profile?.displayName ?? '')}</Text>
           </View>
         </View>
       </View>
@@ -108,30 +121,68 @@ export function GroupsLanding() {
             </Text>
           </View>
         ) : (
-          myGroups.map((g) => (
-            <Pressable
-              key={g.id}
-              onPress={() => router.push(`/group/${g.id}`)}
-              style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            >
-              <View style={[styles.groupIcon, { backgroundColor: groupColor(g) }]}>
-                <Text style={styles.groupIconText}>{g.name.slice(0, 1).toUpperCase()}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.groupName, { color: colors.text }]} numberOfLines={1}>
+          myGroups.map((g) => {
+            // La scheda è tutta della tinta del gruppo, e il testo sopra
+            // è una versione molto scura della stessa tinta invece di un
+            // nero qualunque: contro sette colori diversi un nero unico
+            // risulta sempre un po' estraneo a ciascuno.
+            const tint = groupColor(g);
+            const ink = inkOn(tint);
+            const preview = previews[g.id];
+            const shown = preview?.memberNames.slice(0, AVATARS_SHOWN) ?? [];
+            const extra = (preview?.memberCount ?? 0) - shown.length;
+
+            return (
+              <Pressable
+                key={g.id}
+                onPress={() => router.push(`/group/${g.id}`)}
+                style={[styles.groupCard, { backgroundColor: tint }]}
+              >
+                {/* Solo luce: un cerchio appena più scuro della tinta, che
+                    esce dall'angolo e viene ritagliato dalla scheda. */}
+                <View style={styles.cardBlob} />
+
+                {shown.length > 0 ? (
+                  <View style={styles.avatars}>
+                    {shown.map((name, i) => (
+                      <View
+                        key={`${name}-${i}`}
+                        style={[styles.avatar, { borderColor: tint, marginLeft: i === 0 ? 0 : -8 }]}
+                      >
+                        <Text style={[styles.avatarText, { color: ink }]}>{initials(name)}</Text>
+                      </View>
+                    ))}
+                    {extra > 0 ? (
+                      <View style={[styles.avatar, { borderColor: tint, marginLeft: -8 }]}>
+                        <Text style={[styles.avatarText, { color: ink }]}>+{extra}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                <Text style={[styles.groupName, { color: ink }]} numberOfLines={1}>
                   {g.name}
                 </Text>
-                <Text style={[styles.groupSub, { color: colors.textFaint }]}>Gruppo condiviso</Text>
-              </View>
-              <ChevronIcon size={17} color={colors.textFaint} />
-            </Pressable>
-          ))
+
+                {preview && preview.unread > 0 ? (
+                  <View style={[styles.unread, { backgroundColor: ink }]}>
+                    <Text style={[styles.unreadText, { color: tint }]}>
+                      {preview.unread > 99 ? '99+' : preview.unread}
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            );
+          })
         )}
       </ScrollView>
 
-      <View style={[styles.actions, { borderTopColor: colors.border }]}>
-        <Pressable onPress={() => setCreateOpen(true)} style={[styles.actionPrimary, { backgroundColor: colors.amber }]}>
-          <PlusIcon size={15} color={colors.inkOnAmber} />
+      <View style={styles.actions}>
+        <Pressable
+          onPress={() => setCreateOpen(true)}
+          style={[styles.actionPrimary, { backgroundColor: colors.amber, shadowColor: colors.amber }]}
+        >
+          <PlusIcon size={16} color={colors.inkOnAmber} />
           <Text style={[styles.actionPrimaryText, { color: colors.inkOnAmber }]}>Nuovo gruppo</Text>
         </Pressable>
       </View>
@@ -156,7 +207,7 @@ export function GroupsLanding() {
         />
         {createError ? <Text style={{ color: colors.danger, fontSize: 11.5, marginTop: -4, marginBottom: 8 }}>{createError}</Text> : null}
         <View style={styles.sheetActions}>
-          <Pressable onPress={() => setCreateOpen(false)} style={[styles.btnSecondary, { borderColor: colors.border }]}>
+          <Pressable onPress={() => setCreateOpen(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
           </Pressable>
           <Pressable
@@ -182,7 +233,7 @@ export function GroupsLanding() {
               <Pressable
                 onPress={() => shareInvite(inviteOpen)}
                 disabled={sharing}
-                style={[styles.btnSecondary, { borderColor: colors.border, opacity: sharing ? 0.6 : 1 }]}
+                style={[styles.btnSecondary, { backgroundColor: colors.surface2, opacity: sharing ? 0.6 : 1 }]}
               >
                 <Text style={{ color: colors.textDim, fontWeight: '600' }}>
                   {sharing ? 'Un attimo…' : 'Condividi invito'}
@@ -208,36 +259,93 @@ export function GroupsLanding() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  // Niente riga di separazione sotto l'intestazione: a separarla dalla
+  // lista bastano lo spazio e le schede colorate, che hanno un bordo
+  // loro. Lo stesso vale per la barra in fondo.
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
+    paddingTop: 16,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  eyebrow: { fontSize: 10, letterSpacing: 1.1, fontWeight: '600' },
-  headerTitle: { fontSize: 20, fontWeight: '700' },
+  eyebrow: { fontSize: 10.5, letterSpacing: 1.1, fontWeight: '700' },
+  headerTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.4, marginTop: 1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  meChip: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderRadius: 999, paddingLeft: 6, paddingRight: 11, paddingVertical: 5, maxWidth: 120 },
-  meAvatar: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  meAvatarText: { fontSize: 10, fontWeight: '700' },
-  list: { padding: 16, gap: 10, flexGrow: 1 },
+  iconBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  meAvatar: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  meAvatarText: { fontSize: 11, fontWeight: '800' },
+  list: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 8, gap: 10, flexGrow: 1 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30, paddingTop: 80 },
   emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 240, lineHeight: 18 },
-  groupCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: RADIUS.md, padding: 13 },
-  groupIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  groupIconText: { fontWeight: '700', fontSize: 17, color: '#1B2530' },
-  groupName: { fontSize: 14.5, fontWeight: '600' },
-  groupSub: { fontSize: 10.5, marginTop: 2 },
-  actions: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, borderTopWidth: 1 },
-  actionPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderRadius: RADIUS.sm },
-  actionPrimaryText: { fontWeight: '700', fontSize: 13 },
+
+  // Il nome sta al centro dell'altezza: gli angoli sono occupati dalle
+  // facce dei membri e dai non letti, quindi al centro non urta niente e
+  // la scheda resta in equilibrio anche quando quei due mancano.
+  // `overflow: hidden` ritaglia il cerchio decorativo che sborda.
+  groupCard: {
+    minHeight: 104,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  cardBlob: {
+    position: 'absolute',
+    right: -34,
+    top: -42,
+    width: 124,
+    height: 124,
+    borderRadius: 62,
+    backgroundColor: 'rgba(0,0,0,0.09)',
+  },
+  avatars: { position: 'absolute', top: 14, right: 15, flexDirection: 'row' },
+  avatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    backgroundColor: 'rgba(255,255,255,0.42)',
+  },
+  avatarText: { fontSize: 9.5, fontWeight: '800' },
+  // Grande abbastanza da reggere la scheda: è l'unica cosa scritta al
+  // centro, e a 19 punti sembrava perduta in mezzo a tutto quel colore.
+  groupName: { fontSize: 23, fontWeight: '800', letterSpacing: -0.5 },
+  unread: {
+    position: 'absolute',
+    right: 16,
+    bottom: 15,
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadText: { fontSize: 11.5, fontWeight: '800' },
+
+  actions: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 14 },
+  actionPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 15,
+    borderRadius: 999,
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  actionPrimaryText: { fontWeight: '800', fontSize: 14 },
   sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
   sheetSub: { fontSize: 12.5, marginBottom: 12, lineHeight: 18 },
   mInput: { borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14.5, marginBottom: 10 },
   sheetActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center' },
+  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
   btnPrimary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
 });

@@ -100,7 +100,7 @@ export function PlacePickerSheet({
         </>
       )}
 
-      <Pressable onPress={onClose} style={[styles.btnSecondary, { borderColor: colors.border }]}>
+      <Pressable onPress={onClose} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
         <Text style={{ color: colors.textDim, fontWeight: '600' }}>Fatto</Text>
       </Pressable>
     </BottomSheet>
@@ -122,5 +122,5 @@ const styles = StyleSheet.create({
   placeDot: { width: 13, height: 13, borderRadius: 3, transform: [{ rotate: '45deg' }] },
   check: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   empty: { fontSize: 12.5, lineHeight: 18, paddingVertical: 8 },
-  btnSecondary: { paddingVertical: 12, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center', marginTop: 8 },
+  btnSecondary: { paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center', marginTop: 8 },
 });

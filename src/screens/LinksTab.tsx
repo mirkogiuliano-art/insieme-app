@@ -589,7 +589,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
           onSubmitEditing={createCat}
         />
         <View style={styles.sheetActions}>
-          <Pressable onPress={() => setCatModalOpen(false)} style={[styles.btnSecondary, { borderColor: colors.border }]}>
+          <Pressable onPress={() => setCatModalOpen(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
           </Pressable>
           <Pressable onPress={createCat} style={[styles.btnPrimary, { backgroundColor: colors.amber }]}>
@@ -649,7 +649,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
               </View>
             ) : null}
             <View style={styles.sheetActions}>
-              <Pressable onPress={() => setMapsPrompt(null)} style={[styles.btnSecondary, { borderColor: colors.border }]}>
+              <Pressable onPress={() => setMapsPrompt(null)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
                 <Text style={{ color: colors.textDim, fontWeight: '600' }}>No, grazie</Text>
               </Pressable>
               <Pressable
@@ -708,6 +708,6 @@ const styles = StyleSheet.create({
   sheetSub: { fontSize: 12.5, marginBottom: 12, lineHeight: 18 },
   mInput: { borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14.5, marginBottom: 10 },
   sheetActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center' },
+  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
   btnPrimary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
 });

@@ -289,6 +289,39 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// ── Testo sopra una tinta piena ──────────────────────────────────────
+
+/**
+ * Versione molto scura di una tinta, da usare come colore del testo
+ * quando quella tinta riempie tutto lo sfondo (le schede dei gruppi
+ * nella home).
+ *
+ * È la stessa soluzione che il tema usa già a mano per il pulsante
+ * ambra — `inkOnAmber` (#2B2109) non è nero, è un ambra quasi spento —
+ * solo calcolata invece che scritta una per una: le tinte dei gruppi
+ * sono sette e possono cambiare, e un nero unico sopra sette colori
+ * diversi risulta sempre un po' estraneo a ciascuno.
+ *
+ * Moltiplicare i canali per un fattore basso mantiene la tinta e ne
+ * abbassa la luminosità: contro il colore di partenza il contrasto
+ * resta abbondantemente sopra la soglia di leggibilità. Il fattore
+ * predefinito serve al testo principale; alzandolo (circa 0,32) si
+ * ottiene il tono più tenue per la riga secondaria, che resta comunque
+ * leggibile — cosa che invece la semplice trasparenza non garantiva.
+ */
+export function inkOn(hex: string, factor = 0.17): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  // Tinta non riconosciuta (o già in forma rgb/nome): meglio un nero
+  // qualsiasi che un colore illeggibile.
+  if (!m) return '#111111';
+  const n = parseInt(m[1], 16);
+  const channel = (shift: number) =>
+    Math.round(((n >> shift) & 0xff) * factor)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${channel(16)}${channel(8)}${channel(0)}`;
+}
+
 /** Durata in mm:ss, per i messaggi vocali e la registrazione in corso. */
 export function formatSeconds(total: number): string {
   const s = Math.max(0, Math.round(total));

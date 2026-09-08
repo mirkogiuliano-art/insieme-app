@@ -4,7 +4,8 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { PasswordInput } from '@/components/PasswordInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { ChatIcon, BackIcon } from '@/components/Icon';
+import { BackIcon } from '@/components/Icon';
+import { Logo } from '@/components/Logo';
 import { supabase } from '@/lib/supabase';
 
 type Mode = 'login' | 'signup' | 'forgot';
@@ -108,8 +109,11 @@ export function AuthScreen() {
             </Pressable>
           ) : null}
 
-          <View style={[styles.mark, { backgroundColor: colors.amber }]}>
-            <ChatIcon size={26} color={colors.inkOnAmber} strokeWidth={1.8} />
+          {/* Il marchio senza piastrella: sul fondo dell'app i tre
+              cartoncini si vedono già per conto loro, e un riquadro
+              colorato attorno li avrebbe soltanto rimpiccioliti. */}
+          <View style={styles.mark}>
+            <Logo size={78} />
           </View>
           <Text style={[styles.title, { color: colors.text }]}>{TITLES[mode]}</Text>
           <Text style={[styles.subtitle, { color: colors.textDim }]}>{SUBTITLES[mode]}</Text>
@@ -179,7 +183,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   inner: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30, paddingVertical: 40, gap: 14 },
   backBtn: { position: 'absolute', top: 8, left: 4, padding: 10 },
-  mark: { width: 54, height: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  mark: { alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   title: { fontSize: 22, fontWeight: '700' },
   subtitle: { fontSize: 13.5, textAlign: 'center', maxWidth: 280, lineHeight: 20, marginBottom: 6 },
   input: {

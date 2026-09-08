@@ -483,11 +483,14 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
             onPress={() => setReactSheetFor(item.id)}
             style={[
               styles.bubble,
+              own ? styles.bubbleOwn : styles.bubbleOther,
               {
                 backgroundColor: own ? colors.amber : colors.surface,
-                borderColor: isCurrentMatch ? colors.teal : own ? colors.amber : colors.border,
+                // Il contorno c'è sempre ma si vede solo sul risultato di
+                // ricerca corrente: così evidenziandolo il fumetto non
+                // cambia di dimensione e la lista non sobbalza.
+                borderColor: isCurrentMatch ? colors.teal : 'transparent',
               },
-              isCurrentMatch && styles.bubbleCurrentMatch,
             ]}
           >
             {!own ? <Text style={[styles.name, { color: colors.teal }]}>{displayName}</Text> : null}
@@ -696,7 +699,7 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
       ) : null}
 
       {searchOpen ? null : recording ? (
-        <View style={[styles.inputBar, { borderTopColor: colors.border, backgroundColor: colors.bg }]}>
+        <View style={[styles.inputBar, { backgroundColor: colors.surface }]}>
           <View style={styles.recordingRow}>
             <View style={styles.recordingDot} />
             <Text style={{ fontSize: 14, color: colors.text }}>Registrazione… {formatSeconds(recordingSeconds)}</Text>
@@ -706,16 +709,16 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
           </Pressable>
         </View>
       ) : (
-        <View style={[styles.inputBar, { borderTopColor: colors.border, backgroundColor: colors.bg }]}>
+        <View style={[styles.inputBar, { backgroundColor: colors.surface }]}>
           <Pressable
             onPress={() => setAttachMenuOpen(true)}
             disabled={uploading}
-            style={[styles.attachBtn, { backgroundColor: colors.surface, borderColor: colors.border, opacity: uploading ? 0.5 : 1 }]}
+            style={[styles.attachBtn, { opacity: uploading ? 0.5 : 1 }]}
           >
             {uploading ? <ActivityIndicator size="small" color={colors.textDim} /> : <AttachIcon size={19} color={colors.textDim} />}
           </Pressable>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[styles.input, { color: colors.text }]}
             placeholder="Scrivi un messaggio"
             placeholderTextColor={colors.textFaint}
             value={draft}
@@ -776,8 +779,12 @@ const styles = StyleSheet.create({
   avatar: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 11, fontWeight: '700', color: '#1B2530' },
   bubbleCol: { flexShrink: 1, gap: 4 },
-  bubble: { borderWidth: 1, borderRadius: RADIUS.md, paddingHorizontal: 13, paddingVertical: 9 },
-  bubbleCurrentMatch: { borderWidth: 2 },
+  // L'angolo dal lato di chi scrive resta stretto: è la "codina" che dice
+  // da che parte arriva il messaggio, ora che i fumetti non hanno più un
+  // contorno a delimitarli.
+  bubble: { borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 13, paddingVertical: 9 },
+  bubbleOwn: { borderBottomRightRadius: 6 },
+  bubbleOther: { borderBottomLeftRadius: 6 },
   matchHighlight: { backgroundColor: '#F2C14E', color: '#2B2109' },
   name: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
   quoteBox: { borderLeftWidth: 3, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, marginBottom: 6 },
@@ -810,12 +817,22 @@ const styles = StyleSheet.create({
   replyBarText: { fontSize: 12.5, marginTop: 1 },
   typingRow: { paddingHorizontal: 16, paddingTop: 6 },
   replyAction: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 14, marginTop: 4, borderTopWidth: 1 },
-  inputBar: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1 },
-  attachBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  // Una pastiglia sola che contiene graffetta, testo e invio, invece di
+  // tre pezzi separati sopra una riga di separazione.
+  inputBar: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    marginHorizontal: 14,
+    marginBottom: 10,
+    padding: 7,
+    borderRadius: 26,
+  },
+  attachBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   recordingRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   recordingDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#D9555C' },
-  input: { flex: 1, borderWidth: 1, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 11, fontSize: 14.5 },
-  sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, paddingHorizontal: 6, paddingVertical: 9, fontSize: 14.5 },
+  sendBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   previewBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' },
   previewImage: { width: '100%', height: '80%' },
   sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 14, textAlign: 'center' },

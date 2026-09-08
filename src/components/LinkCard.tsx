@@ -112,7 +112,7 @@ export function LinkCard({
   return (
     <Pressable
       onPress={() => Linking.openURL(item.url)}
-      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: catColor }]}
+      style={[styles.card, { backgroundColor: colors.surface }]}
     >
       {image ? (
         <View style={[styles.thumb, { backgroundColor: colors.surface2 }]}>
@@ -174,7 +174,11 @@ const styles = StyleSheet.create({
   // Il `gap` qui vale solo fra i figli nel flusso normale (cardBody,
   // delBtn): `thumb` è in posizione assoluta e ne resta fuori, per questo
   // il suo spazio da cardBody è nel `paddingLeft` di cardBody, non qui.
-  card: { flexDirection: 'row', gap: 11, borderWidth: 1, borderLeftWidth: 3, borderRadius: RADIUS.md, overflow: 'hidden', minHeight: 84 },
+  //
+  // La fascia colorata che stava sul bordo sinistro non c'è più, come
+  // tutti gli altri contorni: la categoria si riconosce dalla sua
+  // etichetta colorata sopra al titolo, che la dice anche a parole.
+  card: { flexDirection: 'row', gap: 11, borderRadius: RADIUS.md, overflow: 'hidden', minHeight: 84 },
   cardBody: { flex: 1, paddingVertical: 10, paddingLeft: THUMB_W + 11, justifyContent: 'center', gap: 3 },
   cardMeta: { fontSize: 10.5 },
   cardTitle: { fontSize: 13.5, fontWeight: '600', lineHeight: 17 },

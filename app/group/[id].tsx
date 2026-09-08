@@ -153,11 +153,11 @@ export default function GroupScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Pressable
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-            style={[styles.iconBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[styles.iconBtn, { backgroundColor: colors.surface }]}
           >
             <BackIcon size={18} color={colors.textDim} />
           </Pressable>
@@ -169,10 +169,7 @@ export default function GroupScreen() {
           </View>
         </View>
         <View style={styles.headerRight}>
-          <Pressable
-            onPress={() => setMenuOpen(true)}
-            style={[styles.iconBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          >
+          <Pressable onPress={() => setMenuOpen(true)} style={[styles.iconBtn, { backgroundColor: colors.surface }]}>
             <MoreIcon size={18} color={colors.textDim} />
           </Pressable>
           <View style={[styles.meAvatar, { backgroundColor: colors.amber }]}>
@@ -209,11 +206,35 @@ export default function GroupScreen() {
         ) : null}
       </View>
 
+      {/* Una pastiglia che galleggia sopra il contenuto invece di una
+          fascia incollata al bordo: si vede che sotto la lista continua,
+          e la sezione in cui ci si trova è l'unica con il nome scritto. */}
       {!keyboardOpen ? (
-        <View style={[styles.tabbar, { borderTopColor: colors.border, backgroundColor: colors.bg }]}>
-          <TabButton label="Chat" active={tab === 'chat'} onPress={() => setTab('chat')} icon={<ChatIcon size={22} color={tab === 'chat' ? colors.amber : colors.textFaint} />} color={tab === 'chat' ? colors.amber : colors.textFaint} />
-          <TabButton label="Link" active={tab === 'links'} onPress={() => setTab('links')} icon={<LinkIcon size={22} color={tab === 'links' ? colors.amber : colors.textFaint} />} color={tab === 'links' ? colors.amber : colors.textFaint} />
-          <TabButton label="Mappa" active={tab === 'map'} onPress={() => setTab('map')} icon={<MapIcon size={22} color={tab === 'map' ? colors.amber : colors.textFaint} />} color={tab === 'map' ? colors.amber : colors.textFaint} />
+        <View style={[styles.tabbar, { backgroundColor: colors.surface }]}>
+          <TabButton
+            label="Chat"
+            active={tab === 'chat'}
+            onPress={() => setTab('chat')}
+            icon={<ChatIcon size={21} color={tab === 'chat' ? colors.inkOnAmber : colors.textFaint} />}
+            activeBg={colors.amber}
+            activeText={colors.inkOnAmber}
+          />
+          <TabButton
+            label="Link"
+            active={tab === 'links'}
+            onPress={() => setTab('links')}
+            icon={<LinkIcon size={21} color={tab === 'links' ? colors.inkOnAmber : colors.textFaint} />}
+            activeBg={colors.amber}
+            activeText={colors.inkOnAmber}
+          />
+          <TabButton
+            label="Mappa"
+            active={tab === 'map'}
+            onPress={() => setTab('map')}
+            icon={<MapIcon size={21} color={tab === 'map' ? colors.inkOnAmber : colors.textFaint} />}
+            activeBg={colors.amber}
+            activeText={colors.inkOnAmber}
+          />
         </View>
       ) : null}
       </KeyboardAvoidingView>
@@ -282,33 +303,40 @@ export default function GroupScreen() {
   );
 }
 
+/** Solo la sezione attiva porta il nome scritto: le altre restano
+ * l'icona, che è quanto basta a riconoscerle e lascia respiro alla
+ * pastiglia. */
 function TabButton({
   label,
   active,
   onPress,
   icon,
-  color,
+  activeBg,
+  activeText,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
   icon: React.ReactNode;
-  color: string;
+  activeBg: string;
+  activeText: string;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.tabBtn}>
+    <Pressable onPress={onPress} style={[styles.tabBtn, active ? { backgroundColor: activeBg } : null]}>
       {icon}
-      <Text style={{ fontSize: 10.5, fontWeight: '500', color }}>{label}</Text>
+      {active ? <Text style={[styles.tabLabel, { color: activeText }]}>{label}</Text> : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  // Niente riga di separazione: a staccare l'intestazione dal contenuto
+  // bastano lo spazio e il fondo più chiaro dei pulsanti.
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
+    paddingTop: 16,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -316,14 +344,23 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { fontSize: 10, letterSpacing: 1.1, fontWeight: '600' },
+  iconBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { fontSize: 10.5, letterSpacing: 1.1, fontWeight: '700' },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1 },
   menuRowText: { fontSize: 15, fontWeight: '600' },
-  title: { fontSize: 20, fontWeight: '700' },
-  meAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  tabbar: { flexDirection: 'row', borderTopWidth: 1 },
-  tabBtn: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 10 },
+  title: { fontSize: 23, fontWeight: '800', letterSpacing: -0.4, marginTop: 1 },
+  meAvatar: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  tabbar: { flexDirection: 'row', gap: 4, marginHorizontal: 14, marginBottom: 12, padding: 6, borderRadius: 22 },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 11,
+    borderRadius: 17,
+  },
+  tabLabel: { fontSize: 13, fontWeight: '700' },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
   centerTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginTop: 4 },
   centerSub: { fontSize: 13, textAlign: 'center', lineHeight: 19, maxWidth: 300, marginBottom: 6 },

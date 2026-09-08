@@ -532,7 +532,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
           })}
         </View>
         <View style={styles.sheetActions}>
-          <Pressable onPress={() => setSheetOpen(false)} style={[styles.btnSecondary, { borderColor: colors.border }]}>
+          <Pressable onPress={() => setSheetOpen(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
           </Pressable>
           <Pressable onPress={savePin} style={[styles.btnPrimary, { backgroundColor: colors.amber }]}>
@@ -583,6 +583,6 @@ const styles = StyleSheet.create({
   catOpt: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 8 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   sheetActions: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center' },
+  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
   btnPrimary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
 });

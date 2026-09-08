@@ -128,7 +128,7 @@ export function PlaceSheet({
               </Pressable>
             ))
           )}
-          <Pressable onPress={() => setPicking(false)} style={[styles.btnSecondary, { borderColor: colors.border, marginTop: 14 }]}>
+          <Pressable onPress={() => setPicking(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2, marginTop: 14 }]}>
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>Indietro</Text>
           </Pressable>
         </>
@@ -141,7 +141,7 @@ export function PlaceSheet({
               : 'Il posto sparisce dalla mappa per tutti nel gruppo.'}
           </Text>
           <View style={styles.actions}>
-            <Pressable onPress={() => setConfirmDelete(false)} style={[styles.btnSecondary, { borderColor: colors.border }]}>
+            <Pressable onPress={() => setConfirmDelete(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
               <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
             </Pressable>
             <Pressable onPress={onDelete} style={[styles.btnPrimary, { backgroundColor: colors.danger }]}>
@@ -247,6 +247,6 @@ const styles = StyleSheet.create({
   },
   emptyPicker: { fontSize: 12.5, lineHeight: 18, paddingVertical: 8 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center' },
+  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
   btnPrimary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
 });

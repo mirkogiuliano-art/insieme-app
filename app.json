@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#121A24"
+      "backgroundColor": "#0E141B"
     },
     "ios": {
       "supportsTablet": true,
@@ -27,7 +27,7 @@
       "package": "com.insieme.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#121A24"
+        "backgroundColor": "#0E141B"
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
