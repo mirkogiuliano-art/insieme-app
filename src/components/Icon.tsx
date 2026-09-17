@@ -290,6 +290,25 @@ export function MoonIcon({ size = 18, color = '#000', strokeWidth = 1.8 }: IconP
   );
 }
 
+/** Bandierina: segnalare un contenuto a chi gestisce il servizio. */
+export function FlagIcon({ size = 18, color = '#000', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M5 21V4M5 4h11l-2 3.5L16 11H5" />
+    </Svg>
+  );
+}
+
+/** Cerchio sbarrato: bloccare una persona. */
+export function BanIcon({ size = 18, color = '#000', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M5.6 5.6l12.8 12.8" />
+    </Svg>
+  );
+}
+
 export function UsersIcon({ size = 38, color = '#000', strokeWidth = 1.6 }: IconProps) {
   return (
     <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">

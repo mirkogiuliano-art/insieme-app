@@ -15,7 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAudioRecorder, useAudioPlayer, useAudioPlayerStatus, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { SendIcon, ChatIcon, ReplyIcon, CloseIcon, AttachIcon, PlayIcon, MicIcon, StopIcon, PauseIcon, SearchIcon, CheckIcon, ChevronIcon, LinkIcon } from '@/components/Icon';
+import { SendIcon, ChatIcon, ReplyIcon, CloseIcon, AttachIcon, PlayIcon, MicIcon, StopIcon, PauseIcon, SearchIcon, CheckIcon, ChevronIcon, LinkIcon, FlagIcon, BanIcon } from '@/components/Icon';
 import { BottomSheet } from '@/components/BottomSheet';
 import { ChatLinkPreview } from '@/components/ChatLinkPreview';
 import { VoiceBubble } from '@/components/VoiceBubble';
@@ -42,6 +42,7 @@ import { uploadGroupMedia, uploadGroupFile, type AttachmentKind } from '@/lib/ap
 import { listLastReads, updateLastRead, subscribeToLastReads } from '@/lib/api/groupMembers';
 import { subscribeToTyping } from '@/lib/api/typing';
 import { avvisaDelMessaggio, setGruppoAperto } from '@/lib/api/push';
+import { reportMessage, blockUser, listBlocked } from '@/lib/api/moderation';
 import { getLinkPreview, type LinkPreview as LinkPreviewData } from '@/lib/api/linkPreviews';
 
 interface ChatTabProps {
@@ -85,6 +86,8 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
   const [reactions, setReactions] = useState<RawReaction[]>([]);
   const [draft, setDraft] = useState('');
   const [reactSheetFor, setReactSheetFor] = useState<string | null>(null);
+  /** Le persone che ho bloccato: i loro messaggi non compaiono qui. */
+  const [bloccati, setBloccati] = useState<string[]>([]);
   const [replyingTo, setReplyingTo] = useState<RawMessage | null>(null);
   const [uploading, setUploading] = useState(false);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
@@ -138,6 +141,18 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
     setGruppoAperto(groupId);
     return () => setGruppoAperto(null);
   }, [groupId]);
+
+  // L'elenco dei bloccati si legge una volta all'apertura: cambia solo
+  // per mano di chi sta guardando, e in quel caso lo aggiorniamo noi.
+  useEffect(() => {
+    let alive = true;
+    listBlocked().then((ids) => {
+      if (alive) setBloccati(ids);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const markRead = () => {
     const now = Date.now();
@@ -317,11 +332,53 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
     }
   };
 
+  /** Quello che si vede davvero: i messaggi di chi ho bloccato non
+   * compaiono, né quelli vecchi né quelli che arrivano adesso. Il filtro
+   * sta qui, in un punto solo, invece che dentro il disegno di ogni
+   * riga. */
+  const messaggiVisibili = useMemo(
+    () => (bloccati.length === 0 ? messages : messages.filter((m) => !bloccati.includes(m.userId))),
+    [messages, bloccati],
+  );
+
+  const messaggioSelezionato = reactSheetFor ? messages.find((m) => m.id === reactSheetFor) : undefined;
+
   const startReply = () => {
-    const message = messages.find((m) => m.id === reactSheetFor);
-    if (!message) return;
-    setReplyingTo(message);
+    if (!messaggioSelezionato) return;
+    setReplyingTo(messaggioSelezionato);
     setReactSheetFor(null);
+  };
+
+  /** La segnalazione non cancella niente e non avvisa la persona
+   * segnalata: mette una riga da parte per chi gestisce il servizio. Va
+   * detto con chiarezza, altrimenti chi segnala si aspetta che il
+   * messaggio sparisca. */
+  const segnala = async () => {
+    if (!messaggioSelezionato) return;
+    const id = messaggioSelezionato.id;
+    setReactSheetFor(null);
+    try {
+      await reportMessage(id, '');
+      toast.show('Segnalazione inviata. La guarderemo al più presto.');
+    } catch {
+      toast.show('Non sono riuscito a inviare la segnalazione.');
+    }
+  };
+
+  /** Il blocco vale solo per me: nasconde i suoi messaggi qui, non la
+   * caccia dal gruppo. Si toglie dalle impostazioni. */
+  const blocca = async () => {
+    if (!messaggioSelezionato) return;
+    const autore = messaggioSelezionato.userId;
+    const nome = roster[autore] ?? 'questa persona';
+    setReactSheetFor(null);
+    try {
+      await blockUser(autore);
+      setBloccati((prev) => (prev.includes(autore) ? prev : [...prev, autore]));
+      toast.show(`Non vedrai più i messaggi di ${nome}.`);
+    } catch {
+      toast.show('Non sono riuscito a bloccare questa persona.');
+    }
   };
 
   const pickAttachment = async () => {
@@ -667,7 +724,7 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
           ref={listRef}
           inverted
           style={{ flex: 1 }}
-          data={messages}
+          data={messaggiVisibili}
           keyExtractor={(m) => m.id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
@@ -769,6 +826,23 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
           <ReplyIcon size={17} color={colors.textDim} />
           <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.text }}>Rispondi</Text>
         </Pressable>
+
+        {/* Solo sui messaggi degli altri: segnalare o bloccare se stessi
+            non vuol dire niente. */}
+        {messaggioSelezionato && messaggioSelezionato.userId !== session?.user.id ? (
+          <>
+            <Pressable onPress={segnala} style={[styles.replyAction, { borderTopColor: colors.border }]}>
+              <FlagIcon size={17} color={colors.textDim} />
+              <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.text }}>Segnala messaggio</Text>
+            </Pressable>
+            <Pressable onPress={blocca} style={[styles.replyAction, { borderTopColor: colors.border }]}>
+              <BanIcon size={17} color={colors.danger} />
+              <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.danger }}>
+                Blocca {roster[messaggioSelezionato.userId] ?? 'questa persona'}
+              </Text>
+            </Pressable>
+          </>
+        ) : null}
       </BottomSheet>
 
       <AttachMenuSheet

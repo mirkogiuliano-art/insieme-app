@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Linking } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { PasswordInput } from '@/components/PasswordInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { BackIcon } from '@/components/Icon';
 import { Logo } from '@/components/Logo';
+import { PRIVACY_URL, TERMINI_URL } from '@/lib/legal';
 import { supabase } from '@/lib/supabase';
 
 type Mode = 'login' | 'signup' | 'forgot';
@@ -163,6 +164,33 @@ export function AuthScreen() {
             </Text>
           </Pressable>
 
+          {/* L'accettazione è un fatto, non una casella da spuntare: si
+              dichiara al momento in cui si crea l'account. I due nomi
+              diventano toccabili solo quando i documenti sono davvero
+              pubblicati, così non si offrono collegamenti che non
+              portano da nessuna parte. */}
+          {mode === 'signup' ? (
+            <Text style={[styles.legale, { color: colors.textFaint }]}>
+              Creando un account accetti le{' '}
+              {TERMINI_URL ? (
+                <Text style={{ color: colors.teal }} onPress={() => Linking.openURL(TERMINI_URL)}>
+                  condizioni d&apos;uso
+                </Text>
+              ) : (
+                <Text>condizioni d&apos;uso</Text>
+              )}{' '}
+              e l&apos;
+              {PRIVACY_URL ? (
+                <Text style={{ color: colors.teal }} onPress={() => Linking.openURL(PRIVACY_URL)}>
+                  informativa sulla privacy
+                </Text>
+              ) : (
+                <Text>informativa sulla privacy</Text>
+              )}
+              .
+            </Text>
+          ) : null}
+
           {mode === 'login' ? (
             <>
               <Pressable onPress={() => switchMode('forgot')}>
@@ -195,6 +223,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     fontSize: 15,
   },
+  legale: { fontSize: 11.5, lineHeight: 17, textAlign: 'center', maxWidth: 280, marginTop: 2 },
   message: { fontSize: 12.5, textAlign: 'center', maxWidth: 280, lineHeight: 17 },
   button: { width: '100%', maxWidth: 280, paddingVertical: 13, borderRadius: RADIUS.sm, alignItems: 'center', marginTop: 4 },
   buttonText: { fontWeight: '700', fontSize: 14 },
