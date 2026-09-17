@@ -1,3 +1,7 @@
+---
+title: Informativa sulla privacy — Insieme
+---
+
 # Informativa sulla privacy di Insieme
 
 **Ultimo aggiornamento: 17 settembre 2026**

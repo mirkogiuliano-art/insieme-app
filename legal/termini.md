@@ -1,3 +1,7 @@
+---
+title: Condizioni d'uso — Insieme
+---
+
 # Condizioni d'uso di Insieme
 
 **Ultimo aggiornamento: 17 settembre 2026**
