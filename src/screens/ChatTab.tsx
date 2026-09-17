@@ -41,6 +41,7 @@ import { listReactions, toggleReaction, subscribeToReactions, type RawReaction }
 import { uploadGroupMedia, uploadGroupFile, type AttachmentKind } from '@/lib/api/mediaUpload';
 import { listLastReads, updateLastRead, subscribeToLastReads } from '@/lib/api/groupMembers';
 import { subscribeToTyping } from '@/lib/api/typing';
+import { avvisaDelMessaggio, setGruppoAperto } from '@/lib/api/push';
 import { getLinkPreview, type LinkPreview as LinkPreviewData } from '@/lib/api/linkPreviews';
 
 interface ChatTabProps {
@@ -129,6 +130,14 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
       setLoadingOlder(false);
     }
   };
+
+  // Finché questa chat è aperta, gli avvisi di questo gruppo non devono
+  // comparire: il messaggio si sta già leggendo, arriva da solo in tempo
+  // reale, e una banda che lo annuncia sopra sarebbe solo rumore.
+  useEffect(() => {
+    setGruppoAperto(groupId);
+    return () => setGruppoAperto(null);
+  }, [groupId]);
 
   const markRead = () => {
     const now = Date.now();
@@ -301,6 +310,7 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
     try {
       const sent = await withTimeout(sendMessage(groupId, session.user.id, text, replyToId), WRITE_TIMEOUT);
       setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      avvisaDelMessaggio(sent.id);
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       toast.show('Messaggio non inviato, riprova.');
@@ -338,6 +348,7 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
       const url = await withTimeout(uploadGroupMedia(groupId, asset.uri), UPLOAD_TIMEOUT);
       const sent = await withTimeout(sendMessage(groupId, session.user.id, null, replyToId, { url, type: kind }), WRITE_TIMEOUT);
       setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      avvisaDelMessaggio(sent.id);
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       toast.show("Invio dell'allegato non riuscito, riprova.");
@@ -385,6 +396,7 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
         WRITE_TIMEOUT,
       );
       setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      avvisaDelMessaggio(sent.id);
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       toast.show("Invio del documento non riuscito, riprova.");
@@ -422,6 +434,7 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
         const url = await withTimeout(uploadGroupMedia(groupId, uri), UPLOAD_TIMEOUT);
         const sent = await withTimeout(sendMessage(groupId, session.user.id, null, replyToId, { url, type: 'audio', durationSeconds }), WRITE_TIMEOUT);
         setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      avvisaDelMessaggio(sent.id);
       } catch {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         toast.show('Invio del vocale non riuscito, riprova.');

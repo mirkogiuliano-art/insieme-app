@@ -57,6 +57,13 @@
       ],
       "expo-secure-store",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#E9A23B"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Insieme accede alle tue foto per condividerle in chat.",

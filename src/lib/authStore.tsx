@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { getMyProfile } from '@/lib/api/profiles';
+import { registraDispositivo, dimenticaDispositivo } from '@/lib/api/push';
 import type { Profile } from '@/types';
 
 interface AuthStoreValue {
@@ -41,7 +42,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const { data } = await supabase.auth.getSession();
       setSession(data.session);
-      if (data.session) await loadProfile();
+      if (data.session) {
+        await loadProfile();
+        // Non si aspetta: il permesso per le notifiche può richiedere un
+        // dialogo di sistema, e nel frattempo l'app deve essere già usabile.
+        registraDispositivo();
+      }
       setReady(true);
     })();
 
@@ -49,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(newSession);
       if (newSession) {
         await loadProfile();
+        registraDispositivo();
       } else {
         setProfile(null);
       }
@@ -58,6 +65,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    // Prima di uscire, altrimenti la cancellazione del dispositivo verrebbe
+    // rifiutata (non si è più nessuno) e questo telefono resterebbe
+    // agganciato a un account che qui non è più in uso.
+    await dimenticaDispositivo();
     await supabase.auth.signOut();
   };
 
