@@ -11,8 +11,8 @@
  * alla registrazione resta come semplice testo. Riempirli qui è l'unica
  * cosa da fare per accenderli ovunque.
  */
-export const PRIVACY_URL = '';
-export const TERMINI_URL = '';
+export const PRIVACY_URL = 'https://mirkogiuliano-art.github.io/insieme-app/legal/privacy.html';
+export const TERMINI_URL = 'https://mirkogiuliano-art.github.io/insieme-app/legal/termini.html';
 
 /** La pagina dove chiedere la cancellazione dell'account senza installare
  * l'app: Google la pretende separata da quella dentro l'app. Di norma è
