@@ -18,19 +18,34 @@ import { useTheme } from '@/theme/theme';
  * file dell'icona dell'app: cambiando il disegno qui va cambiato anche
  * lì e vanno rifatti i PNG (le istruzioni sono in assets/README.md).
  */
-export function Logo({ size = 56, colors: override }: { size?: number; colors?: [string, string, string] }) {
+export function Logo({
+  size = 56,
+  colors: override,
+  ground,
+}: {
+  size?: number;
+  colors?: [string, string, string];
+  /** Il colore dietro al marchio, che è anche quello del vuoto fra i
+   * cartoncini. Va passato se il marchio non sta sul fondo dell'app,
+   * altrimenti i solchi si vedrebbero del colore sbagliato. */
+  ground?: string;
+}) {
   const { colors } = useTheme();
   // Dietro, in mezzo, davanti.
   const [dietro, mezzo, davanti] = override ?? [colors.teal, colors.coral, colors.amber];
+  const vuoto = ground ?? colors.bg;
 
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       {/* Lo spostamento del gruppo serve a centrare il mucchio a occhio:
           i tre cartoncini non sono simmetrici, e lasciati dove cadono
-          pesavano in basso a destra dentro il riquadro. */}
-      <G transform="translate(-2 -2)">
-        <Rect x="22" y="30" width="58" height="42" rx="9" fill={dietro} transform="rotate(-17 40 44)" />
-        <Rect x="22" y="30" width="58" height="42" rx="9" fill={mezzo} transform="translate(4 6) rotate(11 60 56)" />
+          pesavano in basso a destra dentro il riquadro.
+          Il contorno del colore del fondo apre un solco fra un cartoncino
+          e l'altro: a quel punto il mucchio si legge come tre oggetti
+          appoggiati invece che come una macchia a tre colori. */}
+      <G transform="translate(-2 1)" stroke={vuoto} strokeWidth={3.4} strokeLinejoin="round">
+        <Rect x="22" y="30" width="58" height="42" rx="9" fill={dietro} transform="translate(1 -7) rotate(-17 40 44)" />
+        <Rect x="22" y="30" width="58" height="42" rx="9" fill={mezzo} transform="translate(7 2) rotate(11 60 56)" />
         <Rect x="22" y="30" width="58" height="42" rx="9" fill={davanti} transform="translate(-2 14) rotate(-4 50 50)" />
       </G>
     </Svg>

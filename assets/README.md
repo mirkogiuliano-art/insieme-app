@@ -10,6 +10,35 @@ le stesse rotazioni e gli stessi spostamenti, sono ripetuti in
 `src/components/Logo.tsx`, che è la versione usata *dentro* l'app (schermata di
 accesso): se si cambia il disegno vanno cambiati entrambi, e vanno rigenerati i PNG.
 
+## Il solco, e perché i cartoncini sono sfalsati così
+
+Fra un cartoncino e l'altro corre un **solco** largo 3,4 unità (su 100): senza, i tre
+si toccano e il mucchio si legge come una macchia a tre colori invece che come tre
+oggetti appoggiati.
+
+Il solco però si mangia proprio la parte che si vede di quelli dietro, che sono già
+fettine sottili. Per questo i due cartoncini di dietro sono **sfalsati di metà in più**
+rispetto al disegno originale: il cartoncino davanti resta fermo e gli altri due
+scivolano nella direzione in cui già stanno, tanto che ogni fettina diventa più larga
+del solco che la separa. Sotto quella misura il solco toglie più di quanto dia, sopra
+il mucchio si apre a ventaglio e non è più una pila.
+
+Le due cose vanno insieme: **chi cambia lo spessore del solco deve rivedere lo
+scarto**, altrimenti si torna al problema di partenza.
+
+## Due modi di ottenere lo stesso solco
+
+Sui file a colori il solco è il **contorno del colore del fondo**, dipinto su ogni
+cartoncino: quello davanti copre un filo di quello dietro. Funziona perché anche le
+piastrelle a fondo trasparente stanno comunque sopra lo stesso blu, dichiarato in
+`app.json` — **cambiando quei colori vanno rigenerati i PNG**, o i solchi resteranno
+del blu vecchio.
+
+Sull'icona delle notifiche non si può dipingere niente: è bianca su trasparente, e il
+solco dev'essere un buco vero. Quella si genera da `logo-notifica.html`, che disegna
+il marchio su una tela bucando con `destination-out`. È lo stesso disegno, ottenuto
+nell'unico modo che su fondo trasparente funziona.
+
 ## I quattro file
 
 | File | Misura | Fondo | A cosa serve |
@@ -18,6 +47,7 @@ accesso): se si cambia il disegno vanno cambiati entrambi, e vanno rigenerati i 
 | `adaptive-icon.png` | 1024 | trasparente | il livello davanti dell'icona Android. Il colore dietro lo mette `app.json`. Il marchio occupa il 56% della tela, quindi resta dentro il 66% centrale che Android non ritaglia con nessuna delle sue maschere. |
 | `favicon.png` | 64 | pieno `#0E141B` | la versione web. |
 | `splash.png` | 1024 | trasparente | la schermata di avvio, che la mostra centrata (`resizeMode: contain`) sul colore dichiarato in `app.json`. |
+| `notification-icon.png` | 96 | trasparente | la sagoma bianca che Android mette nella barra di stato. Generata da `logo-notifica.html`, non dall'SVG. |
 
 ## Rigenerarli
 

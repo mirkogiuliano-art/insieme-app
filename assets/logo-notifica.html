@@ -1,0 +1,37 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+ html,body{margin:0;padding:0;width:96px;height:96px;overflow:hidden;background:transparent}
+ canvas{display:block}
+</style></head><body><canvas id="c" width="96" height="96"></canvas>
+<script>
+// Android disegna questa icona in bianco pieno: il vuoto fra i cartoncini
+// non si può dipingere, va bucato. Sulla tela si buca davvero con
+// destination-out, che è la stessa cosa che sul fondo colorato ottiene il
+// contorno del colore dello sfondo.
+const S = 96, LATO = 0.84 * S, K = LATO / 100, OFF = (S - LATO) / 2;
+const ctx = document.getElementById('c').getContext('2d');
+ctx.translate(OFF, OFF); ctx.scale(K, K);
+ctx.translate(-2, 1);                         // centratura ottica del mucchio
+
+const CARTE = [
+  { tx: 1,  ty: -7, rot: -17, cx: 40, cy: 44 },   // dietro
+  { tx: 7,  ty: 2,  rot: 11,  cx: 60, cy: 56 },   // in mezzo
+  { tx: -2, ty: 14, rot: -4,  cx: 50, cy: 50 },   // davanti
+];
+
+function traccia(c) {
+  ctx.save();
+  ctx.translate(c.tx, c.ty);
+  ctx.translate(c.cx, c.cy); ctx.rotate(c.rot * Math.PI / 180); ctx.translate(-c.cx, -c.cy);
+  ctx.beginPath(); ctx.roundRect(22, 30, 58, 42, 9);
+  ctx.restore();
+}
+function disegna(c) { ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = '#fff'; traccia(c); ctx.fill(); }
+function buca(c)    { ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = 3.4; ctx.lineJoin = 'round';
+                      traccia(c); ctx.fill(); ctx.stroke(); }
+
+disegna(CARTE[0]);
+buca(CARTE[1]); buca(CARTE[2]);
+disegna(CARTE[1]);
+buca(CARTE[2]);
+disegna(CARTE[2]);
+</script></body></html>
