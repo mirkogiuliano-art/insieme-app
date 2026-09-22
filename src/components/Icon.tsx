@@ -318,3 +318,41 @@ export function UsersIcon({ size = 38, color = '#000', strokeWidth = 1.6 }: Icon
     </Svg>
   );
 }
+
+export function LogoutIcon({ size = 18, color = '#000', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+      <Polyline points="16 17 21 12 16 7" />
+      <Line x1="21" y1="12" x2="9" y2="12" />
+    </Svg>
+  );
+}
+
+export function ShieldIcon({ size = 18, color = '#000', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 3L4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z" />
+    </Svg>
+  );
+}
+
+/** Freccia in diagonale: la riga apre qualcosa fuori dall'app. */
+export function ExternalIcon({ size = 14, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Line x1="7" y1="17" x2="17" y2="7" />
+      <Polyline points="8 7 17 7 17 16" />
+    </Svg>
+  );
+}
+
+/** Cerchio metà pieno: il tema che segue quello del telefono. */
+export function AutoThemeIcon({ size = 18, color = '#000', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M12 3a9 9 0 010 18z" fill={color} />
+    </Svg>
+  );
+}

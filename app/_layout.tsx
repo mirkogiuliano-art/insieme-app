@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ShareIntentProvider, useShareIntentContext } from 'expo-share-intent';
 import * as Notifications from 'expo-notifications';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { useFonts, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
 import { configuraNotifiche } from '@/lib/api/push';
 import { ThemeProvider, useTheme } from '@/theme/theme';
 import { AuthProvider } from '@/lib/authStore';
@@ -62,6 +63,13 @@ function AvvisiRouter() {
 }
 
 export default function RootLayout() {
+  // Il carattere sta dentro l'app, quindi il caricamento è questione di
+  // un attimo: aspettarlo evita che i nomi dei gruppi compaiano col
+  // carattere di sistema e cambino forma sotto gli occhi. Se per qualche
+  // motivo fallisce si prosegue lo stesso, col carattere di sistema.
+  const [fontsLoaded, fontError] = useFonts({ Nunito_800ExtraBold });
+  if (!fontsLoaded && !fontError) return null;
+
   return (
     // `disabled` va passato esplicitamente: fornendo un oggetto di opzioni si
     // sostituiscono per intero quelle di default della libreria, fra cui la

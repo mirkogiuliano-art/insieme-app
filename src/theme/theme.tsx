@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useColorScheme } from 'react-native';
 import { storage } from '@/lib/storage';
-import type { ThemeName } from '@/types';
+import type { ThemeName, ThemePreference } from '@/types';
 
 export interface ThemeColors {
   bg: string;
@@ -47,17 +48,30 @@ const DARK: ThemeColors = {
   danger: '#E4707A',
 };
 
-/** Lo stesso impianto ribaltato: la carta è il livello alto, il fondo
- * quello basso, e i contorni sono altrettanto discreti. */
+/**
+ * «Giorno»: lo stesso impianto ribaltato — la carta è il livello alto, il
+ * fondo quello basso — su un grigio azzurrato invece che su un bianco
+ * neutro. È la stessa stanza dello scuro con la luce accesa: stessa
+ * famiglia di blu, alzata di tono.
+ *
+ * Il fondo è **freddo di proposito**. Le prove su fondi caldi (avorio,
+ * sabbia) fallivano tutte per lo stesso motivo: un accento caldo su un
+ * fondo caldo smette di essere un accento e si scioglie dentro.
+ *
+ * E l'ambra qui non è la stessa dello scuro. Là è chiara e satura perché
+ * deve essere l'unica cosa luminosa in una stanza buia; su una pagina già
+ * chiara quella stessa ambra non illumina niente e resta solo rumore, così
+ * scende di un paio di gradini di saturazione e diventa un ottone.
+ */
 const LIGHT: ThemeColors = {
-  bg: '#F1F2EC',
+  bg: '#EDF0F3',
   surface: '#FFFFFF',
-  surface2: '#E9EBE2',
-  border: '#E3E6DC',
-  text: '#1B2530',
-  textDim: '#57646F',
-  textFaint: '#828E97',
-  amber: '#D9932E',
+  surface2: '#E2E7EC',
+  border: '#DDE3E9',
+  text: '#16202B',
+  textDim: '#55636F',
+  textFaint: '#8794A0',
+  amber: '#BE8C4C',
   inkOnAmber: '#2B2109',
   teal: '#2F9C86',
   coral: '#D9555C',
@@ -72,37 +86,56 @@ export const RADIUS = { lg: 26, md: 18, sm: 12 };
  * scrittura. */
 export const RADIUS_PILL = 999;
 
+/** Carattere arrotondato per i titoli che devono avere presenza, come il
+ * nome del gruppo sulla sua scheda. Va usato **senza** `fontWeight`: il
+ * peso è già nel nome, e su Android un peso in più lo farebbe ingrossare
+ * artificialmente. Caricato in app/_layout.tsx. */
+export const FONT_ROUNDED = 'Nunito_800ExtraBold';
+
 interface ThemeContextValue {
+  /** Il tema in uso adesso: con "Automatico" è quello del telefono. */
   theme: ThemeName;
+  /** Quello che la persona ha scelto nelle impostazioni. */
+  preference: ThemePreference;
   colors: ThemeColors;
-  setTheme: (t: ThemeName) => void;
+  setPreference: (p: ThemePreference) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: 'dark',
+  preference: 'dark',
   colors: DARK,
-  setTheme: () => {},
+  setPreference: () => {},
 });
 
 const THEME_KEY = 'theme';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeName>('dark');
+  // Scuro resta il punto di partenza per chi non ha mai scelto: è il tema
+  // con cui l'app è nata, e cambiarlo di nascosto a chi la usa già
+  // sarebbe una sorpresa.
+  const [preference, setPreferenceState] = useState<ThemePreference>('dark');
+  // Segue il telefono anche mentre l'app è aperta. Su Android funziona
+  // solo con expo-system-ui installato e `userInterfaceStyle: automatic`
+  // in app.json: senza, il sistema dichiara sempre "chiaro".
+  const system = useColorScheme();
 
   useEffect(() => {
-    storage.get<ThemeName>(THEME_KEY).then((t) => {
-      if (t === 'light' || t === 'dark') setThemeState(t);
+    storage.get<ThemePreference>(THEME_KEY).then((p) => {
+      if (p === 'light' || p === 'dark' || p === 'system') setPreferenceState(p);
     });
   }, []);
 
-  const setTheme = (t: ThemeName) => {
-    setThemeState(t);
-    storage.set(THEME_KEY, t);
+  const setPreference = (p: ThemePreference) => {
+    setPreferenceState(p);
+    storage.set(THEME_KEY, p);
   };
 
+  const theme: ThemeName = preference === 'system' ? (system === 'light' ? 'light' : 'dark') : preference;
+
   const value = useMemo(
-    () => ({ theme, colors: theme === 'light' ? LIGHT : DARK, setTheme }),
-    [theme],
+    () => ({ theme, preference, colors: theme === 'light' ? LIGHT : DARK, setPreference }),
+    [theme, preference],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

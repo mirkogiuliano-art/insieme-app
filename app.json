@@ -86,7 +86,8 @@
             "video/*"
           ]
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "router": {},

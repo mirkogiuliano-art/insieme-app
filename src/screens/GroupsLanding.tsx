@@ -10,22 +10,59 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useTheme, RADIUS } from '@/theme/theme';
+import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
 import { useAppStore, groupColor } from '@/lib/appStore';
 import { useAuth } from '@/lib/authStore';
 import { useToast } from '@/components/Toast';
 import { BottomSheet } from '@/components/BottomSheet';
-import { SettingsSheet } from '@/components/SettingsSheet';
+import { SettingsSheet, type SettingsPage } from '@/components/SettingsSheet';
 import { LoadError } from '@/components/LoadError';
 import { SettingsIcon, PlusIcon, UsersIcon } from '@/components/Icon';
 import { createGroupWithMembership } from '@/lib/api/groups';
 import { getInviteToken, rotateInvite, inviteUrl } from '@/lib/api/invites';
 import { listGroupPreviews, type GroupPreview } from '@/lib/api/groupPreviews';
 import { initials, inkOn, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
+import { fitFontSize, LETTER_SPACING_EM } from '@/lib/fitText';
 import type { Group } from '@/types';
 
 /** Quante facce stanno sulla scheda prima di riassumere il resto in "+N". */
 const AVATARS_SHOWN = 3;
+
+/** Limiti del nome del gruppo. Sopra `MAX` un nome di tre lettere
+ * diventerebbe un manifesto e urterebbe le facce in alto; sotto `MIN` non
+ * si scende, e un nome lunghissimo finisce coi puntini. */
+const NAME_MAX = 66;
+const NAME_MIN = 24;
+
+/**
+ * Il nome del gruppo, grande quanto serve per riempire la scheda: corto →
+ * enorme, lungo → più piccolo. La larghezza disponibile si misura al primo
+ * disegno; fino ad allora si usa la dimensione minima, che sta sempre.
+ */
+function NomeGruppo({ name, color }: { name: string; color: string }) {
+  const [width, setWidth] = useState(0);
+  const size = width > 0 ? fitFontSize(name, width, NAME_MIN, NAME_MAX) : NAME_MIN;
+  return (
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      <Text
+        style={[
+          styles.groupName,
+          {
+            color,
+            fontSize: size,
+            // Interlinea stretta: con un carattere così grande quella
+            // predefinita gonfierebbe la scheda senza motivo.
+            lineHeight: Math.round(size * 1.22),
+            letterSpacing: size * LETTER_SPACING_EM,
+          },
+        ]}
+        numberOfLines={1}
+      >
+        {name}
+      </Text>
+    </View>
+  );
+}
 
 export function GroupsLanding() {
   const { colors } = useTheme();
@@ -34,7 +71,8 @@ export function GroupsLanding() {
   const { profile } = useAuth();
   const { myGroups, addGroup, loadError, refreshGroups } = useAppStore();
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Da quale pagina aprire le impostazioni; `null` = chiuse. */
+  const [settingsAt, setSettingsAt] = useState<SettingsPage | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState<Group | null>(null);
   const [previews, setPreviews] = useState<Record<string, GroupPreview>>({});
@@ -101,12 +139,14 @@ export function GroupsLanding() {
           <Text style={[styles.headerTitle, { color: colors.text }]}>I tuoi gruppi</Text>
         </View>
         <View style={styles.headerRight}>
-          <Pressable onPress={() => setSettingsOpen(true)} style={[styles.iconBtn, { backgroundColor: colors.surface }]}>
+          <Pressable onPress={() => setSettingsAt('settings')} style={[styles.iconBtn, { backgroundColor: colors.surface }]}>
             <SettingsIcon size={18} color={colors.textDim} />
           </Pressable>
-          <View style={[styles.meAvatar, { backgroundColor: colors.amber }]}>
+          {/* Le proprie iniziali portano dritte al profilo: nome, documenti,
+              uscita ed eliminazione dell'account. */}
+          <Pressable onPress={() => setSettingsAt('profile')} style={[styles.meAvatar, { backgroundColor: colors.amber }]}>
             <Text style={[styles.meAvatarText, { color: colors.inkOnAmber }]}>{initials(profile?.displayName ?? '')}</Text>
-          </View>
+          </Pressable>
         </View>
       </View>
 
@@ -160,9 +200,7 @@ export function GroupsLanding() {
                   </View>
                 ) : null}
 
-                <Text style={[styles.groupName, { color: ink }]} numberOfLines={1}>
-                  {g.name}
-                </Text>
+                <NomeGruppo name={g.name} color={ink} />
 
                 {preview && preview.unread > 0 ? (
                   <View style={[styles.unread, { backgroundColor: ink }]}>
@@ -187,7 +225,7 @@ export function GroupsLanding() {
         </Pressable>
       </View>
 
-      <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsSheet visible={settingsAt !== null} startAt={settingsAt ?? 'settings'} onClose={() => setSettingsAt(null)} />
 
       {/* Crea gruppo */}
       <BottomSheet visible={createOpen} onClose={() => setCreateOpen(false)}>
@@ -263,7 +301,7 @@ const styles = StyleSheet.create({
   // lista bastano lo spazio e le schede colorate, che hanno un bordo
   // loro. Lo stesso vale per la barra in fondo.
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 12,
     flexDirection: 'row',
@@ -276,7 +314,7 @@ const styles = StyleSheet.create({
   iconBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   meAvatar: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   meAvatarText: { fontSize: 11, fontWeight: '800' },
-  list: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 8, gap: 10, flexGrow: 1 },
+  list: { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 12, gap: 16, flexGrow: 1 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30, paddingTop: 80 },
   emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 240, lineHeight: 18 },
 
@@ -285,10 +323,10 @@ const styles = StyleSheet.create({
   // la scheda resta in equilibrio anche quando quei due mancano.
   // `overflow: hidden` ritaglia il cerchio decorativo che sborda.
   groupCard: {
-    minHeight: 104,
+    minHeight: 144,
     borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
     justifyContent: 'center',
     overflow: 'hidden',
   },
@@ -301,7 +339,7 @@ const styles = StyleSheet.create({
     borderRadius: 62,
     backgroundColor: 'rgba(0,0,0,0.09)',
   },
-  avatars: { position: 'absolute', top: 14, right: 15, flexDirection: 'row' },
+  avatars: { position: 'absolute', top: 18, right: 20, flexDirection: 'row' },
   avatar: {
     width: 26,
     height: 26,
@@ -312,13 +350,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.42)',
   },
   avatarText: { fontSize: 9.5, fontWeight: '800' },
-  // Grande abbastanza da reggere la scheda: è l'unica cosa scritta al
-  // centro, e a 19 punti sembrava perduta in mezzo a tutto quel colore.
-  groupName: { fontSize: 23, fontWeight: '800', letterSpacing: -0.5 },
+  // Dimensione, interlinea e spaziatura le calcola NomeGruppo in base alla
+  // lunghezza del nome: qui resta solo il carattere, arrotondato perché
+  // quello di sistema risultava spento in mezzo a tutto quel colore.
+  groupName: { fontFamily: FONT_ROUNDED },
   unread: {
     position: 'absolute',
-    right: 16,
-    bottom: 15,
+    right: 20,
+    bottom: 18,
     minWidth: 24,
     height: 24,
     paddingHorizontal: 8,
@@ -328,7 +367,7 @@ const styles = StyleSheet.create({
   },
   unreadText: { fontSize: 11.5, fontWeight: '800' },
 
-  actions: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 14 },
+  actions: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 14 },
   actionPrimary: {
     flexDirection: 'row',
     alignItems: 'center',

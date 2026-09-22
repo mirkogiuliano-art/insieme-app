@@ -15,9 +15,11 @@ import { FilterChip } from '@/components/FilterChip';
 import { BottomSheet } from '@/components/BottomSheet';
 import { CategorySheet } from '@/components/CategorySheet';
 import { PlaceSheet } from '@/components/PlaceSheet';
+import { MapPin } from '@/components/MapPin';
 import { LoadError } from '@/components/LoadError';
 import { MapIcon, ChevronIcon, LinkIcon, LocateIcon } from '@/components/Icon';
 import { dateLabel, googleMapsPlaceUrl, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
+import { linkPinToGooglePlace, openPinInMaps } from '@/lib/api/places';
 import { useAuth } from '@/lib/authStore';
 import { useToast } from '@/components/Toast';
 import { listPins, createPin, deletePin, subscribeToPins, type RawPin } from '@/lib/api/pins';
@@ -71,6 +73,18 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   const [links, setLinks] = useState<RawLink[]>([]);
   const [placeLinks, setPlaceLinks] = useState<RawPlaceLink[]>([]);
   const [openPin, setOpenPin] = useState<RawPin | null>(null);
+  /** Il posto toccato sulla mappa, mostrato nella scheda in basso. È una
+   * cosa diversa da `openPin`, che è il foglio completo: questa è
+   * l'occhiata veloce da cui si decide se aprirlo davvero. */
+  const [anteprima, setAnteprima] = useState<RawPin | null>(null);
+  /** Quando è stato toccato un pin l'ultima volta.
+   *
+   * Su Android il tocco su un marcatore fa scattare **anche** l'`onPress`
+   * della mappa sotto, e quindi il foglio "aggiungi posto" si apriva sopra
+   * all'anteprima. Non basta guardare lo stato `anteprima` dentro
+   * `onMapPress`: i due eventi arrivano nello stesso giro e lo stato non è
+   * ancora aggiornato. Serve un riferimento, che cambia subito. */
+  const toccoPin = useRef(0);
   const [loadError, setLoadError] = useState(false);
 
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -123,6 +137,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       onDelete: (id) => {
         setPins((prev) => prev.filter((p) => p.id !== id));
         setOpenPin((prev) => (prev?.id === id ? null : prev));
+        setAnteprima((prev) => (prev?.id === id ? null : prev));
       },
     });
     const unsubLinks = subscribeToLinks(groupId, {
@@ -228,6 +243,18 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   };
 
   const onMapPress = (e: MapPressEvent) => {
+    // Tocco su un pin: l'evento della mappa arriva subito dopo quello del
+    // marcatore, e senza questo controllo aprirebbe il foglio del posto
+    // nuovo sopra all'anteprima appena aperta.
+    if (Date.now() - toccoPin.current < 500) return;
+    // Con un'anteprima aperta, toccare altrove la chiude e basta: è il
+    // gesto che tutti si aspettano, e senza questo si finirebbe per
+    // aprire il foglio di un posto nuovo ogni volta che si vuole
+    // semplicemente togliere di mezzo la scheda.
+    if (anteprima) {
+      setAnteprima(null);
+      return;
+    }
     const { latitude, longitude } = e.nativeEvent.coordinate;
     openAddSheet(latitude, longitude);
   };
@@ -235,6 +262,9 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   // Su Google Maps i punti di interesse (ristoranti, negozi, ecc.) intercettano
   // il tocco e non fanno scattare onPress: serve gestirli con onPoiClick.
   const onPoiClick = (e: PoiClickEvent) => {
+    // Stessa storia di `onMapPress`: un nostro pin appoggiato sopra a un
+    // punto di interesse di Google farebbe scattare anche questo.
+    if (Date.now() - toccoPin.current < 500) return;
     const { latitude, longitude } = e.nativeEvent.coordinate;
     openAddSheet(latitude, longitude, e.nativeEvent.name, e.nativeEvent.placeId);
   };
@@ -247,7 +277,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
     const catId = pinCat || categories[0]?.id;
     if (!pending || !session || !catId) return;
     try {
-      await withTimeout(createPin(groupId, session.user.id, {
+      const creato = await withTimeout(createPin(groupId, session.user.id, {
         lat: pending.lat,
         lng: pending.lng,
         name: pinName.trim(),
@@ -256,6 +286,10 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       }), WRITE_TIMEOUT);
       setSheetOpen(false);
       toast.show('Posto salvato');
+      // Toccato un punto qualsiasi e scritto il nome: la scheda del luogo
+      // la si cerca subito, in sottofondo, così "Portami lì" poi è
+      // immediato. Se non va a buon fine ci riprova il pulsante stesso.
+      if (!creato.mapsUrl) void linkPinToGooglePlace(creato.id);
     } catch {
       toast.show('Non sono riuscito a salvare il posto, riprova.');
     }
@@ -322,6 +356,19 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
 
 
   const filteredPins = filter === 'all' ? pins : pins.filter((p) => p.categoryId === filter);
+
+  // Un segnaposto disegnato da noi viene riconvertito in immagine a ogni
+  // fotogramma finché `tracksViewChanges` resta acceso, e con parecchi
+  // posti la mappa comincia a scattare. Lo si tiene acceso il tempo di
+  // disegnarli — spegnendolo subito uscirebbero vuoti — e poi si spegne.
+  // Si riaccende quando l'insieme cambia: un posto nuovo, o un filtro
+  // diverso, vanno pur disegnati.
+  const [tracciaPin, setTracciaPin] = useState(true);
+  useEffect(() => {
+    setTracciaPin(true);
+    const attesa = setTimeout(() => setTracciaPin(false), 900);
+    return () => clearTimeout(attesa);
+  }, [filteredPins.length, filter]);
   const sortedForList = [...filteredPins].sort((a, b) => b.ts - a.ts);
   const sectionsForList = categories
     .map((c) => ({
@@ -368,7 +415,10 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
           </Text>
         </Pressable>
         <Pressable
-          onPress={() => setMode('list')}
+          onPress={() => {
+            setMode('list');
+            setAnteprima(null);
+          }}
           style={[styles.segBtn, mode === 'list' && { backgroundColor: colors.amber }]}
         >
           <Text style={{ fontSize: 12, fontWeight: mode === 'list' ? '700' : '500', color: mode === 'list' ? colors.inkOnAmber : colors.textDim }}>
@@ -410,14 +460,28 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
             showsMyLocationButton={false}
           >
             {filteredPins.map((p) => (
+              // Niente `title` né `description`: darglieli farebbe
+              // ricomparire la targhetta bianca di Google sopra al pin,
+              // che è proprio quello che l'anteprima sostituisce.
               <Marker
                 key={p.id}
                 coordinate={{ latitude: p.lat, longitude: p.lng }}
-                title={p.name}
-                description={`${catFor(p.categoryId).name} · ${roster[p.userId] ?? 'Utente'} · tocca per aprire`}
-                pinColor={catFor(p.categoryId).color}
-                onCalloutPress={() => setOpenPin(p)}
-              />
+                onPress={(e) => {
+                  // `stopPropagation` da sola non basta su Android (l'evento
+                  // della mappa parte lo stesso): il segnale vero è
+                  // `toccoPin`, letto da `onMapPress`.
+                  e.stopPropagation();
+                  toccoPin.current = Date.now();
+                  setAnteprima(p);
+                }}
+                tracksViewChanges={tracciaPin || anteprima?.id === p.id}
+              >
+                <MapPin
+                  color={catFor(p.categoryId).color}
+                  categoryName={catFor(p.categoryId).name}
+                  selected={anteprima?.id === p.id}
+                />
+              </Marker>
             ))}
           </MapView>
           <View style={[styles.hint, { backgroundColor: colors.surface, borderColor: colors.border }]} pointerEvents="none">
@@ -429,6 +493,55 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
           >
             <LocateIcon size={20} color={locationGranted ? colors.amber : colors.textDim} />
           </Pressable>
+
+          {/* L'anteprima si appoggia sopra la mappa invece di coprirla:
+              sotto si continua a trascinare e a ingrandire, e toccando un
+              altro pin cambia contenuto senza chiudersi. Per questo non è
+              un BottomSheet ma una scheda appoggiata qui. */}
+          {anteprima ? (
+            <View style={[styles.anteprima, { backgroundColor: colors.surface }]}>
+              <View style={styles.anteprimaCat}>
+                <View style={[styles.anteprimaPunto, { backgroundColor: catFor(anteprima.categoryId).color }]} />
+                <Text style={[styles.anteprimaCatNome, { color: catFor(anteprima.categoryId).color }]} numberOfLines={1}>
+                  {catFor(anteprima.categoryId).name.toUpperCase()}
+                </Text>
+              </View>
+              <Text style={[styles.anteprimaNome, { color: colors.text }]} numberOfLines={2}>
+                {anteprima.name}
+              </Text>
+              <Text style={[styles.anteprimaMeta, { color: colors.textFaint }]} numberOfLines={1}>
+                Aggiunto da {roster[anteprima.userId] ?? 'Utente'} · {dateLabel(anteprima.ts)}
+              </Text>
+              {linkIdsForPin(anteprima.id).length > 0 ? (
+                <View style={[styles.anteprimaLink, { backgroundColor: colors.surface2 }]}>
+                  <LinkIcon size={13} color={colors.textDim} strokeWidth={2} />
+                  <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.textDim }}>
+                    {linkIdsForPin(anteprima.id).length === 1
+                      ? '1 link collegato'
+                      : `${linkIdsForPin(anteprima.id).length} link collegati`}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={styles.anteprimaAzioni}>
+                <Pressable
+                  onPress={() => {
+                    const posto = anteprima;
+                    setAnteprima(null);
+                    setOpenPin(posto);
+                  }}
+                  style={[styles.anteprimaBtn, { backgroundColor: colors.surface2 }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>Apri</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void openPinInMaps(anteprima)}
+                  style={[styles.anteprimaBtn, { backgroundColor: colors.amber }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.inkOnAmber }}>Portami lì</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
         </View>
       ) : sortedForList.length === 0 ? (
         <View style={styles.empty}>
@@ -559,6 +672,31 @@ const styles = StyleSheet.create({
   toggle: { flexDirection: 'row', borderWidth: 1, borderRadius: 999, padding: 3, marginHorizontal: 16, marginTop: 12 },
   segBtn: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 999 },
   filters: { paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1 },
+  // La scheda dell'anteprima: appoggiata sopra la mappa, non un foglio
+  // che la copre. Le due ombre la staccano dal fondo anche quando sotto
+  // ci passa una strada chiara.
+  anteprima: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 10,
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  anteprimaCat: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  anteprimaPunto: { width: 9, height: 9, borderRadius: 5 },
+  anteprimaCatNome: { fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
+  anteprimaNome: { fontSize: 19, fontWeight: '700', letterSpacing: -0.3, marginTop: 5 },
+  anteprimaMeta: { fontSize: 12, marginTop: 2 },
+  anteprimaLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 9, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  anteprimaAzioni: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  anteprimaBtn: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12 },
   hint: { position: 'absolute', top: 10, alignSelf: 'center', borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 },
   locateBtn: {
     position: 'absolute',

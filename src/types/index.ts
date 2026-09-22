@@ -1,6 +1,8 @@
 // Tipi condivisi in tutta l'app.
 
 export type ThemeName = 'light' | 'dark';
+/** La scelta della persona: un tema fisso, oppure quello del telefono. */
+export type ThemePreference = ThemeName | 'system';
 
 export interface Profile {
   id: string; // = auth.users.id

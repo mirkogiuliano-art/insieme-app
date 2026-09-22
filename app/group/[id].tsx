@@ -12,7 +12,7 @@ import { useToast } from '@/components/Toast';
 import { getMyGroup } from '@/lib/api/groups';
 import { listRoster, subscribeToRoster } from '@/lib/api/groupMembers';
 import { getInviteToken, rotateInvite, inviteUrl } from '@/lib/api/invites';
-import { SettingsSheet } from '@/components/SettingsSheet';
+import { SettingsSheet, type SettingsPage } from '@/components/SettingsSheet';
 import { GroupInfoSheet } from '@/components/GroupInfoSheet';
 import { ChatTab } from '@/screens/ChatTab';
 import { LinksTab } from '@/screens/LinksTab';
@@ -74,7 +74,8 @@ export default function GroupScreen() {
   }, [authReady, session, groupsReady, !!localGroup, groupId]);
 
   const [tab, setTab] = useState<TabName>('chat');
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Da quale pagina aprire le impostazioni; `null` = chiuse. */
+  const [settingsAt, setSettingsAt] = useState<SettingsPage | null>(null);
   const [roster, setRoster] = useState<Record<string, string>>({});
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
@@ -172,9 +173,10 @@ export default function GroupScreen() {
           <Pressable onPress={() => setMenuOpen(true)} style={[styles.iconBtn, { backgroundColor: colors.surface }]}>
             <MoreIcon size={18} color={colors.textDim} />
           </Pressable>
-          <View style={[styles.meAvatar, { backgroundColor: colors.amber }]}>
+          {/* Come nella home: le proprie iniziali aprono il profilo. */}
+          <Pressable onPress={() => setSettingsAt('profile')} style={[styles.meAvatar, { backgroundColor: colors.amber }]}>
             <Text style={{ fontSize: 10, fontWeight: '700', color: colors.inkOnAmber }}>{initials(profile?.displayName ?? '')}</Text>
-          </View>
+          </Pressable>
         </View>
       </View>
 
@@ -240,10 +242,9 @@ export default function GroupScreen() {
       </KeyboardAvoidingView>
 
       <SettingsSheet
-        visible={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        groupId={groupId}
-        onLeaveGroup={() => router.replace('/')}
+        visible={settingsAt !== null}
+        startAt={settingsAt ?? 'settings'}
+        onClose={() => setSettingsAt(null)}
       />
 
       {localGroup ? (
@@ -252,6 +253,7 @@ export default function GroupScreen() {
           onClose={() => setGroupInfoOpen(false)}
           group={localGroup}
           roster={roster}
+          onLeaveGroup={() => router.replace('/')}
         />
       ) : null}
 
@@ -291,7 +293,7 @@ export default function GroupScreen() {
         <Pressable
           onPress={() => {
             setMenuOpen(false);
-            setSettingsOpen(true);
+            setSettingsAt('settings');
           }}
           style={[styles.menuRow, { borderBottomWidth: 0 }]}
         >
@@ -350,7 +352,10 @@ const styles = StyleSheet.create({
   menuRowText: { fontSize: 15, fontWeight: '600' },
   title: { fontSize: 23, fontWeight: '800', letterSpacing: -0.4, marginTop: 1 },
   meAvatar: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  tabbar: { flexDirection: 'row', gap: 4, marginHorizontal: 14, marginBottom: 12, padding: 6, borderRadius: 22 },
+  // `marginTop`: senza, la barra toccava il contenuto sopra (il campo di
+  // scrittura della chat, l'ultima scheda dei link, il bordo della mappa)
+  // e sembrava incollata alla sezione invece di galleggiarci sotto.
+  tabbar: { flexDirection: 'row', gap: 4, marginHorizontal: 14, marginTop: 8, marginBottom: 12, padding: 6, borderRadius: 22 },
   tabBtn: {
     flex: 1,
     flexDirection: 'row',

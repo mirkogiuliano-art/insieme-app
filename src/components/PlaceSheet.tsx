@@ -3,7 +3,8 @@ import { View, Text, TextInput, Pressable, StyleSheet, Image, Linking } from 're
 import { useTheme, RADIUS } from '@/theme/theme';
 import { BottomSheet } from '@/components/BottomSheet';
 import { LinkIcon, PlayIcon, PlusIcon, CloseIcon, SearchIcon, MapIcon } from '@/components/Icon';
-import { dateLabel, mapsUrlForPlace } from '@/lib/utils';
+import { dateLabel } from '@/lib/utils';
+import { openPinInMaps } from '@/lib/api/places';
 import type { RawPin } from '@/lib/api/pins';
 import type { RawLink } from '@/lib/api/links';
 
@@ -198,7 +199,7 @@ export function PlaceSheet({
           ) : null}
 
           <Pressable
-            onPress={() => Linking.openURL(mapsUrlForPlace(pin))}
+            onPress={() => void openPinInMaps(pin)}
             style={[styles.mapsRow, { borderColor: colors.border }]}
           >
             <MapIcon size={15} color={colors.textDim} strokeWidth={1.8} />

@@ -1,22 +1,44 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import Constants from 'expo-constants';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { SunIcon, MoonIcon } from '@/components/Icon';
-import { useAppStore } from '@/lib/appStore';
+import {
+  SunIcon,
+  MoonIcon,
+  AutoThemeIcon,
+  BanIcon,
+  ChevronIcon,
+  BackIcon,
+  EditIcon,
+  ShieldIcon,
+  FileIcon,
+  ExternalIcon,
+  LogoutIcon,
+  TrashIcon,
+} from '@/components/Icon';
 import { useAuth } from '@/lib/authStore';
 import { updateDisplayName } from '@/lib/api/profiles';
-import { countMembers } from '@/lib/api/groupMembers';
 import { deleteMyAccount } from '@/lib/api/account';
 import { listBlockedWithNames, unblockUser } from '@/lib/api/moderation';
+import { initials } from '@/lib/utils';
 import { PRIVACY_URL, TERMINI_URL, haiPubblicatoIDocumenti } from '@/lib/legal';
-import type { ThemeName } from '@/types';
+import type { ThemePreference } from '@/types';
+
+/**
+ * Le pagine del foglio. Le impostazioni vere sono poche (aspetto e persone
+ * bloccate); tutto ciò che riguarda la persona e il suo account sta in
+ * "Profilo", raggiungibile da qui o direttamente toccando le proprie
+ * iniziali in alto a destra.
+ */
+export type SettingsPage = 'settings' | 'profile';
+type Page = SettingsPage | 'name' | 'blocked';
 
 interface SettingsSheetProps {
   visible: boolean;
   onClose: () => void;
-  groupId?: string;
-  onLeaveGroup?: () => void;
+  /** Da quale pagina aprire: le iniziali in alto portano dritte al profilo. */
+  startAt?: SettingsPage;
 }
 
 /** Passaggio di conferma mostrato al posto del contenuto del foglio.
@@ -24,59 +46,58 @@ interface SettingsSheetProps {
  * resto dell'app (stesso schema dell'eliminazione di categorie e posti),
  * sia perché `Alert.alert` non fa assolutamente nulla su web in
  * react-native-web: lì i due pulsanti erano semplicemente inerti. */
-type Confirm = 'signout' | 'leave' | 'delete-account';
+type Confirm = 'signout' | 'delete-account';
 
-export function SettingsSheet({ visible, onClose, groupId, onLeaveGroup }: SettingsSheetProps) {
-  const { colors, theme, setTheme } = useTheme();
-  const { leaveGroup } = useAppStore();
-  const { profile, refreshProfile, signOut } = useAuth();
+const APP_VERSION = Constants.expoConfig?.version ?? '';
+
+export function SettingsSheet({ visible, onClose, startAt = 'settings' }: SettingsSheetProps) {
+  const { colors, preference, setPreference } = useTheme();
+  const { profile, session, refreshProfile, signOut } = useAuth();
+  const [page, setPage] = useState<Page>(startAt);
   const [nameDraft, setNameDraft] = useState(profile?.displayName ?? '');
+  const [savingName, setSavingName] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [busy, setBusy] = useState(false);
   // Solo la cancellazione dell'account mostra i propri errori: se non
   // riesce, lasciar credere che i dati siano spariti sarebbe la bugia
   // peggiore che quest'app possa raccontare.
   const [confirmError, setConfirmError] = useState('');
-  // Quanti membri restano: se si è soli, uscire elimina il gruppo con tutto
-  // il suo contenuto, e va detto prima e non dopo.
-  const [memberCount, setMemberCount] = useState<number | null>(null);
-  /** Le persone bloccate: questa è l'unica strada per sbloccarle, quindi
-   * la sezione compare solo quando ce n'è almeno una. */
-  const [bloccati, setBloccati] = useState<{ id: string; name: string }[]>([]);
+  /** `null` finché non sono state lette: la riga mostra il numero solo
+   * quando lo conosce davvero. */
+  const [bloccati, setBloccati] = useState<{ id: string; name: string }[] | null>(null);
 
-  // Riaprendo le impostazioni si riparte sempre dall'elenco, mai da una
-  // conferma rimasta a metà.
+  // Riaprendo si riparte sempre dalla pagina richiesta, mai da una
+  // conferma o da una sottopagina rimasta a metà.
   useEffect(() => {
     if (visible) {
+      setPage(startAt);
       setConfirm(null);
       setBusy(false);
       setConfirmError('');
       listBlockedWithNames().then(setBloccati);
     }
-  }, [visible]);
-
-  useEffect(() => {
-    if (confirm !== 'leave' || !groupId) return;
-    let alive = true;
-    countMembers(groupId).then((n) => {
-      if (alive) setMemberCount(n);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [confirm, groupId]);
+  }, [visible, startAt]);
 
   const closeSheet = () => {
     setConfirm(null);
     onClose();
   };
 
+  const openNameEditor = () => {
+    setNameDraft(profile?.displayName ?? '');
+    setPage('name');
+  };
+
   const saveName = async () => {
-    if (nameDraft.trim()) {
-      await updateDisplayName(nameDraft);
+    const name = nameDraft.trim();
+    if (!name || savingName) return;
+    setSavingName(true);
+    try {
+      await updateDisplayName(name);
       await refreshProfile();
-    } else {
-      setNameDraft(profile?.displayName ?? '');
+      setPage('profile');
+    } finally {
+      setSavingName(false);
     }
   };
 
@@ -85,18 +106,6 @@ export function SettingsSheet({ visible, onClose, groupId, onLeaveGroup }: Setti
     setBusy(true);
     closeSheet();
     await signOut();
-  };
-
-  const runLeave = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      if (groupId) await leaveGroup(groupId);
-      closeSheet();
-      onLeaveGroup?.();
-    } finally {
-      setBusy(false);
-    }
   };
 
   /** La cancellazione dell'account è l'unica operazione senza ritorno e
@@ -122,22 +131,12 @@ export function SettingsSheet({ visible, onClose, groupId, onLeaveGroup }: Setti
     }
   };
 
-  const lastOne = memberCount === 1;
-
   const CONFIRMS: Record<Confirm, { title: string; body: string; action: string; onConfirm: () => void }> = {
     signout: {
       title: 'Uscire da Insieme?',
       body: 'Dovrai accedere di nuovo con email e password. I tuoi gruppi e i messaggi restano dove sono.',
       action: 'Esci',
       onConfirm: runSignOut,
-    },
-    leave: {
-      title: lastOne ? 'Sei l’ultimo rimasto' : 'Lasciare il gruppo?',
-      body: lastOne
-        ? 'Uscendo, il gruppo verrà eliminato per intero: chat, link, posti e categorie. Non si può annullare.'
-        : 'Non vedrai più chat, link e posti di questo gruppo. Per rientrare ti servirà un nuovo link di invito.',
-      action: lastOne ? 'Esci ed elimina' : 'Lascia',
-      onConfirm: runLeave,
     },
     'delete-account': {
       title: 'Eliminare il tuo account?',
@@ -150,21 +149,69 @@ export function SettingsSheet({ visible, onClose, groupId, onLeaveGroup }: Setti
     },
   };
 
-  const ThemeOpt = ({ value, label, icon }: { value: ThemeName; label: string; icon: React.ReactNode }) => {
-    const active = theme === value;
-    return (
-      <Pressable
-        onPress={() => setTheme(value)}
-        style={[
-          styles.themeOpt,
-          { borderColor: active ? colors.amber : colors.border, backgroundColor: active ? colors.surface2 : 'transparent' },
-        ]}
-      >
-        {icon}
-        <Text style={{ fontSize: 12.5, fontWeight: '600', color: active ? colors.text : colors.textDim }}>{label}</Text>
-      </Pressable>
-    );
-  };
+  // ── Pezzi comuni ────────────────────────────────────────────────
+
+  /** Titolo di una sottopagina, con la freccia per tornare indietro. */
+  const PageTitle = ({ title, back }: { title: string; back?: Page }) => (
+    <View style={styles.titleRow}>
+      {back ? (
+        <Pressable onPress={() => setPage(back)} hitSlop={10} style={styles.backBtn}>
+          <BackIcon size={20} color={colors.textDim} />
+        </Pressable>
+      ) : null}
+      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+    </View>
+  );
+
+  const SectionLabel = ({ children }: { children: string }) => (
+    <Text style={[styles.sectionLabel, { color: colors.textFaint }]}>{children}</Text>
+  );
+
+  /** Una riga di un blocco: icona su un quadratino tinto, nome, e a
+   * destra un valore o una freccia. */
+  const Row = ({
+    icon,
+    tint,
+    label,
+    value,
+    trailing,
+    danger,
+    first,
+    onPress,
+  }: {
+    icon: React.ReactNode;
+    tint: string;
+    label: string;
+    value?: string;
+    trailing?: React.ReactNode;
+    danger?: boolean;
+    first?: boolean;
+    onPress: () => void;
+  }) => (
+    <Pressable
+      onPress={onPress}
+      style={[styles.row, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}
+    >
+      <View style={[styles.rowIcon, { backgroundColor: tint + '26' }]}>{icon}</View>
+      <Text style={[styles.rowLabel, { color: danger ? colors.danger : colors.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <View style={styles.rowRight}>
+        {value ? <Text style={[styles.rowValue, { color: colors.textDim }]}>{value}</Text> : null}
+        {trailing}
+      </View>
+    </Pressable>
+  );
+
+  const Block = ({ children }: { children: React.ReactNode }) => (
+    <View style={[styles.block, { backgroundColor: colors.surface2 }]}>{children}</View>
+  );
+
+  const chevron = <ChevronIcon size={15} color={colors.textFaint} />;
+  const external = <ExternalIcon size={13} color={colors.textFaint} />;
+  const displayName = profile?.displayName ?? '';
+
+  // ── Conferme ────────────────────────────────────────────────────
 
   if (confirm) {
     const c = CONFIRMS[confirm];
@@ -199,120 +246,261 @@ export function SettingsSheet({ visible, onClose, groupId, onLeaveGroup }: Setti
     );
   }
 
-  return (
-    <BottomSheet visible={visible} onClose={closeSheet}>
-      <Text style={[styles.title, { color: colors.text }]}>Impostazioni</Text>
+  // ── Profilo ─────────────────────────────────────────────────────
 
-      <View style={[styles.row, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.label, { color: colors.textDim }]}>IL TUO NOME</Text>
+  if (page === 'profile') {
+    return (
+      <BottomSheet visible={visible} onClose={closeSheet}>
+        {/* Aperto dalle iniziali, il profilo è la prima pagina: non c'è
+            niente a cui tornare, quindi niente freccia. */}
+        <PageTitle title="Profilo" back={startAt === 'profile' ? undefined : 'settings'} />
+
+        <View style={styles.profileHero}>
+          <View style={[styles.bigAvatar, { backgroundColor: colors.amber }]}>
+            <Text style={[styles.bigAvatarText, { color: colors.inkOnAmber }]}>{initials(displayName)}</Text>
+          </View>
+          <Text style={[styles.heroName, { color: colors.text }]}>{displayName}</Text>
+          {session?.user.email ? (
+            <Text style={[styles.heroEmail, { color: colors.textDim }]}>{session.user.email}</Text>
+          ) : null}
+        </View>
+
+        <Block>
+          <Row
+            first
+            icon={<EditIcon size={15} color={colors.amber} strokeWidth={2} />}
+            tint={colors.amber}
+            label="Nome"
+            value={displayName}
+            trailing={chevron}
+            onPress={openNameEditor}
+          />
+        </Block>
+
+        {haiPubblicatoIDocumenti ? (
+          <>
+            <SectionLabel>DOCUMENTI</SectionLabel>
+            <Block>
+              {PRIVACY_URL ? (
+                <Row
+                  first
+                  icon={<ShieldIcon size={15} color={colors.teal} strokeWidth={2} />}
+                  tint={colors.teal}
+                  label="Informativa privacy"
+                  trailing={external}
+                  onPress={() => Linking.openURL(PRIVACY_URL)}
+                />
+              ) : null}
+              {TERMINI_URL ? (
+                <Row
+                  first={!PRIVACY_URL}
+                  icon={<FileIcon size={15} color={colors.lilac} strokeWidth={2} />}
+                  tint={colors.lilac}
+                  label="Condizioni d’uso"
+                  trailing={external}
+                  onPress={() => Linking.openURL(TERMINI_URL)}
+                />
+              ) : null}
+            </Block>
+          </>
+        ) : null}
+
+        <SectionLabel>ACCOUNT</SectionLabel>
+        <Block>
+          <Row
+            first
+            icon={<LogoutIcon size={15} color={colors.textDim} strokeWidth={2} />}
+            tint={colors.textDim}
+            label="Esci dall’account"
+            onPress={() => setConfirm('signout')}
+          />
+          {/* Ultima e in rosso: è l'unica azione da cui non si torna
+              indietro, e passa comunque da una conferma. */}
+          <Row
+            icon={<TrashIcon size={15} color={colors.danger} />}
+            tint={colors.danger}
+            label="Elimina account"
+            danger
+            onPress={() => setConfirm('delete-account')}
+          />
+        </Block>
+        <View style={{ height: 6 }} />
+      </BottomSheet>
+    );
+  }
+
+  // ── Cambio nome ─────────────────────────────────────────────────
+
+  if (page === 'name') {
+    const changed = nameDraft.trim() !== '' && nameDraft.trim() !== displayName;
+    return (
+      <BottomSheet visible={visible} onClose={closeSheet}>
+        <PageTitle title="Il tuo nome" back="profile" />
+        <Text style={[styles.note, { color: colors.textDim }]}>
+          È il nome che vedono gli altri nei gruppi, accanto ai tuoi messaggi.
+        </Text>
         <TextInput
           style={[styles.input, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
           value={nameDraft}
           onChangeText={setNameDraft}
-          onBlur={saveName}
           onSubmitEditing={saveName}
           maxLength={24}
+          autoFocus
           returnKeyType="done"
         />
-      </View>
-
-      <View style={[styles.row, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.label, { color: colors.textDim }]}>TEMA</Text>
-        <View style={styles.themeToggle}>
-          <ThemeOpt value="light" label="Chiaro" icon={<SunIcon size={18} color={theme === 'light' ? colors.text : colors.textDim} />} />
-          <ThemeOpt value="dark" label="Scuro" icon={<MoonIcon size={18} color={theme === 'dark' ? colors.text : colors.textDim} />} />
-        </View>
-      </View>
-
-      {groupId ? (
-        <View style={[styles.row, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.label, { color: colors.textDim }]}>GRUPPO ATTUALE</Text>
-          <Text style={{ color: colors.textDim, fontSize: 12.5 }}>
-            Per invitare qualcuno usa il link di invito, in Info gruppo.
-          </Text>
-        </View>
-      ) : null}
-
-      {groupId ? (
-        <Pressable onPress={() => setConfirm('leave')} style={styles.leaveBtn}>
-          <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '600' }}>Lascia questo gruppo</Text>
+        <Pressable
+          onPress={saveName}
+          disabled={!changed || savingName}
+          style={[styles.saveBtn, { backgroundColor: colors.amber, opacity: !changed || savingName ? 0.5 : 1 }]}
+        >
+          {savingName ? (
+            <ActivityIndicator size="small" color={colors.inkOnAmber} />
+          ) : (
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '700', fontSize: 14 }}>Salva</Text>
+          )}
         </Pressable>
-      ) : null}
+      </BottomSheet>
+    );
+  }
 
-      {bloccati.length > 0 ? (
-        <View style={[styles.row, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.label, { color: colors.textDim }]}>PERSONE BLOCCATE</Text>
-          {bloccati.map((p) => (
-            <View key={p.id} style={styles.bloccatoRow}>
-              <Text style={{ color: colors.text, fontSize: 13.5, flex: 1 }} numberOfLines={1}>
-                {p.name}
-              </Text>
-              <Pressable
-                onPress={async () => {
-                  await unblockUser(p.id);
-                  setBloccati((prev) => prev.filter((x) => x.id !== p.id));
-                }}
-              >
-                <Text style={{ color: colors.teal, fontSize: 12.5, fontWeight: '700' }}>Sblocca</Text>
-              </Pressable>
-            </View>
-          ))}
-          <Text style={{ color: colors.textFaint, fontSize: 11.5, lineHeight: 16 }}>
-            I loro messaggi non ti compaiono nelle chat. Riaprendo una chat dopo lo sblocco tornano visibili.
+  // ── Persone bloccate ────────────────────────────────────────────
+
+  if (page === 'blocked') {
+    const list = bloccati ?? [];
+    return (
+      <BottomSheet visible={visible} onClose={closeSheet}>
+        <PageTitle title="Persone bloccate" back="settings" />
+        {list.length === 0 ? (
+          <Text style={[styles.note, { color: colors.textDim }]}>
+            Non hai bloccato nessuno. Per farlo, apri il menu di un suo messaggio in chat e scegli «Blocca».
           </Text>
-        </View>
-      ) : null}
+        ) : (
+          <>
+            <Block>
+              {list.map((p, i) => (
+                <View
+                  key={p.id}
+                  style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
+                >
+                  <Text style={[styles.rowLabel, { color: colors.text }]} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                  <Pressable
+                    onPress={async () => {
+                      await unblockUser(p.id);
+                      setBloccati((prev) => (prev ?? []).filter((x) => x.id !== p.id));
+                    }}
+                    style={[styles.unblockBtn, { borderColor: colors.teal }]}
+                  >
+                    <Text style={{ color: colors.teal, fontSize: 12.5, fontWeight: '700' }}>Sblocca</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </Block>
+            <Text style={[styles.note, { color: colors.textFaint, marginTop: 10 }]}>
+              I loro messaggi non ti compaiono nelle chat. Dopo lo sblocco tornano visibili riaprendo la chat.
+            </Text>
+          </>
+        )}
+      </BottomSheet>
+    );
+  }
 
-      {haiPubblicatoIDocumenti ? (
-        <View style={[styles.row, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.label, { color: colors.textDim }]}>DOCUMENTI</Text>
-          <View style={styles.legalRow}>
-            {PRIVACY_URL ? (
-              <Pressable onPress={() => Linking.openURL(PRIVACY_URL)}>
-                <Text style={[styles.legalLink, { color: colors.teal }]}>Informativa privacy</Text>
-              </Pressable>
-            ) : null}
-            {TERMINI_URL ? (
-              <Pressable onPress={() => Linking.openURL(TERMINI_URL)}>
-                <Text style={[styles.legalLink, { color: colors.teal }]}>Condizioni d&apos;uso</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-      ) : null}
+  // ── Impostazioni ────────────────────────────────────────────────
 
-      <Pressable onPress={() => setConfirm('signout')} style={styles.leaveBtn}>
-        <Text style={{ color: colors.textDim, fontSize: 13, fontWeight: '600' }}>Esci</Text>
+  const ThemeOpt = ({ value, label, icon }: { value: ThemePreference; label: string; icon: (c: string) => React.ReactNode }) => {
+    const active = preference === value;
+    const tone = active ? colors.inkOnAmber : colors.textDim;
+    return (
+      <Pressable
+        onPress={() => setPreference(value)}
+        style={[styles.themeOpt, active && { backgroundColor: colors.amber }]}
+      >
+        {icon(tone)}
+        <Text style={[styles.themeLabel, { color: tone }]}>{label}</Text>
+      </Pressable>
+    );
+  };
+
+  return (
+    <BottomSheet visible={visible} onClose={closeSheet}>
+      <PageTitle title="Impostazioni" />
+
+      <Pressable onPress={() => setPage('profile')} style={[styles.profileCard, { backgroundColor: colors.surface2 }]}>
+        <View style={[styles.avatar, { backgroundColor: colors.amber }]}>
+          <Text style={[styles.avatarText, { color: colors.inkOnAmber }]}>{initials(displayName)}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>
+            {displayName}
+          </Text>
+          <Text style={[styles.cardSub, { color: colors.textDim }]}>Gestisci profilo</Text>
+        </View>
+        <ChevronIcon size={18} color={colors.textFaint} />
       </Pressable>
 
-      {/* In fondo e staccata da tutto il resto: è l'unica azione da cui
-          non si torna indietro. */}
-      <Pressable onPress={() => setConfirm('delete-account')} style={styles.deleteBtn}>
-        <Text style={{ color: colors.textFaint, fontSize: 12.5, fontWeight: '600' }}>Elimina il tuo account</Text>
-      </Pressable>
+      <SectionLabel>ASPETTO</SectionLabel>
+      <View style={[styles.themeToggle, { backgroundColor: colors.surface2 }]}>
+        <ThemeOpt value="light" label="Chiaro" icon={(c) => <SunIcon size={18} color={c} />} />
+        <ThemeOpt value="dark" label="Scuro" icon={(c) => <MoonIcon size={18} color={c} />} />
+        <ThemeOpt value="system" label="Automatico" icon={(c) => <AutoThemeIcon size={18} color={c} />} />
+      </View>
+
+      <SectionLabel>PRIVACY</SectionLabel>
+      <Block>
+        <Row
+          first
+          icon={<BanIcon size={15} color={colors.danger} strokeWidth={2} />}
+          tint={colors.danger}
+          label="Persone bloccate"
+          value={bloccati ? String(bloccati.length) : undefined}
+          trailing={chevron}
+          onPress={() => setPage('blocked')}
+        />
+      </Block>
+
+      {APP_VERSION ? (
+        <Text style={[styles.version, { color: colors.textFaint }]}>Insieme · versione {APP_VERSION}</Text>
+      ) : null}
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  row: { paddingVertical: 13, borderBottomWidth: 1, gap: 9 },
-  label: { fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },
-  input: { borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14.5 },
-  themeToggle: { flexDirection: 'row', gap: 8 },
-  themeOpt: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    alignItems: 'center',
-    gap: 6,
-  },
-  leaveBtn: { paddingVertical: 14, alignItems: 'center' },
-  deleteBtn: { paddingTop: 2, paddingBottom: 10, alignItems: 'center' },
-  bloccatoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
-  legalRow: { flexDirection: 'row', gap: 18, flexWrap: 'wrap' },
-  legalLink: { fontSize: 12.5, fontWeight: '600' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  backBtn: { marginLeft: -2 },
+  title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.9, marginTop: 18, marginBottom: 7, marginLeft: 2 },
+  note: { fontSize: 12.5, lineHeight: 18, marginBottom: 12 },
+
+  block: { borderRadius: RADIUS.md, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 12, paddingVertical: 11, minHeight: 50 },
+  rowIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  rowLabel: { flex: 1, fontSize: 14.5, fontWeight: '600' },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  rowValue: { fontSize: 13, fontWeight: '500' },
+
+  profileCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: RADIUS.md },
+  avatar: { width: 50, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 17, fontWeight: '800' },
+  cardName: { fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
+  cardSub: { fontSize: 12.5, marginTop: 1 },
+
+  profileHero: { alignItems: 'center', gap: 3, marginBottom: 16 },
+  bigAvatar: { width: 72, height: 72, borderRadius: 23, alignItems: 'center', justifyContent: 'center', marginBottom: 7 },
+  bigAvatarText: { fontSize: 24, fontWeight: '800' },
+  heroName: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  heroEmail: { fontSize: 12.5 },
+
+  themeToggle: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14 },
+  themeOpt: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 9, borderRadius: 11 },
+  themeLabel: { fontSize: 12, fontWeight: '700' },
+
+  input: { borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  saveBtn: { marginTop: 12, paddingVertical: 13, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  unblockBtn: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  version: { textAlign: 'center', fontSize: 11.5, marginTop: 18, marginBottom: 4 },
+
   confirmBody: { fontSize: 12.5, lineHeight: 18, marginTop: 4, marginBottom: 16 },
   confirmError: { fontSize: 12.5, lineHeight: 18, marginTop: -8, marginBottom: 14 },
   confirmActions: { flexDirection: 'row', gap: 10 },
