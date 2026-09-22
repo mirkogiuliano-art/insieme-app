@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Share, ActivityIndicator } from 'react-native';
 import { BottomSheet } from '@/components/BottomSheet';
-import { useTheme, RADIUS } from '@/theme/theme';
+import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
+import { fitFontSize } from '@/lib/fitText';
 import { useAuth } from '@/lib/authStore';
 import { groupColor, useAppStore } from '@/lib/appStore';
 import { useToast } from '@/components/Toast';
 import { ShareIcon, LogoutIcon } from '@/components/Icon';
 import { listLastReads, subscribeToLastReads, countMembers } from '@/lib/api/groupMembers';
 import { getInviteToken, rotateInvite, revokeInvite, inviteUrl } from '@/lib/api/invites';
-import { initials, colorForUser, dateLabel } from '@/lib/utils';
+import { initials, colorForUser, dateLabel, inkOn } from '@/lib/utils';
 import type { Group } from '@/types';
 
 interface GroupInfoSheetProps {
@@ -40,6 +41,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup }
   // `undefined` = non ancora letto, `null` = nessun invito attivo.
   const [inviteToken, setInviteToken] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const [cardWidth, setCardWidth] = useState(0);
   const { leaveGroup } = useAppStore();
   /** Conferma per l'uscita dal gruppo, mostrata al posto del contenuto
    * del foglio (vedi SettingsSheet per il perché non si usa Alert). */
@@ -181,11 +183,23 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup }
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <View style={styles.header}>
-        <View style={[styles.groupAvatar, { backgroundColor: groupColor(group) }]}>
-          <Text style={styles.groupAvatarText}>{group.name.slice(0, 1).toUpperCase()}</Text>
+      {/* In cima la scheda del gruppo com'è nella home, al posto del
+          cerchio con l'iniziale. */}
+      <View style={[styles.card, { backgroundColor: groupColor(group) }]}>
+        <View style={styles.cardBlob} />
+        <View style={{ flex: 1 }} onLayout={(e) => setCardWidth(e.nativeEvent.layout.width)}>
+          {(() => {
+            const size = cardWidth > 0 ? fitFontSize(group.name, cardWidth, 20, 46) : 28;
+            return (
+              <Text
+                style={{ fontFamily: FONT_ROUNDED, fontSize: size, lineHeight: Math.round(size * 1.2), color: inkOn(groupColor(group)) }}
+                numberOfLines={1}
+              >
+                {group.name}
+              </Text>
+            );
+          })()}
         </View>
-        <Text style={[styles.groupName, { color: colors.text }]}>{group.name}</Text>
       </View>
 
       <Text style={[styles.sectionLabel, { color: colors.textDim }]}>LINK DI INVITO</Text>
@@ -208,21 +222,21 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup }
       </Pressable>
       {inviteToken ? (
         <View style={styles.inviteActions}>
-          <Pressable onPress={regenerate} disabled={busy} style={[styles.inviteMinor, { borderColor: colors.border }]}>
+          <Pressable onPress={regenerate} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontSize: 12.5, fontWeight: '600' }}>Genera nuovo</Text>
           </Pressable>
-          <Pressable onPress={revoke} disabled={busy} style={[styles.inviteMinor, { borderColor: colors.border }]}>
+          <Pressable onPress={revoke} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '600' }}>Disattiva</Text>
           </Pressable>
         </View>
       ) : null}
 
       <Text style={[styles.sectionLabel, styles.membersLabel, { color: colors.textDim }]}>MEMBRI — {members.length}</Text>
-      <View style={{ gap: 2 }}>
-        {members.map(([userId, name]) => {
+      <View style={[styles.membersBlock, { backgroundColor: colors.surface2 }]}>
+        {members.map(([userId, name], i) => {
           const isMe = userId === session?.user.id;
           return (
-            <View key={userId} style={[styles.memberRow, { borderBottomColor: colors.border }]}>
+            <View key={userId} style={[styles.memberRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
               <View style={[styles.memberAvatar, { backgroundColor: colorForUser(name) }]}>
                 <Text style={styles.memberAvatarText}>{initials(name)}</Text>
               </View>
@@ -256,11 +270,10 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup }
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'center', gap: 4, marginBottom: 18 },
-  groupAvatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  groupAvatarText: { fontSize: 22, fontWeight: '700', color: '#1B2530' },
-  groupName: { fontSize: 18, fontWeight: '700' },
-  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, marginBottom: 8 },
+  card: { height: 92, borderRadius: 22, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 18 },
+  cardBlob: { position: 'absolute', right: -30, top: -38, width: 110, height: 110, borderRadius: 55, backgroundColor: 'rgba(0,0,0,0.09)' },
+  sectionLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 },
+  membersBlock: { borderRadius: RADIUS.md, overflow: 'hidden' },
   // Solo qui e non su "LINK DI INVITO": quella etichetta segue già il
   // margine del blocco con nome e avatar del gruppo, che le dà abbastanza
   // spazio da sé.
@@ -268,12 +281,12 @@ const styles = StyleSheet.create({
   inviteNote: { fontSize: 12, lineHeight: 17, marginBottom: 10 },
   inviteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    paddingVertical: 12, borderRadius: RADIUS.sm,
+    height: 46, borderRadius: 999,
   },
   inviteActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  inviteMinor: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: RADIUS.sm, borderWidth: 1 },
-  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1 },
-  memberAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  inviteMinor: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: RADIUS.sm },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 12, paddingVertical: 10 },
+  memberAvatar: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   memberAvatarText: { fontSize: 13, fontWeight: '700', color: '#1B2530' },
   memberName: { fontSize: 14.5, fontWeight: '600' },
   memberSeen: { fontSize: 11.5, marginTop: 1 },
@@ -285,6 +298,6 @@ const styles = StyleSheet.create({
   confirmTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
   confirmBody: { fontSize: 12.5, lineHeight: 18, marginTop: 4, marginBottom: 16 },
   confirmActions: { flexDirection: 'row', gap: 10 },
-  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
-  btnPrimary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+  btnSecondary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  btnPrimary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 });

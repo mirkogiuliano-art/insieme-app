@@ -54,3 +54,33 @@ export async function openPinInMaps(pin: RawPin): Promise<void> {
     opening.delete(pin.id);
   }
 }
+
+/** Un luogo trovato cercando per nome. */
+export interface FoundPlace {
+  placeId: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Cerca un luogo per nome (vedi supabase/functions/search-places). Con la
+ * posizione di chi cerca, i luoghi vicini vengono prima. Restituisce un
+ * elenco vuoto se non trova niente, e `null` se la ricerca non è riuscita
+ * — così chi chiama può dire "nessun risultato" o "riprova" a ragion veduta.
+ */
+export async function searchPlaces(
+  query: string,
+  near?: { lat: number; lng: number } | null,
+): Promise<FoundPlace[] | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('search-places', {
+      body: { query, ...(near ? { lat: near.lat, lng: near.lng } : {}) },
+    });
+    if (error || !data) return null;
+    return ((data as { results?: FoundPlace[] }).results ?? []).slice(0, 5);
+  } catch {
+    return null;
+  }
+}

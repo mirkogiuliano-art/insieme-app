@@ -15,17 +15,26 @@ function hostOf(url: string): string {
 
 const VIDEO_PLATFORMS = new Set(['youtube', 'vimeo', 'video']);
 
+/** Stessi marchi delle schede della pagina Link. */
+const BADGES: Record<string, { text: string; bg: string }> = {
+  youtube: { text: 'YouTube', bg: '#E23B32' },
+  instagram: { text: 'Instagram', bg: '#C8356E' },
+  tiktok: { text: 'TikTok', bg: '#111111' },
+  vimeo: { text: 'Vimeo', bg: '#1A9FD6' },
+  spotify: { text: 'Spotify', bg: '#1C9E4B' },
+  twitter: { text: 'X', bg: '#111111' },
+};
+
 /**
- * Scheda di anteprima sotto al testo di un messaggio che contiene un link.
+ * La scheda di un link mandato in chat: la stessa faccia che ha nella
+ * pagina Link — immagine piena col marchio della piattaforma, titolo vero,
+ * sito — invece di un riquadro scuro dentro il fumetto ambra. Sta sotto al
+ * fumetto, non dentro, e ha sempre il colore delle schede.
  *
- * Parte subito da ciò che si deduce dall'indirizzo (`platformInfo`:
- * piattaforma, dominio, miniatura YouTube) e si arricchisce quando
- * arrivano titolo, descrizione e immagine veri dai tag Open Graph della
- * pagina — letti dalla Edge Function `link-preview` e tenuti in cache
- * condivisa. Se la pagina non è raggiungibile o non espone metadati resta
- * la versione essenziale: l'anteprima è un miglioramento, non un requisito.
+ * Parte da ciò che si deduce dall'indirizzo e si arricchisce quando
+ * arrivano titolo e immagine veri (Edge Function `link-preview`, in cache).
  */
-export function ChatLinkPreview({ url, own }: { url: string; own: boolean }) {
+export function ChatLinkPreview({ url, onMenu }: { url: string; own?: boolean; onMenu?: () => void }) {
   const { colors } = useTheme();
   const info = platformInfo(url);
   const host = hostOf(url);
@@ -41,52 +50,48 @@ export function ChatLinkPreview({ url, own }: { url: string; own: boolean }) {
     };
   }, [url]);
 
-  const bg = own ? 'rgba(0,0,0,0.10)' : colors.surface2;
-  const bd = own ? '#6B5730' : colors.border;
-  const strong = own ? colors.inkOnAmber : colors.text;
-  const faint = own ? '#6B5730' : colors.textFaint;
-
   const image = meta?.imageUrl ?? info.thumb;
   const title = meta?.title ?? info.label;
-  const subtitle = meta?.siteName ?? host;
-  const isVideo = VIDEO_PLATFORMS.has(info.platform);
+  const site = meta?.siteName ?? host;
+  const badge = BADGES[info.platform] ?? { text: host, bg: 'rgba(14,20,27,0.72)' };
 
   return (
     <Pressable
       onPress={(e) => {
-        // Senza questo il tocco arriva anche al fumetto e aprirebbe le reazioni.
+        // Senza questo il tocco arriverebbe anche al fumetto e aprirebbe il menu.
         e.stopPropagation?.();
         Linking.openURL(url);
       }}
-      style={[styles.linkPreview, { backgroundColor: bg, borderColor: bd }]}
+      onLongPress={onMenu}
+      style={[styles.card, { backgroundColor: colors.surface }]}
     >
       {image ? (
-        <View>
-          <Image source={{ uri: image }} style={styles.linkPreviewImage} />
-          {isVideo ? (
-            <View style={styles.linkPreviewPlay}>
-              <PlayIcon size={26} color="#fff" />
+        <View style={styles.imageBox}>
+          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          {VIDEO_PLATFORMS.has(info.platform) ? (
+            <View style={styles.play}>
+              <PlayIcon size={24} color="#fff" />
             </View>
           ) : null}
+          <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+            <Text style={styles.badgeText} numberOfLines={1}>
+              {badge.text}
+            </Text>
+          </View>
         </View>
       ) : null}
-      <View style={styles.linkPreviewBody}>
+      <View style={styles.body}>
         {!image ? (
-          <View style={[styles.linkPreviewIcon, { borderColor: bd }]}>
-            <LinkIcon size={17} color={faint} strokeWidth={1.7} />
+          <View style={[styles.icon, { backgroundColor: colors.surface2 }]}>
+            <LinkIcon size={16} color={colors.textDim} strokeWidth={1.8} />
           </View>
         ) : null}
         <View style={{ flex: 1 }}>
-          <Text style={[styles.linkPreviewLabel, { color: strong }]} numberOfLines={2}>
+          <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
             {title}
           </Text>
-          {meta?.description ? (
-            <Text style={[styles.linkPreviewDesc, { color: faint }]} numberOfLines={2}>
-              {meta.description}
-            </Text>
-          ) : null}
-          <Text style={[styles.linkPreviewHost, { color: faint }]} numberOfLines={1}>
-            {subtitle}
+          <Text style={[styles.site, { color: colors.textFaint }]} numberOfLines={1}>
+            {site}
           </Text>
         </View>
       </View>
@@ -94,28 +99,14 @@ export function ChatLinkPreview({ url, own }: { url: string; own: boolean }) {
   );
 }
 
-/** Non è la forma d'onda reale dell'audio (richiederebbe analizzare i
- * campioni al momento della registrazione e salvarli) — è un pattern di
- * barre pseudo-casuale ma stabile (stesso URI → sempre le stesse barre),
- * solo per dare il colpo d'occhio "messaggio vocale" come nelle altre app
- * di chat. */
-
 const styles = StyleSheet.create({
-  linkPreviewPlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.22)',
-  },
-  linkPreview: { borderWidth: 1, borderRadius: RADIUS.sm, overflow: 'hidden', marginTop: 7, maxWidth: 240 },
-  linkPreviewImage: { width: 240, height: 135 },
-  linkPreviewBody: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 9, paddingVertical: 8 },
-  linkPreviewIcon: { width: 34, height: 34, borderRadius: 7, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  linkPreviewLabel: { fontSize: 12.5, fontWeight: '700', lineHeight: 16 },
-  linkPreviewDesc: { fontSize: 11, lineHeight: 15, marginTop: 2 },
-  linkPreviewHost: { fontSize: 10.5, marginTop: 3 },
+  card: { width: 240, borderRadius: 18, overflow: 'hidden' },
+  imageBox: { width: 240, height: 128 },
+  play: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)' },
+  badge: { position: 'absolute', left: 8, top: 8, maxWidth: '75%', height: 18, paddingHorizontal: 6, borderRadius: 6, justifyContent: 'center' },
+  badgeText: { color: '#fff', fontSize: 9.5, fontWeight: '800' },
+  body: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 11, paddingVertical: 9 },
+  icon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 13, fontWeight: '800', lineHeight: 17 },
+  site: { fontSize: 11, marginTop: 2 },
 });

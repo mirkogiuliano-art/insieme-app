@@ -34,6 +34,13 @@ export function inviteUrl(token: string): string {
   return Linking.createURL(`/invite/${token}`);
 }
 
+/** Il token di un link d'invito incollato o copiato, qualunque sia la
+ * forma del link (app installata, Expo, web). `null` se non è un invito. */
+export function inviteTokenFrom(text: string): string | null {
+  const m = /\/invite\/([A-Za-z0-9_-]{8,})/.exec(text.trim());
+  return m ? m[1] : null;
+}
+
 /** Token dell'invito in corso, oppure `null` se è stato revocato. */
 export async function getInviteToken(groupId: string): Promise<string | null> {
   const { data, error } = await supabase

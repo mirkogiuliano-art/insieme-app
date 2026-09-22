@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
-import { useTheme, RADIUS } from '@/theme/theme';
+import { useTheme } from '@/theme/theme';
 import { FileIcon } from '@/components/Icon';
 import { fileKindFor, fileLabelFor, formatFileSize, type FileKind } from '@/lib/utils';
 
@@ -36,9 +36,10 @@ export function FileAttachmentBubble({
   const kind = fileKindFor(name);
   const badge = fileBadgeColor(kind, colors);
   const bg = own ? 'rgba(0,0,0,0.10)' : colors.surface2;
-  const bd = own ? '#6B5730' : colors.border;
   const strong = own ? colors.inkOnAmber : colors.text;
-  const faint = own ? '#6B5730' : colors.textFaint;
+  // Sul fumetto ambra il colore del tipo di file sparirebbe: lì l'icona
+  // prende l'inchiostro del fumetto, su un tassello più scuro.
+  const tint = own ? colors.inkOnAmber : badge;
 
   return (
     <Pressable
@@ -47,17 +48,17 @@ export function FileAttachmentBubble({
         e.stopPropagation?.();
         Linking.openURL(url);
       }}
-      style={[styles.row, { backgroundColor: bg, borderColor: bd }]}
+      style={[styles.row, { backgroundColor: bg }]}
     >
-      <View style={[styles.iconBox, { borderColor: badge }]}>
-        <FileIcon size={18} color={badge} strokeWidth={1.6} />
-        <Text style={[styles.badgeLabel, { color: badge }]}>{fileLabelFor(name)}</Text>
+      <View style={[styles.iconBox, { backgroundColor: own ? 'rgba(0,0,0,0.12)' : badge + '26' }]}>
+        <FileIcon size={18} color={tint} strokeWidth={1.8} />
+        <Text style={[styles.badgeLabel, { color: tint }]}>{fileLabelFor(name)}</Text>
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.name, { color: strong }]} numberOfLines={2}>
           {name}
         </Text>
-        {size != null ? <Text style={[styles.size, { color: faint }]}>{formatFileSize(size)}</Text> : null}
+        {size != null ? <Text style={[styles.size, { color: strong, opacity: 0.6 }]}>{formatFileSize(size)}</Text> : null}
       </View>
     </Pressable>
   );
@@ -68,14 +69,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderWidth: 1,
-    borderRadius: RADIUS.sm,
-    padding: 9,
+    borderRadius: 14,
+    padding: 8,
+    paddingRight: 12,
     marginTop: 7,
     maxWidth: 240,
   },
-  iconBox: { width: 42, height: 42, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center', gap: 1 },
+  iconBox: { width: 42, height: 42, borderRadius: 11, alignItems: 'center', justifyContent: 'center', gap: 1 },
   badgeLabel: { fontSize: 8, fontWeight: '800', letterSpacing: 0.3 },
-  name: { fontSize: 12.5, fontWeight: '700', lineHeight: 16 },
+  name: { fontSize: 13, fontWeight: '800', lineHeight: 17 },
   size: { fontSize: 10.5, marginTop: 2 },
 });

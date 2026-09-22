@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,23 +7,20 @@ import {
   StyleSheet,
   ScrollView,
   SectionList,
-  Image,
-  Linking,
-  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { PlusIcon, LinkIcon, TrashIcon, AttachIcon, PlayIcon, MapIcon, StarIcon } from '@/components/Icon';
+import { PlusIcon, LinkIcon, StarIcon, SearchIcon, CloseIcon, GridIcon, ListIcon, SortIcon, CheckIcon } from '@/components/Icon';
 import { FilterChip } from '@/components/FilterChip';
 import { BottomSheet } from '@/components/BottomSheet';
 import { CategorySheet } from '@/components/CategorySheet';
-import { AttachMenuSheet } from '@/components/AttachMenuSheet';
-import { LinkCard } from '@/components/LinkCard';
+import { AddLinkSheet } from '@/components/AddLinkSheet';
+import { LinkActionsSheet } from '@/components/LinkActionsSheet';
+import { LinkRow, LinkTile, type LinkedPlace } from '@/components/LinkCard';
 import { LoadError } from '@/components/LoadError';
 import { PlacePickerSheet } from '@/components/PlacePickerSheet';
 import {
-  dateLabel,
   platformInfo,
   normalizeUrl,
   parseGoogleMapsUrl,
@@ -39,11 +36,20 @@ import {
   listCategories,
   createCategory,
   renameCategory,
+  recolorCategory,
   deleteCategory,
   subscribeToCategories,
   type RawLinkCategory,
 } from '@/lib/api/linkCategories';
-import { listLinks, createLink, deleteLink, setFavorite, subscribeToLinks, type RawLink } from '@/lib/api/links';
+import {
+  listLinks,
+  createLink,
+  deleteLink,
+  setFavorite,
+  setLinkCategory,
+  subscribeToLinks,
+  type RawLink,
+} from '@/lib/api/links';
 import { listPins, createPin, subscribeToPins, type RawPin } from '@/lib/api/pins';
 import {
   listCategories as listPlaceCategories,
@@ -58,7 +64,11 @@ import {
   type RawPlaceLink,
 } from '@/lib/api/placeLinks';
 import { uploadGroupMedia, uploadGroupFile, sweepGroupMedia } from '@/lib/api/mediaUpload';
+import { storage } from '@/lib/storage';
 import { getLinkPreview } from '@/lib/api/linkPreviews';
+import { sendMessage } from '@/lib/api/messages';
+import { avvisaDelMessaggio } from '@/lib/api/push';
+import { colorForUser } from '@/lib/utils';
 import { CATEGORY_PALETTE } from '@/types';
 
 interface LinksTabProps {
@@ -70,6 +80,29 @@ interface LinksTabProps {
 
 const FALLBACK_PLACE_CATEGORY = { name: 'Altro', color: '#75828C' };
 
+/** Come si guardano i link: righe con miniatura, o riquadri a due colonne.
+ * È una preferenza di chi guarda, non del gruppo: sta sul telefono. */
+type LinksView = 'list' | 'grid';
+const VIEW_KEY = 'linksView';
+
+/** In che ordine si vedono i link. Anche questa è una preferenza di chi
+ * guarda, salvata sul telefono. */
+type LinksSort = 'recent' | 'oldest' | 'title' | 'person';
+const SORT_KEY = 'linksSort';
+const SORT_LABELS: Record<LinksSort, string> = {
+  recent: 'Più recenti',
+  oldest: 'Meno recenti',
+  title: 'Titolo (A–Z)',
+  person: 'Chi l’ha condiviso',
+};
+
+/** Spezza un elenco in coppie, per la griglia a due colonne. */
+function pairs<T>(list: T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += 2) out.push(list.slice(i, i + 2));
+  return out;
+}
+
 export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   const { colors } = useTheme();
   const { session } = useAuth();
@@ -79,16 +112,24 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   const [items, setItems] = useState<RawLink[]>([]);
   const [filter, setFilter] = useState<string>('all');
 
-  const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [selectedCat, setSelectedCat] = useState<string>('');
+  const [query, setQuery] = useState('');
+  const [view, setView] = useState<LinksView>('list');
+  const [addOpen, setAddOpen] = useState(false);
+  const [sort, setSort] = useState<LinksSort>('recent');
+  const [sortOpen, setSortOpen] = useState(false);
+  /** Il link di cui è aperto il menu delle azioni. */
+  const [menuFor, setMenuFor] = useState<RawLink | null>(null);
+  /** I titoli veri delle pagine, per la ricerca. Un link salvato senza
+   * titolo si chiama "YouTube" o col nome del sito: senza questi, cercando
+   * "kyoto" non si troverebbe il video su Kyoto. Le anteprime sono in
+   * cache — le stesse che mostrano le schede — quindi costano poco. */
+  const [pageTitles, setPageTitles] = useState<Record<string, string>>({});
 
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [newCatName, setNewCatName] = useState('');
 
   const [manageCat, setManageCat] = useState<RawLinkCategory | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
   // Collegamenti con i posti della mappa.
@@ -113,7 +154,6 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         listPlaceLinks(groupId),
       ]));
       setCategories(cats);
-      setSelectedCat((prev) => (prev && cats.some((c) => c.id === prev) ? prev : (cats[0]?.id ?? '')));
       setItems(links);
       setPins(pinList);
       setPlaceCategories(placeCats);
@@ -123,6 +163,63 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       setLoadError(true);
     }
   }, [groupId]);
+
+  useEffect(() => {
+    storage.get<LinksView>(VIEW_KEY).then((v) => {
+      if (v === 'list' || v === 'grid') setView(v);
+    });
+    storage.get<LinksSort>(SORT_KEY).then((v) => {
+      if (v && v in SORT_LABELS) setSort(v);
+    });
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const web = items.filter((it) => it.platform !== 'image' && it.platform !== 'video' && it.platform !== 'file');
+    Promise.all(web.map((it) => getLinkPreview(it.url).then((p) => [it.url, p?.title ?? ''] as const))).then((found) => {
+      if (!alive) return;
+      setPageTitles(Object.fromEntries(found.filter(([, t]) => t)));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [items]);
+
+  const chooseSort = (next: LinksSort) => {
+    setSort(next);
+    storage.set(SORT_KEY, next);
+    setSortOpen(false);
+  };
+
+  /** Manda un link nella chat del gruppo. Foto, video e documenti caricati
+   * arrivano come allegati veri — con anteprima e lettore — e non come un
+   * indirizzo del deposito che nessuno saprebbe leggere. */
+  const sendToChat = async (link: RawLink, note: string): Promise<boolean> => {
+    if (!session) return false;
+    const text = note.trim();
+    try {
+      const attachment =
+        link.platform === 'image' || link.platform === 'video'
+          ? { url: link.url, type: link.platform }
+          : link.platform === 'file'
+            ? { url: link.url, type: 'file' as const, name: link.title }
+            : null;
+      const body = attachment ? text || null : text ? `${text}\n${link.url}` : link.url;
+      const sent = await withTimeout(sendMessage(groupId, session.user.id, body, null, attachment), WRITE_TIMEOUT);
+      avvisaDelMessaggio(sent.id);
+      toast.show('Mandato in chat');
+      return true;
+    } catch {
+      toast.show('Non sono riuscito a mandarlo in chat, riprova.');
+      return false;
+    }
+  };
+
+  const toggleView = () => {
+    const next: LinksView = view === 'list' ? 'grid' : 'list';
+    setView(next);
+    storage.set(VIEW_KEY, next);
+  };
 
   useEffect(() => {
     loadAll();
@@ -165,8 +262,10 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     };
   }, [groupId]);
 
-  const addLink = async () => {
-    if (!url.trim() || !session) return;
+  /** Salva un indirizzo. Restituisce `true` se è andato a buon fine, così
+   * il foglio "Aggiungi" sa se chiudersi o restare aperto col testo. */
+  const addLink = async (url: string, title: string, categoryId: string): Promise<boolean> => {
+    if (!url.trim() || !session) return false;
     const normalized = normalizeUrl(url);
     let info;
     try {
@@ -175,10 +274,10 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       info = platformInfo(normalized);
     } catch {
       toast.show('Il link non sembra valido.');
-      return;
+      return false;
     }
-    const catId = selectedCat || categories[0]?.id;
-    if (!catId) return;
+    const catId = categoryId || categories[0]?.id;
+    if (!catId) return false;
     // Se è un link di Google Maps con coordinate leggibili, il posto ci dà
     // sia un titolo migliore sia la proposta di salvarlo anche sulla mappa.
     const maps = parseGoogleMapsUrl(normalized);
@@ -194,14 +293,14 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         thumb: info.thumb,
         categoryId: catId,
       }), WRITE_TIMEOUT);
-      setUrl('');
-      setTitle('');
       if (maps) {
         setMapsPromptCat(placeCategories[0]?.id ?? '');
         setMapsPrompt({ info: maps, linkId: created.id, url: normalized });
       }
+      return true;
     } catch {
       toast.show('Non sono riuscito a salvare il link, riprova.');
+      return false;
     }
   };
 
@@ -262,18 +361,18 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     }
   };
 
-  const pickFile = async () => {
-    if (!session || uploadingFile) return;
+  const pickFile = async (mediaType: 'images' | 'videos', title: string, categoryId: string): Promise<boolean> => {
+    if (!session || uploadingFile) return false;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       toast.show('Serve il permesso per accedere ai file.');
-      return;
+      return false;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.7 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: [mediaType], quality: 0.7 });
     const asset = result.canceled ? null : result.assets?.[0];
-    if (!asset) return;
-    const catId = selectedCat || categories[0]?.id;
-    if (!catId) return;
+    if (!asset) return false;
+    const catId = categoryId || categories[0]?.id;
+    if (!catId) return false;
 
     const kind: 'image' | 'video' = asset.type === 'video' ? 'video' : 'image';
     setUploadingFile(true);
@@ -287,9 +386,10 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         thumb: kind === 'image' ? uploadedUrl : null,
         categoryId: catId,
       }), WRITE_TIMEOUT);
-      setTitle('');
+      return true;
     } catch {
       toast.show('Caricamento del file non riuscito, riprova.');
+      return false;
     } finally {
       setUploadingFile(false);
     }
@@ -300,13 +400,13 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
    * richiede un permesso da chiedere prima. Il nome scelto va nel titolo
    * (come "Foto"/"Video" per gli altri allegati, ma qui è l'unica cosa
    * leggibile: non c'è un'anteprima da mostrare al suo posto). */
-  const pickDocument = async () => {
-    if (!session || uploadingFile) return;
+  const pickDocument = async (title: string, categoryId: string): Promise<boolean> => {
+    if (!session || uploadingFile) return false;
     const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
     const asset = result.canceled ? null : result.assets?.[0];
-    if (!asset) return;
-    const catId = selectedCat || categories[0]?.id;
-    if (!catId) return;
+    if (!asset) return false;
+    const catId = categoryId || categories[0]?.id;
+    if (!catId) return false;
 
     setUploadingFile(true);
     try {
@@ -319,9 +419,10 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         thumb: null,
         categoryId: catId,
       }), WRITE_TIMEOUT);
-      setTitle('');
+      return true;
     } catch {
       toast.show('Caricamento del documento non riuscito, riprova.');
+      return false;
     } finally {
       setUploadingFile(false);
     }
@@ -335,6 +436,16 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       await withTimeout(setFavorite(link.id, !link.isFavorite), WRITE_TIMEOUT);
     } catch {
       toast.show('Non sono riuscito ad aggiornare il preferito.');
+    }
+  };
+
+  const moveLink = async (link: RawLink, categoryId: string) => {
+    try {
+      await withTimeout(setLinkCategory(link.id, categoryId), WRITE_TIMEOUT);
+      const cat = categories.find((c) => c.id === categoryId);
+      toast.show(cat ? `Spostato in "${cat.name}"` : 'Link spostato');
+    } catch {
+      toast.show('Non sono riuscito a spostare il link.');
     }
   };
 
@@ -357,7 +468,6 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         newCatName.trim().slice(0, 24),
         CATEGORY_PALETTE[categories.length % CATEGORY_PALETTE.length],
       );
-      setSelectedCat(cat.id);
       setFilter(cat.id);
       setNewCatName('');
       setCatModalOpen(false);
@@ -374,13 +484,14 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     setManageCat(null);
   };
 
-  const saveRename = async (name: string) => {
+  const saveRename = async (name: string, color: string) => {
     if (!manageCat) return;
     try {
-      await renameCategory(manageCat.id, name);
+      if (name !== manageCat.name) await renameCategory(manageCat.id, name);
+      if (color && color !== manageCat.color) await recolorCategory(manageCat.id, color);
       closeManageCat();
     } catch {
-      toast.show('Non sono riuscito a rinominare la categoria.');
+      toast.show('Non sono riuscito a salvare la categoria.');
     }
   };
 
@@ -396,127 +507,141 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   };
 
 
-  const filtered =
-    filter === 'all'
-      ? items
-      : filter === 'favorites'
-        ? items.filter((it) => it.isFavorite)
-        : items.filter((it) => it.categoryId === filter);
-  const sectionsForList = categories
-    .map((c) => ({
-      category: c,
-      title: c.name,
-      data: filtered.filter((it) => it.categoryId === c.id),
-    }))
-    .filter((s) => s.data.length > 0);
-
-  const renderItem = ({ item }: { item: RawLink }) => {
-    const cat = categories.find((c) => c.id === item.categoryId) ?? { name: 'Generale', color: '#75828C' };
-    const addedBy = roster[item.userId] ?? 'Utente';
-    const linkedPins = pinIdsForLink(item.id)
-      .map((pinId) => pins.find((p) => p.id === pinId))
-      .filter((p): p is RawPin => !!p);
-    return (
-      <LinkCard
-        item={item}
-        catName={cat.name}
-        catColor={cat.color}
-        addedBy={addedBy}
-        onRemove={() => removeLink(item.id)}
-        onToggleFavorite={() => toggleFavorite(item)}
-        onPickPlace={() => setPickerLink(item)}
-      >
-        <View style={styles.placeRow}>
-          {linkedPins.map((p) => {
-            const pc = placeCatFor(p);
-            return (
-              <Pressable
-                key={p.id}
-                onPress={() => onShowPlaceOnMap?.(p.id)}
-                style={[styles.placeChip, { borderColor: pc.color, backgroundColor: colors.surface2 }]}
-              >
-                <MapIcon size={11} color={pc.color} strokeWidth={2} />
-                <Text style={{ fontSize: 10.5, fontWeight: '600', color: colors.textDim }} numberOfLines={1}>
-                  {p.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-          <Pressable onPress={() => setPickerLink(item)} style={[styles.placeChipAdd, { borderColor: colors.border }]}>
-            <PlusIcon size={9} color={colors.textFaint} />
-            <Text style={{ fontSize: 10.5, color: colors.textFaint }}>
-              {linkedPins.length === 0 ? 'Collega un posto' : 'Posto'}
-            </Text>
-          </Pressable>
-        </View>
-      </LinkCard>
+  const term = query.trim().toLowerCase();
+  const filtered = items
+    .filter((it) =>
+      filter === 'all' ? true : filter === 'favorites' ? it.isFavorite : it.categoryId === filter,
+    )
+    // La ricerca guarda il titolo, la piattaforma e il sito: "youtube",
+    // "pdf" o "booking" trovano quello che ci si aspetta.
+    .filter(
+      (it) =>
+        !term ||
+        it.title.toLowerCase().includes(term) ||
+        (pageTitles[it.url] ?? '').toLowerCase().includes(term) ||
+        it.label.toLowerCase().includes(term) ||
+        it.url.toLowerCase().includes(term),
     );
-  };
+
+  const displayTitle = (it: RawLink) => pageTitles[it.url] || it.title;
+  const authorOf = (it: RawLink) => roster[it.userId] ?? 'Utente';
+  filtered.sort((a, b) => {
+    switch (sort) {
+      case 'oldest':
+        return a.ts - b.ts;
+      case 'title':
+        return displayTitle(a).localeCompare(displayTitle(b), 'it', { sensitivity: 'base' });
+      case 'person':
+        return authorOf(a).localeCompare(authorOf(b), 'it', { sensitivity: 'base' }) || b.ts - a.ts;
+      default:
+        return b.ts - a.ts;
+    }
+  });
+
+  /**
+   * La categoria compare una volta sola. Con "Tutti" l'elenco si divide in
+   * sezioni col nome della categoria; dentro una categoria, con i preferiti
+   * o durante una ricerca, è un elenco unico senza intestazioni — il nome
+   * sta già nel filtro scelto.
+   */
+  const grouped = filter === 'all' && !term;
+  type Section = { key: string; heading: { name: string; color: string } | null; items: RawLink[] };
+  // Ordinando per persona, le sezioni sono le persone invece delle
+  // categorie: "tutto quello che ha salvato Teodora".
+  const people = Array.from(new Set(filtered.map(authorOf)));
+  const sections: Section[] = !grouped
+    ? [{ key: 'tutti', heading: null, items: filtered }]
+    : sort === 'person'
+      ? people.map((name) => ({
+          key: 'p:' + name,
+          heading: { name, color: colorForUser(name) },
+          items: filtered.filter((it) => authorOf(it) === name),
+        }))
+      : categories
+          .map((c) => ({ key: c.id, heading: { name: c.name, color: c.color }, items: filtered.filter((it) => it.categoryId === c.id) }))
+          .filter((s) => s.items.length > 0);
+  const listSections = sections.map((s) => ({
+    key: s.key,
+    heading: s.heading,
+    count: s.items.length,
+    // Nella griglia ogni riga dell'elenco porta due link.
+    data: view === 'grid' ? pairs(s.items) : s.items.map((it) => [it]),
+  }));
+
+  const savedUrls = useMemo(() => new Set(items.map((it) => it.url)), [items]);
+
+  const placesFor = (linkId: string): LinkedPlace[] =>
+    pinIdsForLink(linkId)
+      .map((pinId) => pins.find((p) => p.id === pinId))
+      .filter((p): p is RawPin => !!p)
+      .map((p) => ({ id: p.id, name: p.name, color: placeCatFor(p).color }));
+
+  const cardProps = (item: RawLink) => ({
+    item,
+    addedBy: roster[item.userId] ?? 'Utente',
+    places: placesFor(item.id),
+    onOpenMenu: () => setMenuFor(item),
+    onShowPlace: (pinId: string) => onShowPlaceOnMap?.(pinId),
+  });
+
+  const renderRow = ({ item: row }: { item: RawLink[] }) =>
+    view === 'grid' ? (
+      <View style={styles.gridRow}>
+        <LinkTile {...cardProps(row[0])} />
+        {row[1] ? <LinkTile {...cardProps(row[1])} /> : <View style={{ flex: 1 }} />}
+      </View>
+    ) : (
+      <LinkRow {...cardProps(row[0])} />
+    );
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={[styles.addBox, { borderBottomColor: colors.border }]}>
-        <View style={styles.urlRow}>
+      {/* Il modulo per aggiungere non occupa più la pagina: si apre dal
+          pulsante, e qui restano la ricerca e il modo di guardare. */}
+      <View style={styles.topBar}>
+        <View style={[styles.search, { backgroundColor: colors.surface }]}>
+          <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
-            style={[styles.urlInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-            placeholder="Incolla un link (YouTube, Instagram...)"
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder={items.length > 0 ? `Cerca fra ${items.length} link` : 'Cerca'}
             placeholderTextColor={colors.textFaint}
-            value={url}
-            onChangeText={setUrl}
-            autoCapitalize="none"
+            value={query}
+            onChangeText={setQuery}
             autoCorrect={false}
+            returnKeyType="search"
           />
-          <Pressable
-            onPress={() => setAttachMenuOpen(true)}
-            disabled={uploadingFile}
-            style={[styles.attachBtn, { backgroundColor: colors.surface, borderColor: colors.border, opacity: uploadingFile ? 0.5 : 1 }]}
-          >
-            {uploadingFile ? <ActivityIndicator size="small" color={colors.textDim} /> : <AttachIcon size={17} color={colors.textDim} />}
-          </Pressable>
+          {query ? (
+            <Pressable onPress={() => setQuery('')} hitSlop={8}>
+              <CloseIcon size={13} color={colors.textFaint} />
+            </Pressable>
+          ) : null}
         </View>
-        <View style={styles.addRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catPickerScroll}>
-            {categories.map((c) => (
-              <Pressable
-                key={c.id}
-                onPress={() => setSelectedCat(c.id)}
-                style={[
-                  styles.catPick,
-                  { borderColor: selectedCat === c.id ? c.color : colors.border, backgroundColor: colors.surface },
-                ]}
-              >
-                <View style={[styles.dot, { backgroundColor: c.color }]} />
-                <Text style={{ fontSize: 12, color: selectedCat === c.id ? colors.text : colors.textDim }}>{c.name}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-        <View style={styles.addRow2}>
-          <TextInput
-            style={[styles.titleInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-            placeholder="Titolo (facoltativo)"
-            placeholderTextColor={colors.textFaint}
-            value={title}
-            onChangeText={setTitle}
-            maxLength={80}
-          />
-          <Pressable
-            onPress={addLink}
-            disabled={!url.trim()}
-            style={[styles.addBtn, { backgroundColor: colors.amber, opacity: url.trim() ? 1 : 0.45 }]}
-          >
-            <PlusIcon size={14} color={colors.inkOnAmber} />
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '700', fontSize: 13 }}>Salva</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={toggleView}
+          hitSlop={4}
+          style={[styles.viewBtn, { backgroundColor: colors.surface }]}
+          accessibilityLabel={view === 'list' ? 'Mostra a griglia' : 'Mostra a elenco'}
+        >
+          {view === 'list' ? <GridIcon size={17} color={colors.textDim} /> : <ListIcon size={17} color={colors.textDim} />}
+        </Pressable>
+        <Pressable onPress={() => setAddOpen(true)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
+          <PlusIcon size={13} color={colors.inkOnAmber} />
+          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>Aggiungi</Text>
+        </Pressable>
       </View>
 
-      <View style={[styles.filters, { borderBottomColor: colors.border }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <FilterChip label="Tutte" dotColor={colors.textFaint} active={filter === 'all'} onPress={() => setFilter('all')} />
+      <View style={styles.filters}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+          <FilterChip
+            label={SORT_LABELS[sort]}
+            icon={<SortIcon size={12} color={colors.textDim} />}
+            onPress={() => setSortOpen(true)}
+          />
+          <View style={[styles.chipDivider, { backgroundColor: colors.border }]} />
+          <FilterChip label="Tutti" active={filter === 'all'} onPress={() => setFilter('all')} />
           <FilterChip
             label="Preferiti"
-            icon={<StarIcon size={12} color={filter === 'favorites' ? colors.amber : colors.textFaint} filled={filter === 'favorites'} />}
+            icon={<StarIcon size={12} color={colors.amber} filled={filter === 'favorites'} />}
             active={filter === 'favorites'}
             onPress={() => setFilter('favorites')}
           />
@@ -538,39 +663,54 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
 
       {filtered.length === 0 ? (
         <View style={styles.empty}>
-          {filter === 'favorites' ? (
+          {/* Con l’avviso d’errore sopra, «non c’è niente» sarebbe falso. */}
+          {loadError ? null : (
             <>
-              <StarIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
-              <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-                Nessun preferito ancora. Tocca la stella su un link per salvarlo qui.
-              </Text>
-            </>
-          ) : (
-            <>
-              <LinkIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
-              <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-                Nessun link qui. Incolla un video o un sito, o allega una foto, un video o un documento dal telefono con la graffetta.
-              </Text>
+              {term ? (
+                <>
+                  <SearchIcon size={34} color={colors.textFaint} strokeWidth={1.6} />
+                  <Text style={[styles.emptyText, { color: colors.textFaint }]}>Nessun link corrisponde a «{query.trim()}».</Text>
+                </>
+              ) : filter === 'favorites' ? (
+                <>
+                  <StarIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
+                  <Text style={[styles.emptyText, { color: colors.textFaint }]}>
+                    Nessun preferito ancora. Tieni premuto un link (o tocca ⋯) e scegli «Aggiungi ai preferiti».
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <LinkIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
+                  <Text style={[styles.emptyText, { color: colors.textFaint }]}>
+                    Nessun link qui. Tocca «Aggiungi» per salvare un video, un sito, una foto o un documento.
+                  </Text>
+                </>
+              )}
             </>
           )}
         </View>
       ) : (
         <SectionList
-          sections={sectionsForList}
-          keyExtractor={(it) => it.id}
-          renderItem={renderItem}
-          contentContainerStyle={{ padding: 16 }}
+          // Cambiando vista cambia la forma delle righe: meglio ricominciare
+          // da capo che riciclare righe della forma sbagliata.
+          key={view}
+          sections={listSections}
+          keyExtractor={(row) => row.map((it) => it.id).join('+')}
+          renderItem={renderRow}
+          contentContainerStyle={styles.listContent}
           stickySectionHeadersEnabled={false}
-          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
-              <View style={[styles.dot, { backgroundColor: section.category.color }]} />
-              <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: colors.textDim, letterSpacing: 0.4 }}>
-                {section.title.toUpperCase()}
-              </Text>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textFaint }}>{section.data.length}</Text>
-            </View>
-          )}
+          ItemSeparatorComponent={() =>
+            view === 'grid' ? <View style={{ height: 16 }} /> : <View style={[styles.rowSep, { backgroundColor: colors.border }]} />
+          }
+          renderSectionHeader={({ section }) =>
+            section.heading ? (
+              <View style={styles.sectionHeader}>
+                <View style={[styles.dot, { backgroundColor: section.heading.color }]} />
+                <Text style={[styles.sectionTitle, { color: colors.textDim }]}>{section.heading.name.toUpperCase()}</Text>
+                <Text style={[styles.sectionCount, { color: colors.textFaint }]}>{section.count}</Text>
+              </View>
+            ) : null
+          }
         />
       )}
 
@@ -604,7 +744,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         itemLabel="link"
         fallbackName={categories.find((x) => x.id !== manageCat?.id)?.name ?? ''}
         canDelete={!!manageCat && manageCat.name !== 'Generale' && categories.length > 1}
-        onRename={saveRename}
+        onSave={saveRename}
         onDelete={runDeleteCategory}
         onClose={closeManageCat}
       />
@@ -664,50 +804,70 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         ) : null}
       </BottomSheet>
 
-      <AttachMenuSheet
-        visible={attachMenuOpen}
-        onClose={() => setAttachMenuOpen(false)}
+      <AddLinkSheet
+        visible={addOpen}
+        onClose={() => setAddOpen(false)}
+        categories={categories}
+        savedUrls={savedUrls}
+        uploading={uploadingFile}
+        onSaveUrl={addLink}
         onPickMedia={pickFile}
         onPickDocument={pickDocument}
       />
+
+      <LinkActionsSheet
+        link={menuFor}
+        categories={categories}
+        onClose={() => setMenuFor(null)}
+        onToggleFavorite={toggleFavorite}
+        onPickPlace={(link) => setPickerLink(link)}
+        onMove={moveLink}
+        onDelete={(link) => removeLink(link.id)}
+        onSendToChat={sendToChat}
+      />
+
+      <BottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
+        <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 8 }]}>Ordina per</Text>
+        {(Object.keys(SORT_LABELS) as LinksSort[]).map((k, i) => (
+          <Pressable
+            key={k}
+            onPress={() => chooseSort(k)}
+            style={[styles.sortRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
+          >
+            <Text style={[styles.sortLabel, { color: colors.text, fontWeight: sort === k ? '800' : '600' }]}>{SORT_LABELS[k]}</Text>
+            {sort === k ? <CheckIcon size={17} color={colors.amber} /> : null}
+          </Pressable>
+        ))}
+      </BottomSheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  addBox: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, borderBottomWidth: 1, gap: 8 },
-  urlRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  urlInput: { flex: 1, borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 13, paddingVertical: 10, fontSize: 13.5 },
-  attachBtn: { width: 38, height: 38, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  addRow: { flexDirection: 'row' },
-  catPickerScroll: { flexGrow: 0 },
+  topBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+  search: { flex: 1, height: 40, borderRadius: RADIUS.sm, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
+  searchInput: { flex: 1, fontSize: 13.5, paddingVertical: 0 },
+  viewBtn: { width: 40, height: 40, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, borderRadius: 999 },
+  filters: { paddingBottom: 6 },
+  chipDivider: { width: 1, alignSelf: 'stretch', marginVertical: 6, marginRight: 8 },
+  sortRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
+  sortLabel: { flex: 1, fontSize: 15 },
+  listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 },
+  gridRow: { flexDirection: 'row', gap: 12 },
+  rowSep: { height: 1, marginLeft: 80 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14, marginBottom: 8 },
+  sectionTitle: { flex: 1, fontSize: 11.5, fontWeight: '800', letterSpacing: 0.6 },
+  sectionCount: { fontSize: 11.5, fontWeight: '700' },
   catPick: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7, marginRight: 7 },
   catRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  addRow2: { flexDirection: 'row', gap: 8 },
-  titleInput: { flex: 1, borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 13, paddingVertical: 10, fontSize: 13.5 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, borderRadius: RADIUS.sm },
-  filters: { paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1 },
-  // `minHeight` evita che una card con poco testo faccia rimpicciolire la
-  // miniatura, visto che è l'altezza della card a decidere la sua.
-  // 132 punti: abbastanza da rendere leggibile un'immagine panoramica
-  // senza togliere al titolo la seconda riga. Il riquadro dell'icona ha la
-  // stessa larghezza così, nell'elenco, il testo di tutte le card parte
-  // alla stessa altezza.
-  // L'immagine viene ingrandita oltre il riquadro e ritagliata ai lati dal
-  // contenitore: è il compromesso fra vederla intera (bande vuote alte) e
-  // riempire il riquadro (immagine tagliata a metà). Le bande si dimezzano
-  // e si perde solo un po' di larghezza ai due estremi.
-  placeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 5 },
-  placeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3, maxWidth: 150 },
-  placeChipAdd: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderStyle: 'dashed', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 18, marginBottom: 10 },
-  emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 240, lineHeight: 18 },
+  emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 260, lineHeight: 18 },
   sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
   sheetSub: { fontSize: 12.5, marginBottom: 12, lineHeight: 18 },
-  mInput: { borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14.5, marginBottom: 10 },
+  mInput: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 13, fontSize: 14.5, marginBottom: 10 },
   sheetActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
-  btnPrimary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
+  btnSecondary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  btnPrimary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 });

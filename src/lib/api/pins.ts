@@ -78,6 +78,14 @@ export async function createPin(groupId: string, userId: string, pin: NewPin): P
   return toRaw(data);
 }
 
+/** Sposta un posto in un'altra categoria del suo gruppo. Passa da una
+ * funzione del database e non da un aggiornamento diretto: vedi
+ * supabase/migrations/20260922090000_sposta_posto.sql. */
+export async function movePin(id: string, categoryId: string): Promise<void> {
+  const { error } = await supabase.rpc('sposta_posto', { p_pin_id: id, p_category_id: categoryId });
+  if (error) throw error;
+}
+
 export async function deletePin(id: string): Promise<void> {
   const { error } = await supabase.from('pins').delete().eq('id', id);
   if (error) throw error;

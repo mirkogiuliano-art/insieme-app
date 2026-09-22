@@ -17,10 +17,14 @@ export interface GroupPreview {
   /** Primi quattro membri per data di ingresso: la scheda ne mostra tre
    * più il "+N". */
   memberNames: string[];
+  /** Quando è arrivato l'ultimo messaggio: serve a ordinare i gruppi per
+   * attività recente. `null` se nel gruppo non si è ancora scritto. */
+  lastAt: number | null;
 }
 
 interface PreviewRow {
   group_id: string;
+  last_at: string | null;
   unread: number | null;
   member_count: number | null;
   member_names: string[] | null;
@@ -45,6 +49,7 @@ export async function listGroupPreviews(): Promise<Record<string, GroupPreview>>
       unread: row.unread ?? 0,
       memberCount: row.member_count ?? 0,
       memberNames: row.member_names ?? [],
+      lastAt: row.last_at ? new Date(row.last_at).getTime() : null,
     };
   }
   return byGroup;

@@ -1,12 +1,23 @@
 import React, { createContext, useContext, useCallback, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/theme/theme';
+import { CheckIcon, CloseIcon } from '@/components/Icon';
 
 interface ToastContextValue {
   show: (msg: string) => void;
 }
 
 const ToastContext = createContext<ToastContextValue>({ show: () => {} });
+
+type Tone = 'ok' | 'error' | 'hint';
+
+/** Il tono si legge dal messaggio stesso: le chiamate restano `show('…')`
+ * dappertutto, e i testi dell'app seguono già poche formule fisse. */
+function toneOf(msg: string): Tone {
+  if (/non (sono )?riuscit|non sembra/i.test(msg)) return 'error';
+  if (/^(serve|tocca|è già)/i.test(msg)) return 'hint';
+  return 'ok';
+}
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const { colors } = useTheme();
@@ -26,11 +37,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [opacity],
   );
 
+  const tone = toneOf(msg);
+  const tint = tone === 'error' ? colors.danger : tone === 'ok' ? colors.teal : colors.amber;
+  const translateY = opacity.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
-      <Animated.View pointerEvents="none" style={[styles.wrap, { opacity }]}>
-        <View style={[styles.toast, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
+      <Animated.View pointerEvents="none" style={[styles.wrap, { opacity, transform: [{ translateY }] }]}>
+        <View style={[styles.toast, { backgroundColor: colors.surface2 }]}>
+          <View style={[styles.icon, { backgroundColor: tint }]}>
+            {tone === 'error' ? (
+              <CloseIcon size={11} color="#fff" strokeWidth={3} />
+            ) : tone === 'ok' ? (
+              <CheckIcon size={11} color="#fff" strokeWidth={3} />
+            ) : (
+              <Text style={[styles.hintMark, { color: colors.inkOnAmber }]}>!</Text>
+            )}
+          </View>
           <Text style={[styles.text, { color: colors.text }]}>{msg}</Text>
         </View>
       </Animated.View>
@@ -51,11 +75,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toast: {
-    borderWidth: 1,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingLeft: 8,
+    paddingRight: 16,
+    paddingVertical: 8,
     borderRadius: 999,
     maxWidth: '88%',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
-  text: { fontSize: 12.5 },
+  icon: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  hintMark: { color: '#fff', fontSize: 13, fontWeight: '900', lineHeight: 15 },
+  text: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
 });

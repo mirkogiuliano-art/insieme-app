@@ -15,12 +15,14 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAudioRecorder, useAudioPlayer, useAudioPlayerStatus, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { SendIcon, ChatIcon, ReplyIcon, CloseIcon, AttachIcon, PlayIcon, MicIcon, StopIcon, PauseIcon, SearchIcon, CheckIcon, ChevronIcon, LinkIcon, FlagIcon, BanIcon } from '@/components/Icon';
-import { BottomSheet } from '@/components/BottomSheet';
+import { SendIcon, ChatIcon, CloseIcon, PlayIcon, MicIcon, StopIcon, SearchIcon, CheckIcon, ChevronIcon, PlusIcon, GridIcon } from '@/components/Icon';
 import { ChatLinkPreview } from '@/components/ChatLinkPreview';
+import { ChatPlaceCard } from '@/components/ChatPlaceCard';
 import { VoiceBubble } from '@/components/VoiceBubble';
 import { FileAttachmentBubble } from '@/components/FileAttachmentBubble';
-import { AttachMenuSheet } from '@/components/AttachMenuSheet';
+import { ChatAttachSheet } from '@/components/ChatAttachSheet';
+import { MessageActionsSheet } from '@/components/MessageActionsSheet';
+import { ChatArchive } from '@/components/ChatArchive';
 import { LoadError } from '@/components/LoadError';
 import {
   timeLabel,
@@ -30,6 +32,10 @@ import {
   firstUrl,
   platformInfo,
   formatSeconds,
+  normalizeUrl,
+  parseGoogleMapsUrl,
+  mapsUrlForPlace,
+  fileLabelFor,
   withTimeout,
   WRITE_TIMEOUT,
   UPLOAD_TIMEOUT,
@@ -43,20 +49,44 @@ import { listLastReads, updateLastRead, subscribeToLastReads } from '@/lib/api/g
 import { subscribeToTyping } from '@/lib/api/typing';
 import { avvisaDelMessaggio, setGruppoAperto } from '@/lib/api/push';
 import { reportMessage, blockUser, listBlocked } from '@/lib/api/moderation';
-import { getLinkPreview, type LinkPreview as LinkPreviewData } from '@/lib/api/linkPreviews';
+import * as Location from 'expo-location';
+import { parsePlaceMessage, placeMessageText } from '@/lib/chatPlace';
+import { listPins, type RawPin } from '@/lib/api/pins';
+import { listCategories as listPlaceCategories, type RawPlaceCategory } from '@/lib/api/placeCategories';
+import { listLinks, createLink, type RawLink } from '@/lib/api/links';
+import { listCategories as listLinkCategories, type RawLinkCategory } from '@/lib/api/linkCategories';
 
 interface ChatTabProps {
   groupId: string;
   roster: Record<string, string>;
-  searchOpen: boolean;
-  setSearchOpen: (open: boolean) => void;
 }
 
 /** Quanti messaggi per pagina, sia al primo caricamento sia scorrendo
  * all'indietro. */
 const PAGE_SIZE = 150;
 
-const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+/** Due messaggi della stessa persona a meno di così si leggono come uno
+ * solo: niente nome e niente faccia ripetuti in mezzo. */
+const GROUP_GAP_MS = 5 * 60 * 1000;
+
+/** "Oggi", "Ieri", "lunedì 14 settembre": l'etichetta fra i giorni. */
+function dayLabel(ts: number): string {
+  const d = new Date(ts);
+  const oggi = new Date();
+  const ieri = new Date();
+  ieri.setDate(oggi.getDate() - 1);
+  const stesso = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (stesso(d, oggi)) return 'Oggi';
+  if (stesso(d, ieri)) return 'Ieri';
+  const sameYear = d.getFullYear() === oggi.getFullYear();
+  return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) });
+}
+
+function sameDay(a: number, b: number): boolean {
+  const x = new Date(a);
+  const y = new Date(b);
+  return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
+}
 
 
 function highlightSegments(text: string, term: string): { text: string; match: boolean }[] {
@@ -78,7 +108,7 @@ function highlightSegments(text: string, term: string): { text: string; match: b
   return segments;
 }
 
-export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabProps) {
+export function ChatTab({ groupId, roster }: ChatTabProps) {
   const { colors } = useTheme();
   const { session } = useAuth();
   const toast = useToast();
@@ -91,6 +121,16 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
   const [replyingTo, setReplyingTo] = useState<RawMessage | null>(null);
   const [uploading, setUploading] = useState(false);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  /** Conversazione, o archivio di tutto ciò che vi è passato. */
+  const [mode, setMode] = useState<'chat' | 'archive'>('chat');
+  /** Il messaggio a cui tornare uscendo dall'archivio. */
+  const [jumpTo, setJumpTo] = useState<string | null>(null);
+  // Posti e link del gruppo: servono a disegnare i posti mandati in chat,
+  // al "+" per mandarne uno, e a "Salva nei link".
+  const [pins, setPins] = useState<RawPin[]>([]);
+  const [placeCategories, setPlaceCategories] = useState<RawPlaceCategory[]>([]);
+  const [links, setLinks] = useState<RawLink[]>([]);
+  const [linkCategories, setLinkCategories] = useState<RawLinkCategory[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -165,16 +205,28 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
   // aprire un'altra schermata. È client-side, quindi istantanea, e guarda
   // tutto ciò che è stato caricato — comprese le pagine precedenti tirate
   // su scorrendo all'indietro.
+  /** Quello che si vede davvero: i messaggi di chi ho bloccato non
+   * compaiono, né quelli vecchi né quelli che arrivano adesso. Il filtro
+   * sta qui, in un punto solo, invece che dentro il disegno di ogni
+   * riga. */
+  const messaggiVisibili = useMemo(
+    () => (bloccati.length === 0 ? messages : messages.filter((m) => !bloccati.includes(m.userId))),
+    [messages, bloccati],
+  );
+
+  const searching = mode === 'chat' && searchQuery.trim().length > 0;
   const matches = useMemo(() => {
-    if (!searchOpen) return [];
+    if (!searching) return [];
     const term = searchQuery.trim().toLowerCase();
     if (!term) return [];
     const found: { message: RawMessage; index: number }[] = [];
-    messages.forEach((m, index) => {
-      if (m.text && m.text.toLowerCase().includes(term)) found.push({ message: m, index });
+    messaggiVisibili.forEach((m, index) => {
+      // Anche il nome dei documenti: "pdf" o "biglietti" devono trovarli.
+      const hay = `${m.text ?? ''} ${m.attachmentName ?? ''}`.toLowerCase();
+      if (hay.includes(term)) found.push({ message: m, index });
     });
     return found;
-  }, [messages, searchQuery, searchOpen]);
+  }, [messaggiVisibili, searchQuery, searching]);
 
   useEffect(() => {
     setCurrentMatchIndex(0);
@@ -189,10 +241,32 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
   const goToOlderMatch = () => setCurrentMatchIndex((i) => Math.min(i + 1, matches.length - 1));
   const goToNewerMatch = () => setCurrentMatchIndex((i) => Math.max(i - 1, 0));
 
-  const closeSearch = () => {
-    setSearchOpen(false);
-    setSearchQuery('');
-  };
+  /** Posti e link del gruppo, riletti quando servono (aprendo il "+" o il
+   * menu di un messaggio): cambiano nelle altre sezioni, e tenerli in
+   * tempo reale anche qui costerebbe più di quanto serva. */
+  const loadGroupStuff = useCallback(() => {
+    Promise.all([listPins(groupId), listPlaceCategories(groupId), listLinks(groupId), listLinkCategories(groupId)])
+      .then(([p, pc, l, lc]) => {
+        setPins(p);
+        setPlaceCategories(pc);
+        setLinks(l);
+        setLinkCategories(lc);
+      })
+      .catch(() => {});
+  }, [groupId]);
+
+  useEffect(() => {
+    loadGroupStuff();
+  }, [loadGroupStuff]);
+
+  // Uscendo dall'archivio si torna al messaggio toccato.
+  useEffect(() => {
+    if (mode !== 'chat' || !jumpTo) return;
+    const index = messaggiVisibiliRef.current.findIndex((m) => m.id === jumpTo);
+    setJumpTo(null);
+    if (index < 0) return;
+    setTimeout(() => listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.4 }), 250);
+  }, [mode, jumpTo]);
 
   useEffect(() => {
     if (!recording) {
@@ -332,22 +406,124 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
     }
   };
 
-  /** Quello che si vede davvero: i messaggi di chi ho bloccato non
-   * compaiono, né quelli vecchi né quelli che arrivano adesso. Il filtro
-   * sta qui, in un punto solo, invece che dentro il disegno di ogni
-   * riga. */
-  const messaggiVisibili = useMemo(
-    () => (bloccati.length === 0 ? messages : messages.filter((m) => !bloccati.includes(m.userId))),
-    [messages, bloccati],
-  );
+  /** Manda un testo preparato (un posto, un link salvato, la propria
+   * posizione) con lo stesso invio ottimistico dei messaggi scritti. */
+  const sendText = async (text: string) => {
+    if (!session) return;
+    const replyToId = replyingTo?.id ?? null;
+    setReplyingTo(null);
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => [{ id: tempId, userId: session.user.id, text, ts: Date.now(), replyToId }, ...prev]);
+    try {
+      const sent = await withTimeout(sendMessage(groupId, session.user.id, text, replyToId), WRITE_TIMEOUT);
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      avvisaDelMessaggio(sent.id);
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast.show('Messaggio non inviato, riprova.');
+    }
+  };
+
+  const placeCategoryFor = (pin: RawPin) =>
+    placeCategories.find((c) => c.id === pin.categoryId) ?? { name: 'Altro', color: '#75828C' };
+
+  const sendPlace = (pin: RawPin) => sendText(placeMessageText(pin.name, mapsUrlForPlace(pin)));
+
+  /** Un link salvato: se è un file caricato (foto, video, documento) parte
+   * come allegato vero, altrimenti come indirizzo con la sua anteprima. */
+  const sendSavedLink = async (link: RawLink) => {
+    if (!session) return;
+    if (link.platform === 'image' || link.platform === 'video' || link.platform === 'file') {
+      try {
+        const attachment =
+          link.platform === 'file' ? { url: link.url, type: 'file' as const, name: link.title } : { url: link.url, type: link.platform };
+        const sent = await withTimeout(sendMessage(groupId, session.user.id, null, null, attachment), WRITE_TIMEOUT);
+        setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [sent, ...prev]));
+        avvisaDelMessaggio(sent.id);
+      } catch {
+        toast.show('Messaggio non inviato, riprova.');
+      }
+      return;
+    }
+    await sendText(link.url);
+  };
+
+  const sendMyPosition = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        toast.show('Serve il permesso di posizione per mandare dove sei.');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({});
+      setAttachMenuOpen(false);
+      const { latitude: lat, longitude: lng } = pos.coords;
+      await sendText(placeMessageText('La mia posizione', `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`));
+    } catch {
+      toast.show('Non sono riuscito a leggere la tua posizione.');
+    }
+  };
+
+  /** Cosa di un messaggio si può salvare nei link: l'allegato, oppure il
+   * primo indirizzo del testo. I posti no: stanno già nella Mappa. */
+  const saveableOf = (m: RawMessage | undefined): { url: string; title: string; kind: 'image' | 'video' | 'file' | 'web' } | null => {
+    if (!m) return null;
+    if (m.attachmentUrl && (m.attachmentType === 'image' || m.attachmentType === 'video' || m.attachmentType === 'file')) {
+      return {
+        url: m.attachmentUrl,
+        kind: m.attachmentType,
+        title: m.attachmentType === 'file' ? m.attachmentName || 'Documento' : m.attachmentType === 'video' ? 'Video' : 'Foto',
+      };
+    }
+    const url = m.text && !parsePlaceMessage(m.text) ? firstUrl(m.text) : null;
+    if (!url) return null;
+    const info = platformInfo(url);
+    return { url, kind: 'web', title: info.platform === 'web' ? info.host : info.label };
+  };
+
+  const saveToLinks = async (m: RawMessage, categoryId: string) => {
+    const what = saveableOf(m);
+    if (!what || !session) return;
+    const url = what.kind === 'web' ? normalizeUrl(what.url) : what.url;
+    if (links.some((l) => l.url === url)) {
+      toast.show('È già nella sezione Link.');
+      return;
+    }
+    try {
+      const info = platformInfo(url);
+      const maps = what.kind === 'web' ? parseGoogleMapsUrl(url) : null;
+      const created = await withTimeout(
+        createLink(groupId, session.user.id, {
+          url,
+          title: maps?.name || what.title,
+          platform: what.kind === 'web' ? info.platform : what.kind,
+          label:
+            what.kind === 'file'
+              ? fileLabelFor(what.title)
+              : what.kind === 'image'
+                ? 'Foto'
+                : what.kind === 'video'
+                  ? 'Video'
+                  : maps
+                    ? 'Google Maps'
+                    : info.label,
+          thumb: what.kind === 'image' ? url : what.kind === 'web' ? info.thumb : null,
+          categoryId,
+        }),
+        WRITE_TIMEOUT,
+      );
+      setLinks((prev) => [created, ...prev]);
+      toast.show('Salvato nella sezione Link');
+    } catch {
+      toast.show('Non sono riuscito a salvarlo nei link.');
+    }
+  };
+
+
+  const messaggiVisibiliRef = useRef<RawMessage[]>([]);
+  messaggiVisibiliRef.current = messaggiVisibili;
 
   const messaggioSelezionato = reactSheetFor ? messages.find((m) => m.id === reactSheetFor) : undefined;
-
-  const startReply = () => {
-    if (!messaggioSelezionato) return;
-    setReplyingTo(messaggioSelezionato);
-    setReactSheetFor(null);
-  };
 
   /** La segnalazione non cancella niente e non avvisa la persona
    * segnalata: mette una riga da parte per chi gestisce il servizio. Va
@@ -381,14 +557,14 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
     }
   };
 
-  const pickAttachment = async () => {
+  const pickAttachment = async (mediaType: 'images' | 'videos') => {
     if (!session || uploading) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       toast.show('Serve il permesso per accedere alle foto.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.7 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: [mediaType], quality: 0.7 });
     const asset = result.canceled ? null : result.assets?.[0];
     if (!asset) return;
 
@@ -510,18 +686,6 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
     }
   };
 
-  const pickReaction = async (emoji: string) => {
-    const messageId = reactSheetFor;
-    if (!messageId || !session) return;
-    setReactSheetFor(null);
-    const mine = reactionsByMessage[messageId]?.find((e) => e.emoji === emoji)?.mine ?? false;
-    try {
-      await toggleReaction(messageId, groupId, session.user.id, emoji, mine);
-    } catch {
-      toast.show('Non sono riuscito a salvare la reazione.');
-    }
-  };
-
   const toggleChip = async (messageId: string, emoji: string, mine: boolean) => {
     if (!session) return;
     try {
@@ -533,278 +697,381 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
 
   const currentMatchId = matches[Math.min(currentMatchIndex, matches.length - 1)]?.message.id;
 
-  const renderItem = ({ item }: { item: RawMessage }) => {
+  const renderText = (text: string, own: boolean, term: string) => (
+    <Text style={[styles.text, { color: own ? colors.inkOnAmber : colors.text }]}>
+      {splitTextByUrls(text).map((seg, segIdx) => {
+        const inner = term
+          ? highlightSegments(seg.text, term).map((s, idx) =>
+              s.match ? (
+                <Text key={idx} style={styles.matchHighlight}>
+                  {s.text}
+                </Text>
+              ) : (
+                <Text key={idx}>{s.text}</Text>
+              ),
+            )
+          : seg.text;
+        if (!seg.url) return <Text key={segIdx}>{inner}</Text>;
+        return (
+          <Text
+            key={segIdx}
+            style={[styles.link, { color: own ? colors.inkOnAmber : colors.teal }]}
+            onPress={(e) => {
+              // Altrimenti il tocco prosegue fino al fumetto e al posto del
+              // link si aprirebbe il menu del messaggio.
+              e.stopPropagation?.();
+              Linking.openURL(seg.url!);
+            }}
+          >
+            {inner}
+          </Text>
+        );
+      })}
+    </Text>
+  );
+
+  const renderItem = ({ item, index }: { item: RawMessage; index: number }) => {
     const own = session ? item.userId === session.user.id : false;
     const displayName = roster[item.userId] ?? 'Utente';
     const chips = reactionsByMessage[item.id] ?? [];
     const quoted = item.replyToId ? messages.find((m) => m.id === item.replyToId) : null;
-    const term = searchOpen ? searchQuery.trim() : '';
-    const isMatch = term && item.text && item.text.toLowerCase().includes(term.toLowerCase());
+
+    // L'elenco è invertito: il messaggio precedente nel tempo sta dopo
+    // nell'array, e si vede sopra.
+    const older = messaggiVisibili[index + 1];
+    const newer = messaggiVisibili[index - 1];
+    const startsDay = !older || !sameDay(older.ts, item.ts);
+    const sameAsOlder = !!older && !startsDay && older.userId === item.userId && item.ts - older.ts < GROUP_GAP_MS;
+    const sameAsNewer = !!newer && sameDay(newer.ts, item.ts) && newer.userId === item.userId && newer.ts - item.ts < GROUP_GAP_MS;
+
+    const place = parsePlaceMessage(item.text);
+    const bodyText = place ? place.note : item.text;
+    const linkUrl = !item.attachmentUrl && !place && item.text ? firstUrl(item.text) : null;
+    const hasBubble = !!(item.replyToId || item.attachmentUrl || bodyText);
+
+    const term = searching ? searchQuery.trim() : '';
+    const isMatch = !!term && `${item.text ?? ''} ${item.attachmentName ?? ''}`.toLowerCase().includes(term.toLowerCase());
     const isCurrentMatch = isMatch && item.id === currentMatchId;
+
+    const placePin = place
+      ? pins.find((p) => p.mapsUrl === place.url || mapsUrlForPlace(p) === place.url) ?? pins.find((p) => p.name === place.name) ?? null
+      : null;
+
+    const openMenu = () => {
+      setReactSheetFor(item.id);
+      loadGroupStuff();
+    };
+
+    const timeRow = (
+      <View style={styles.timeRow}>
+        <Text style={[styles.time, { color: own && hasBubble ? '#6B5730' : colors.textFaint }]}>{timeLabel(item.ts)}</Text>
+        {own ? (
+          isReadByOthers(item.ts) ? (
+            <View style={styles.ticks}>
+              <CheckIcon size={11} color={colors.teal} />
+              <View style={{ marginLeft: -6 }}>
+                <CheckIcon size={11} color={colors.teal} />
+              </View>
+            </View>
+          ) : (
+            <CheckIcon size={11} color={hasBubble ? '#6B5730' : colors.textFaint} />
+          )
+        ) : null}
+      </View>
+    );
+
     return (
-      <View style={[styles.row, own && styles.rowOwn]}>
-        {!own ? (
-          <View style={[styles.avatar, { backgroundColor: colorForUser(displayName) }]}>
-            <Text style={styles.avatarText}>{initials(displayName)}</Text>
+      <View>
+        {startsDay ? (
+          <View style={styles.dayWrap}>
+            <Text style={[styles.day, { backgroundColor: colors.surface, color: colors.textDim }]}>{dayLabel(item.ts)}</Text>
           </View>
         ) : null}
-        <View style={styles.bubbleCol}>
-          <Pressable
-            onPress={() => setReactSheetFor(item.id)}
-            style={[
-              styles.bubble,
-              own ? styles.bubbleOwn : styles.bubbleOther,
-              {
-                backgroundColor: own ? colors.amber : colors.surface,
-                // Il contorno c'è sempre ma si vede solo sul risultato di
-                // ricerca corrente: così evidenziandolo il fumetto non
-                // cambia di dimensione e la lista non sobbalza.
-                borderColor: isCurrentMatch ? colors.teal : 'transparent',
-              },
-            ]}
-          >
-            {!own ? <Text style={[styles.name, { color: colors.teal }]}>{displayName}</Text> : null}
-            {item.replyToId ? (
-              <View style={[styles.quoteBox, { borderLeftColor: own ? '#6B5730' : colors.teal, backgroundColor: own ? '#C98A22' : colors.surface2 }]}>
-                <Text style={[styles.quoteAuthor, { color: own ? '#3D2E10' : colors.teal }]} numberOfLines={1}>
-                  {quoted ? (roster[quoted.userId] ?? 'Utente') : ''}
-                </Text>
-                <Text style={[styles.quoteText, { color: own ? '#4A3A18' : colors.textDim }]} numberOfLines={2}>
-                  {quoted ? quoted.text : 'Messaggio non disponibile'}
-                </Text>
+        <View style={[styles.row, own && styles.rowOwn, { marginBottom: sameAsNewer ? 3 : 12 }]}>
+          {!own ? (
+            // La faccia sta sull'ultimo messaggio di una serie: la serie si
+            // legge come una sola voce.
+            sameAsNewer ? (
+              <View style={styles.avatarSpacer} />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: colorForUser(displayName) }]}>
+                <Text style={styles.avatarText}>{initials(displayName)}</Text>
+              </View>
+            )
+          ) : null}
+          <View style={[styles.bubbleCol, own && { alignItems: 'flex-end' }]}>
+            {!own && !sameAsOlder ? <Text style={[styles.name, { color: colors.teal }]}>{displayName}</Text> : null}
+            {hasBubble ? (
+              <Pressable
+                onPress={openMenu}
+                style={[
+                  styles.bubble,
+                  own ? styles.bubbleOwn : styles.bubbleOther,
+                  own && sameAsOlder && { borderTopRightRadius: 8 },
+                  !own && sameAsOlder && { borderTopLeftRadius: 8 },
+                  {
+                    backgroundColor: own ? colors.amber : colors.surface,
+                    // Il contorno c'è sempre ma si vede solo sul risultato di
+                    // ricerca corrente: così evidenziandolo il fumetto non
+                    // cambia di dimensione e la lista non sobbalza.
+                    borderColor: isCurrentMatch ? colors.teal : 'transparent',
+                  },
+                ]}
+              >
+                {item.replyToId ? (
+                  <View style={[styles.quoteBox, { borderLeftColor: own ? '#6B5730' : colors.teal, backgroundColor: own ? '#C98A22' : colors.surface2 }]}>
+                    <Text style={[styles.quoteAuthor, { color: own ? '#3D2E10' : colors.teal }]} numberOfLines={1}>
+                      {quoted ? (roster[quoted.userId] ?? 'Utente') : ''}
+                    </Text>
+                    <Text style={[styles.quoteText, { color: own ? '#4A3A18' : colors.textDim }]} numberOfLines={2}>
+                      {quoted ? (parsePlaceMessage(quoted.text)?.name ?? quoted.text ?? 'Allegato') : 'Messaggio non disponibile'}
+                    </Text>
+                  </View>
+                ) : null}
+                {item.attachmentUrl && item.attachmentType === 'image' ? (
+                  <Pressable onPress={() => setPreviewImage(item.attachmentUrl!)} onLongPress={openMenu}>
+                    <Image source={{ uri: item.attachmentUrl }} style={styles.attachmentImage} />
+                  </Pressable>
+                ) : null}
+                {item.attachmentUrl && item.attachmentType === 'video' ? (
+                  <Pressable onPress={() => Linking.openURL(item.attachmentUrl!)} onLongPress={openMenu} style={styles.videoCard}>
+                    <PlayIcon size={30} color="#fff" />
+                    <Text style={styles.videoCardLabel}>Video</Text>
+                  </Pressable>
+                ) : null}
+                {item.attachmentUrl && item.attachmentType === 'audio' ? (
+                  <VoiceBubble uri={item.attachmentUrl} durationSeconds={item.attachmentDurationSeconds} own={own} />
+                ) : null}
+                {item.attachmentUrl && item.attachmentType === 'file' ? (
+                  <FileAttachmentBubble
+                    url={item.attachmentUrl}
+                    name={item.attachmentName || 'Documento'}
+                    size={item.attachmentSize ?? null}
+                    own={own}
+                  />
+                ) : null}
+                {bodyText ? (
+                  <View style={{ marginTop: item.attachmentUrl ? 6 : 0 }}>{renderText(bodyText, own, isMatch ? term : '')}</View>
+                ) : null}
+                {!place && !linkUrl ? timeRow : null}
+              </Pressable>
+            ) : null}
+            {place ? (
+              <ChatPlaceCard name={place.name} url={place.url} pin={placePin} category={placePin ? placeCategoryFor(placePin) : null} onMenu={openMenu} />
+            ) : null}
+            {linkUrl ? <ChatLinkPreview url={linkUrl} onMenu={openMenu} /> : null}
+            {place || linkUrl ? <Pressable onPress={openMenu}>{timeRow}</Pressable> : null}
+            {chips.length > 0 ? (
+              <View style={styles.reactionsRow}>
+                {chips.map((c) => (
+                  <Pressable
+                    key={c.emoji}
+                    onPress={() => toggleChip(item.id, c.emoji, c.mine)}
+                    style={[styles.reactionChip, { backgroundColor: colors.surface, borderColor: c.mine ? colors.amber : 'transparent' }]}
+                  >
+                    <Text style={[styles.reactionChipText, { color: colors.textDim }]}>
+                      {c.emoji} {c.count}
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
             ) : null}
-            {item.attachmentUrl && item.attachmentType === 'image' ? (
-              <Pressable onPress={() => setPreviewImage(item.attachmentUrl!)}>
-                <Image source={{ uri: item.attachmentUrl }} style={styles.attachmentImage} />
-              </Pressable>
-            ) : null}
-            {item.attachmentUrl && item.attachmentType === 'video' ? (
-              <Pressable onPress={() => Linking.openURL(item.attachmentUrl!)} style={styles.videoCard}>
-                <PlayIcon size={30} color="#fff" />
-                <Text style={styles.videoCardLabel}>Video</Text>
-              </Pressable>
-            ) : null}
-            {item.attachmentUrl && item.attachmentType === 'audio' ? (
-              <VoiceBubble uri={item.attachmentUrl} durationSeconds={item.attachmentDurationSeconds} own={own} />
-            ) : null}
-            {item.attachmentUrl && item.attachmentType === 'file' ? (
-              <FileAttachmentBubble
-                url={item.attachmentUrl}
-                name={item.attachmentName || 'Documento'}
-                size={item.attachmentSize ?? null}
-                own={own}
-              />
-            ) : null}
-            {item.text ? (
-              <Text style={[styles.text, { color: own ? colors.inkOnAmber : colors.text, marginTop: item.attachmentUrl ? 6 : 0 }]}>
-                {splitTextByUrls(item.text).map((seg, segIdx) => {
-                  const inner = isMatch
-                    ? highlightSegments(seg.text, term).map((s, idx) =>
-                        s.match ? (
-                          <Text key={idx} style={styles.matchHighlight}>
-                            {s.text}
-                          </Text>
-                        ) : (
-                          <Text key={idx}>{s.text}</Text>
-                        ),
-                      )
-                    : seg.text;
-                  if (!seg.url) return <Text key={segIdx}>{inner}</Text>;
-                  return (
-                    <Text
-                      key={segIdx}
-                      style={[styles.link, { color: own ? colors.inkOnAmber : colors.teal }]}
-                      onPress={(e) => {
-                        // Altrimenti il tocco prosegue fino al fumetto e al
-                        // posto del link si aprirebbe il pannello reazioni.
-                        e.stopPropagation?.();
-                        Linking.openURL(seg.url!);
-                      }}
-                    >
-                      {inner}
-                    </Text>
-                  );
-                })}
-              </Text>
-            ) : null}
-            {!item.attachmentUrl && item.text && firstUrl(item.text) ? (
-              <ChatLinkPreview url={firstUrl(item.text)!} own={own} />
-            ) : null}
-            <View style={styles.timeRow}>
-              <Text style={[styles.time, { color: own ? '#6B5730' : colors.textFaint }]}>{timeLabel(item.ts)}</Text>
-              {own ? (
-                isReadByOthers(item.ts) ? (
-                  <View style={styles.ticks}>
-                    <CheckIcon size={11} color={colors.teal} />
-                    <View style={{ marginLeft: -6 }}>
-                      <CheckIcon size={11} color={colors.teal} />
-                    </View>
-                  </View>
-                ) : (
-                  <CheckIcon size={11} color="#6B5730" />
-                )
-              ) : null}
-            </View>
-          </Pressable>
-          {chips.length > 0 ? (
-            <View style={[styles.reactionsRow, { alignSelf: own ? 'flex-end' : 'flex-start' }]}>
-              {chips.map((c) => (
-                <Pressable
-                  key={c.emoji}
-                  onPress={() => toggleChip(item.id, c.emoji, c.mine)}
-                  style={[
-                    styles.reactionChip,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: c.mine ? colors.amber : colors.border,
-                    },
-                  ]}
-                >
-                  <Text style={styles.reactionChipText}>
-                    {c.emoji} {c.count}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
+          </View>
         </View>
       </View>
     );
   };
+
+  const selezionato = messaggioSelezionato ?? null;
+  const salvabile = saveableOf(messaggioSelezionato);
 
   return (
     // La gestione della tastiera è salita al contenitore della schermata
     // (app/group/[id].tsx), che alza insieme chat e barra delle tab: due
     // KeyboardAvoidingView annidati si ostacolerebbero a vicenda.
     <View style={{ flex: 1 }}>
-      {searchOpen ? (
-        <View style={[styles.chatHeader, { borderBottomColor: colors.border }]}>
-          <SearchIcon size={16} color={colors.textFaint} />
+      {/* La stessa riga di Link e Mappa: la ricerca, e il modo di guardare —
+          qui la conversazione o l'archivio di ciò che vi è passato. */}
+      <View style={styles.topBar}>
+        <View style={[styles.search, { backgroundColor: colors.surface, borderColor: searching ? colors.amber : 'transparent' }]}>
+          <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Cerca nei messaggi"
+            placeholder={mode === 'chat' ? 'Cerca nei messaggi' : 'Cerca nell’archivio'}
             placeholderTextColor={colors.textFaint}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            autoFocus
+            autoCorrect={false}
+            returnKeyType="search"
           />
-          {searchQuery.trim() ? (
+          {searching ? (
             <Text style={[styles.searchCounter, { color: colors.textFaint }]}>
-              {matches.length === 0 ? 0 : currentMatchIndex + 1}/{matches.length}
+              {matches.length === 0 ? 0 : currentMatchIndex + 1} di {matches.length}
             </Text>
           ) : null}
-          <Pressable onPress={goToOlderMatch} disabled={matches.length === 0} hitSlop={8}>
-            <View style={{ transform: [{ rotate: '-90deg' }], opacity: matches.length === 0 ? 0.3 : 1 }}>
-              <ChevronIcon size={16} color={colors.textDim} />
-            </View>
-          </Pressable>
-          <Pressable onPress={goToNewerMatch} disabled={matches.length === 0} hitSlop={8}>
-            <View style={{ transform: [{ rotate: '90deg' }], opacity: matches.length === 0 ? 0.3 : 1 }}>
-              <ChevronIcon size={16} color={colors.textDim} />
-            </View>
-          </Pressable>
-          <Pressable onPress={closeSearch} hitSlop={8}>
-            <CloseIcon size={16} color={colors.textFaint} />
-          </Pressable>
+          {searchQuery ? (
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+              <CloseIcon size={13} color={colors.textFaint} />
+            </Pressable>
+          ) : null}
         </View>
-      ) : null}
+        {searching ? (
+          <>
+            <Pressable
+              onPress={goToOlderMatch}
+              disabled={matches.length === 0}
+              style={[styles.viewBtn, { backgroundColor: colors.surface, opacity: matches.length === 0 ? 0.4 : 1 }]}
+              accessibilityLabel="Risultato precedente"
+            >
+              <View style={{ transform: [{ rotate: '-90deg' }] }}>
+                <ChevronIcon size={16} color={colors.textDim} />
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={goToNewerMatch}
+              disabled={matches.length === 0}
+              style={[styles.viewBtn, { backgroundColor: colors.surface, opacity: matches.length === 0 ? 0.4 : 1 }]}
+              accessibilityLabel="Risultato successivo"
+            >
+              <View style={{ transform: [{ rotate: '90deg' }] }}>
+                <ChevronIcon size={16} color={colors.textDim} />
+              </View>
+            </Pressable>
+          </>
+        ) : (
+          <Pressable
+            onPress={() => {
+              setSearchQuery('');
+              setMode((m) => (m === 'chat' ? 'archive' : 'chat'));
+            }}
+            style={[styles.viewBtn, { backgroundColor: mode === 'archive' ? colors.amber : colors.surface }]}
+            accessibilityLabel={mode === 'chat' ? 'Apri l’archivio' : 'Torna alla chat'}
+          >
+            {mode === 'chat' ? <GridIcon size={17} color={colors.textDim} /> : <ChatIcon size={17} color={colors.inkOnAmber} />}
+          </Pressable>
+        )}
+      </View>
 
       {loadError ? <LoadError what="i messaggi" onRetry={loadAll} /> : null}
 
-      {messages.length === 0 ? (
-        <View style={styles.empty}>
-          <ChatIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
-          <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-            Nessun messaggio ancora. Scrivi il primo per iniziare la conversazione.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          ref={listRef}
-          inverted
-          style={{ flex: 1 }}
-          data={messaggiVisibili}
-          keyExtractor={(m) => m.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          onEndReached={loadOlder}
-          onEndReachedThreshold={0.4}
-          ListFooterComponent={
-            loadingOlder ? (
-              <View style={styles.olderLoader}>
-                <ActivityIndicator size="small" color={colors.textFaint} />
-              </View>
-            ) : null
-          }
-          onScrollToIndexFailed={(info) => {
-            setTimeout(() => {
-              listRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.4 });
-            }, 100);
+      {mode === 'archive' ? (
+        <ChatArchive
+          messages={messaggiVisibili}
+          query={searchQuery}
+          loadingOlder={loadingOlder}
+          onLoadOlder={loadOlder}
+          onOpen={(id) => {
+            setSearchQuery('');
+            setJumpTo(id);
+            setMode('chat');
           }}
         />
-      )}
-
-      {!searchOpen && replyingTo ? (
-        <View style={[styles.replyBar, { borderTopColor: colors.border, backgroundColor: colors.surface2 }]}>
-          <View style={[styles.replyBarStripe, { backgroundColor: colors.teal }]} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.replyBarAuthor, { color: colors.teal }]} numberOfLines={1}>
-              {roster[replyingTo.userId] ?? 'Utente'}
-            </Text>
-            <Text style={[styles.replyBarText, { color: colors.textDim }]} numberOfLines={1}>
-              {replyingTo.text}
-            </Text>
-          </View>
-          <Pressable onPress={() => setReplyingTo(null)} hitSlop={8} style={{ padding: 4 }}>
-            <CloseIcon size={14} color={colors.textFaint} />
-          </Pressable>
-        </View>
-      ) : null}
-
-      {!searchOpen && typingLabel ? (
-        <View style={styles.typingRow}>
-          <Text style={{ fontSize: 12, color: colors.textFaint, fontStyle: 'italic' }}>{typingLabel}</Text>
-        </View>
-      ) : null}
-
-      {searchOpen ? null : recording ? (
-        <View style={[styles.inputBar, { backgroundColor: colors.surface }]}>
-          <View style={styles.recordingRow}>
-            <View style={styles.recordingDot} />
-            <Text style={{ fontSize: 14, color: colors.text }}>Registrazione… {formatSeconds(recordingSeconds)}</Text>
-          </View>
-          <Pressable onPress={toggleRecording} style={[styles.sendBtn, { backgroundColor: colors.amber }]}>
-            <StopIcon size={17} color={colors.inkOnAmber} />
-          </Pressable>
-        </View>
       ) : (
-        <View style={[styles.inputBar, { backgroundColor: colors.surface }]}>
-          <Pressable
-            onPress={() => setAttachMenuOpen(true)}
-            disabled={uploading}
-            style={[styles.attachBtn, { opacity: uploading ? 0.5 : 1 }]}
-          >
-            {uploading ? <ActivityIndicator size="small" color={colors.textDim} /> : <AttachIcon size={19} color={colors.textDim} />}
-          </Pressable>
-          <TextInput
-            style={[styles.input, { color: colors.text }]}
-            placeholder="Scrivi un messaggio"
-            placeholderTextColor={colors.textFaint}
-            value={draft}
-            onChangeText={handleDraftChange}
-            maxLength={500}
-            returnKeyType="send"
-            onSubmitEditing={send}
-          />
-          <Pressable
-            onPress={draft.trim() ? send : toggleRecording}
-            disabled={uploading}
-            style={[styles.sendBtn, { backgroundColor: colors.amber, opacity: uploading ? 0.5 : 1 }]}
-          >
-            {draft.trim() ? <SendIcon size={18} color={colors.inkOnAmber} /> : <MicIcon size={19} color={colors.inkOnAmber} />}
-          </Pressable>
-        </View>
+        <>
+          {messages.length === 0 ? (
+            <View style={styles.empty}>
+              {/* Con l’avviso d’errore sopra, «non c’è niente» sarebbe falso. */}
+              {loadError ? null : (
+                <>
+                  <ChatIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
+                  <Text style={[styles.emptyText, { color: colors.textFaint }]}>
+                    Nessun messaggio ancora. Scrivi il primo per iniziare la conversazione.
+                  </Text>
+                </>
+              )}
+            </View>
+          ) : (
+            <FlatList
+              ref={listRef}
+              inverted
+              style={{ flex: 1 }}
+              data={messaggiVisibili}
+              keyExtractor={(m) => m.id}
+              renderItem={renderItem}
+              contentContainerStyle={styles.list}
+              onEndReached={loadOlder}
+              onEndReachedThreshold={0.4}
+              ListFooterComponent={
+                loadingOlder ? (
+                  <View style={styles.olderLoader}>
+                    <ActivityIndicator size="small" color={colors.textFaint} />
+                  </View>
+                ) : null
+              }
+              onScrollToIndexFailed={(info) => {
+                setTimeout(() => {
+                  listRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.4 });
+                }, 100);
+              }}
+            />
+          )}
+
+          {replyingTo ? (
+            <View style={[styles.replyBar, { backgroundColor: colors.surface }]}>
+              <View style={[styles.replyBarStripe, { backgroundColor: colors.teal }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.replyBarAuthor, { color: colors.teal }]} numberOfLines={1}>
+                  {roster[replyingTo.userId] ?? 'Utente'}
+                </Text>
+                <Text style={[styles.replyBarText, { color: colors.textDim }]} numberOfLines={1}>
+                  {parsePlaceMessage(replyingTo.text)?.name ?? replyingTo.text ?? 'Allegato'}
+                </Text>
+              </View>
+              <Pressable onPress={() => setReplyingTo(null)} hitSlop={8} style={{ padding: 4 }}>
+                <CloseIcon size={14} color={colors.textFaint} />
+              </Pressable>
+            </View>
+          ) : null}
+
+          {typingLabel ? (
+            <View style={styles.typingRow}>
+              <Text style={{ fontSize: 12, color: colors.textFaint, fontStyle: 'italic' }}>{typingLabel}</Text>
+            </View>
+          ) : null}
+
+          {recording ? (
+            <View style={[styles.inputBar, { backgroundColor: colors.surface }]}>
+              <View style={styles.recordingRow}>
+                <View style={styles.recordingDot} />
+                <Text style={{ fontSize: 14, color: colors.text }}>Registrazione… {formatSeconds(recordingSeconds)}</Text>
+              </View>
+              <Pressable onPress={toggleRecording} style={[styles.sendBtn, { backgroundColor: colors.amber }]}>
+                <StopIcon size={17} color={colors.inkOnAmber} />
+              </Pressable>
+            </View>
+          ) : (
+            <View style={[styles.inputBar, { backgroundColor: colors.surface }]}>
+              <Pressable
+                onPress={() => {
+                  loadGroupStuff();
+                  setAttachMenuOpen(true);
+                }}
+                disabled={uploading}
+                style={[styles.attachBtn, { backgroundColor: colors.surface2, opacity: uploading ? 0.5 : 1 }]}
+                accessibilityLabel="Manda foto, documenti, posti o link"
+              >
+                {uploading ? <ActivityIndicator size="small" color={colors.textDim} /> : <PlusIcon size={17} color={colors.textDim} />}
+              </Pressable>
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                placeholder="Scrivi un messaggio"
+                placeholderTextColor={colors.textFaint}
+                value={draft}
+                onChangeText={handleDraftChange}
+                maxLength={500}
+                returnKeyType="send"
+                onSubmitEditing={send}
+              />
+              <Pressable
+                onPress={draft.trim() ? send : toggleRecording}
+                disabled={uploading}
+                style={[styles.sendBtn, { backgroundColor: colors.amber, opacity: uploading ? 0.5 : 1 }]}
+              >
+                {draft.trim() ? <SendIcon size={18} color={colors.inkOnAmber} /> : <MicIcon size={19} color={colors.inkOnAmber} />}
+              </Pressable>
+            </View>
+          )}
+        </>
       )}
 
       <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
@@ -813,58 +1080,60 @@ export function ChatTab({ groupId, roster, searchOpen, setSearchOpen }: ChatTabP
         </Pressable>
       </Modal>
 
-      <BottomSheet visible={!!reactSheetFor} onClose={() => setReactSheetFor(null)}>
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>Reagisci</Text>
-        <View style={styles.emojiRow}>
-          {QUICK_REACTIONS.map((emoji) => (
-            <Pressable key={emoji} onPress={() => pickReaction(emoji)} style={styles.emojiBtn}>
-              <Text style={styles.emojiBtnText}>{emoji}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <Pressable onPress={startReply} style={[styles.replyAction, { borderTopColor: colors.border }]}>
-          <ReplyIcon size={17} color={colors.textDim} />
-          <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.text }}>Rispondi</Text>
-        </Pressable>
+      <MessageActionsSheet
+        message={selezionato}
+        authorName={selezionato ? (roster[selezionato.userId] ?? 'questa persona') : ''}
+        isMine={!!selezionato && selezionato.userId === session?.user.id}
+        myReactions={selezionato ? (reactionsByMessage[selezionato.id] ?? []).filter((c) => c.mine).map((c) => c.emoji) : []}
+        saveable={salvabile ? { title: salvabile.title } : null}
+        linkCategories={linkCategories}
+        onClose={() => setReactSheetFor(null)}
+        onReact={(emoji) => {
+          if (!selezionato || !session) return;
+          const mine = reactionsByMessage[selezionato.id]?.find((e) => e.emoji === emoji)?.mine ?? false;
+          toggleReaction(selezionato.id, groupId, session.user.id, emoji, mine).catch(() =>
+            toast.show('Non sono riuscito a salvare la reazione.'),
+          );
+        }}
+        onReply={() => selezionato && setReplyingTo(selezionato)}
+        onSaveToLinks={(categoryId) => selezionato && saveToLinks(selezionato, categoryId)}
+        onReport={segnala}
+        onBlock={blocca}
+        onCopied={() => toast.show('Testo copiato')}
+      />
 
-        {/* Solo sui messaggi degli altri: segnalare o bloccare se stessi
-            non vuol dire niente. */}
-        {messaggioSelezionato && messaggioSelezionato.userId !== session?.user.id ? (
-          <>
-            <Pressable onPress={segnala} style={[styles.replyAction, { borderTopColor: colors.border }]}>
-              <FlagIcon size={17} color={colors.textDim} />
-              <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.text }}>Segnala messaggio</Text>
-            </Pressable>
-            <Pressable onPress={blocca} style={[styles.replyAction, { borderTopColor: colors.border }]}>
-              <BanIcon size={17} color={colors.danger} />
-              <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.danger }}>
-                Blocca {roster[messaggioSelezionato.userId] ?? 'questa persona'}
-              </Text>
-            </Pressable>
-          </>
-        ) : null}
-      </BottomSheet>
-
-      <AttachMenuSheet
+      <ChatAttachSheet
         visible={attachMenuOpen}
         onClose={() => setAttachMenuOpen(false)}
-        onPickMedia={pickAttachment}
-        onPickDocument={pickDocument}
+        pins={pins}
+        categoryFor={placeCategoryFor}
+        links={links}
+        onPhoto={() => pickAttachment('images')}
+        onVideo={() => pickAttachment('videos')}
+        onDocument={pickDocument}
+        onPlace={sendPlace}
+        onLink={sendSavedLink}
+        onMyPosition={sendMyPosition}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  chatHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1 },
-  searchInput: { flex: 1, fontSize: 14.5, paddingVertical: 2 },
-  searchCounter: { fontSize: 12 },
+  topBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
+  search: { flex: 1, height: 40, borderRadius: RADIUS.sm, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11 },
+  searchInput: { flex: 1, fontSize: 13.5, paddingVertical: 0 },
+  searchCounter: { fontSize: 11.5, fontWeight: '700' },
+  viewBtn: { width: 40, height: 40, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+  dayWrap: { alignItems: 'center', marginTop: 6, marginBottom: 12 },
+  day: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
+  avatarSpacer: { width: 26 },
   olderLoader: { paddingVertical: 14, alignItems: 'center' },
-  list: { padding: 16, gap: 10 },
-  row: { flexDirection: 'row', gap: 8, maxWidth: '88%', alignItems: 'flex-end', marginBottom: 10 },
+  list: { paddingHorizontal: 14, paddingVertical: 10 },
+  row: { flexDirection: 'row', gap: 8, maxWidth: '88%', alignItems: 'flex-end' },
   rowOwn: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
-  avatar: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 11, fontWeight: '700', color: '#1B2530' },
+  avatar: { width: 26, height: 26, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 10, fontWeight: '800', color: '#1B2530' },
   bubbleCol: { flexShrink: 1, gap: 4 },
   // L'angolo dal lato di chi scrive resta stretto: è la "codina" che dice
   // da che parte arriva il messaggio, ora che i fumetti non hanno più un
@@ -873,7 +1142,7 @@ const styles = StyleSheet.create({
   bubbleOwn: { borderBottomRightRadius: 6 },
   bubbleOther: { borderBottomLeftRadius: 6 },
   matchHighlight: { backgroundColor: '#F2C14E', color: '#2B2109' },
-  name: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
+  name: { fontSize: 11, fontWeight: '800', marginLeft: 4 },
   quoteBox: { borderLeftWidth: 3, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, marginBottom: 6 },
   quoteAuthor: { fontSize: 11, fontWeight: '700', marginBottom: 1 },
   quoteText: { fontSize: 12 },
@@ -894,11 +1163,11 @@ const styles = StyleSheet.create({
   },
   videoCardLabel: { color: '#fff', fontSize: 12, fontWeight: '600' },
   reactionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
-  reactionChip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  reactionChipText: { fontSize: 12 },
+  reactionChip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  reactionChipText: { fontSize: 11.5, fontWeight: '700' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
   emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 240, lineHeight: 18 },
-  replyBar: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1 },
+  replyBar: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 14, marginBottom: 6, borderRadius: RADIUS.sm },
   replyBarStripe: { width: 3, alignSelf: 'stretch', borderRadius: 2 },
   replyBarAuthor: { fontSize: 12, fontWeight: '700' },
   replyBarText: { fontSize: 12.5, marginTop: 1 },

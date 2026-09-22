@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   themeOpt: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 9, borderRadius: 11 },
   themeLabel: { fontSize: 12, fontWeight: '700' },
 
-  input: { borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  input: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 },
   saveBtn: { marginTop: 12, paddingVertical: 13, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   unblockBtn: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
   version: { textAlign: 'center', fontSize: 11.5, marginTop: 18, marginBottom: 4 },
@@ -504,6 +504,6 @@ const styles = StyleSheet.create({
   confirmBody: { fontSize: 12.5, lineHeight: 18, marginTop: 4, marginBottom: 16 },
   confirmError: { fontSize: 12.5, lineHeight: 18, marginTop: -8, marginBottom: 14 },
   confirmActions: { flexDirection: 'row', gap: 10 },
-  btnSecondary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center' },
-  btnPrimary: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+  btnSecondary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  btnPrimary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 });

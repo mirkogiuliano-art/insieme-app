@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, TextInput, Pressable, StyleSheet, Platform, type TextInputProps } from 'react-native';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { EyeIcon, EyeOffIcon } from '@/components/Icon';
+import { EyeIcon, EyeOffIcon, LockIcon } from '@/components/Icon';
+import { FIELD_HEIGHT } from '@/components/Field';
 
 /** Sul web il browser disegna il proprio contorno di messa a fuoco sul
  * campo interno: essendo il campo dentro una cornice, il contorno finiva
@@ -32,7 +33,10 @@ export function PasswordInput({ style, ...props }: PasswordInputProps) {
   const [visibile, setVisibile] = useState(false);
 
   return (
-    <View style={[styles.wrap, { backgroundColor: colors.surface, borderColor: colors.border }, style]}>
+    <View style={[styles.wrap, { backgroundColor: colors.surface }, style]}>
+      {/* Il lucchetto, come la busta nel campo email: stessa forma per tutti
+          i campi delle schermate di accesso. */}
+      <LockIcon size={16} color={colors.textFaint} />
       <TextInput
         {...props}
         style={[styles.field, { color: colors.text }, focusOutlineOff]}
@@ -62,14 +66,14 @@ const styles = StyleSheet.create({
   // così password ed email restano allineate.
   wrap: {
     width: '100%',
-    maxWidth: 280,
+    height: FIELD_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    gap: 10,
     borderRadius: RADIUS.sm,
-    paddingLeft: 16,
+    paddingLeft: 14,
     paddingRight: 6,
   },
-  field: { flex: 1, paddingVertical: 13, fontSize: 15 },
+  field: { flex: 1, paddingVertical: 0, height: '100%', fontSize: 15 },
   toggle: { paddingHorizontal: 8, paddingVertical: 10 },
 });

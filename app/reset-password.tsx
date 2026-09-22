@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { useTheme, RADIUS } from '@/theme/theme';
+import { useTheme } from '@/theme/theme';
+import { LockIcon, CheckIcon, BrokenLinkIcon } from '@/components/Icon';
 import { PasswordInput } from '@/components/PasswordInput';
 import { supabase } from '@/lib/supabase';
+import { ScreenGlow } from '@/components/ScreenGlow';
 
 /**
  * Destinazione del link "password dimenticata" (Supabase Auth →
@@ -13,6 +15,21 @@ import { supabase } from '@/lib/supabase';
  * Il link contiene un token nel frammento URL che Supabase usa per
  * stabilire una sessione temporanea valida solo per cambiare la password.
  */
+/** La forma comune dei tre stati. Sta fuori dalla schermata di proposito:
+ * definita dentro, verrebbe ricreata a ogni lettera digitata e il campo
+ * password perderebbe il fuoco. */
+function Screen({ icon, tone, title, text, children }: { icon: React.ReactNode; tone: string; title: string; text: string; children?: React.ReactNode }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.column}>
+      <View style={[styles.bigIcon, { backgroundColor: colors.surface }]}>{icon}</View>
+      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.subtitle, { color: tone }]}>{text}</Text>
+      {children}
+    </View>
+  );
+}
+
 export default function ResetPasswordScreen() {
   const { colors } = useTheme();
   const router = useRouter();
@@ -59,6 +76,7 @@ export default function ResetPasswordScreen() {
   if (checking) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ScreenGlow />
         <ActivityIndicator color={colors.amber} />
       </View>
     );
@@ -66,24 +84,32 @@ export default function ResetPasswordScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+      <ScreenGlow />
       <View style={styles.inner}>
-        <Text style={[styles.title, { color: colors.text }]}>Nuova password</Text>
         {!hasSession ? (
-          <Text style={[styles.subtitle, { color: colors.textDim }]}>
-            Questo link non è valido o è scaduto. Richiedine uno nuovo dalla schermata di accesso.
-          </Text>
-        ) : done ? (
-          <>
-            <Text style={[styles.subtitle, { color: colors.textDim }]}>
-              Password aggiornata. Ora puoi accedere con quella nuova.
-            </Text>
-            <Pressable onPress={() => router.replace('/')} style={[styles.button, { backgroundColor: colors.amber }]}>
-              <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>Torna all'app</Text>
+          <Screen
+            icon={<BrokenLinkIcon size={32} color={colors.danger} />}
+            tone={colors.textDim}
+            title="Link scaduto"
+            text="Questo link non è valido o è già stato usato. Chiedine uno nuovo da «Password dimenticata?» nella schermata di accesso."
+          >
+            <Pressable onPress={() => router.replace('/')} style={[styles.button, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.buttonText, { color: colors.text }]}>Vai all’accesso</Text>
             </Pressable>
-          </>
+          </Screen>
+        ) : done ? (
+          <Screen
+            icon={<CheckIcon size={32} color={colors.teal} />}
+            tone={colors.textDim}
+            title="Password aggiornata"
+            text="D’ora in poi accedi con quella nuova."
+          >
+            <Pressable onPress={() => router.replace('/')} style={[styles.button, { backgroundColor: colors.amber }]}>
+              <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>Torna all’app</Text>
+            </Pressable>
+          </Screen>
         ) : (
-          <>
-            <Text style={[styles.subtitle, { color: colors.textDim }]}>Scegli una nuova password.</Text>
+          <Screen icon={<LockIcon size={32} color={colors.amber} />} tone={colors.textDim} title="Nuova password" text="Scegline una di almeno 8 caratteri.">
             <PasswordInput
               placeholder="Nuova password"
               value={password}
@@ -91,17 +117,19 @@ export default function ResetPasswordScreen() {
               onSubmitEditing={submit}
               returnKeyType="done"
             />
-            {error ? <Text style={{ color: colors.danger, fontSize: 12.5 }}>{error}</Text> : null}
+            {error ? <Text style={{ color: colors.danger, fontSize: 12.5, textAlign: 'center' }}>{error}</Text> : null}
             <Pressable
               onPress={submit}
               disabled={loading}
               style={[styles.button, { backgroundColor: colors.amber, opacity: loading ? 0.6 : 1 }]}
             >
-              <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>
-                {loading ? 'Un attimo…' : 'Salva password'}
-              </Text>
+              {loading ? (
+                <ActivityIndicator size="small" color={colors.inkOnAmber} />
+              ) : (
+                <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>Salva la password</Text>
+              )}
             </Pressable>
-          </>
+          </Screen>
         )}
       </View>
     </SafeAreaView>
@@ -110,10 +138,11 @@ export default function ResetPasswordScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  inner: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30, gap: 14 },
-  title: { fontSize: 22, fontWeight: '700' },
-  subtitle: { fontSize: 13.5, textAlign: 'center', maxWidth: 280, lineHeight: 20 },
-  input: { width: '100%', maxWidth: 280, borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 16, paddingVertical: 13, fontSize: 15 },
-  button: { width: '100%', maxWidth: 280, paddingVertical: 13, borderRadius: RADIUS.sm, alignItems: 'center', marginTop: 4 },
-  buttonText: { fontWeight: '700', fontSize: 14 },
+  inner: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  column: { width: '100%', maxWidth: 340, alignItems: 'center', gap: 12 },
+  bigIcon: { width: 76, height: 76, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  title: { fontSize: 23, fontWeight: '800', letterSpacing: -0.4, textAlign: 'center' },
+  subtitle: { fontSize: 13.5, textAlign: 'center', lineHeight: 20, marginBottom: 6 },
+  button: { width: '100%', height: 50, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  buttonText: { fontWeight: '800', fontSize: 15 },
 });

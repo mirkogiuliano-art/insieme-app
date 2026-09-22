@@ -30,6 +30,7 @@ import {
 } from '@/components/Icon';
 import { initials } from '@/lib/utils';
 import type { Group } from '@/types';
+import { ScreenGlow } from '@/components/ScreenGlow';
 
 type TabName = 'chat' | 'links' | 'map';
 
@@ -77,7 +78,6 @@ export default function GroupScreen() {
   /** Da quale pagina aprire le impostazioni; `null` = chiuse. */
   const [settingsAt, setSettingsAt] = useState<SettingsPage | null>(null);
   const [roster, setRoster] = useState<Record<string, string>>({});
-  const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -118,6 +118,7 @@ export default function GroupScreen() {
   if (!authReady || !session || (!localGroup && !groupsReady)) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ScreenGlow />
         <ActivityIndicator color={colors.amber} />
       </View>
     );
@@ -126,6 +127,7 @@ export default function GroupScreen() {
   if (!localGroup && remoteGroup === undefined) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ScreenGlow />
         <ActivityIndicator color={colors.amber} />
       </View>
     );
@@ -138,6 +140,7 @@ export default function GroupScreen() {
   if (!localGroup && remoteGroup === null) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+        <ScreenGlow />
         <View style={styles.centerState}>
           <UsersIcon size={38} color={colors.textFaint} />
           <Text style={[styles.centerTitle, { color: colors.text }]}>Gruppo non disponibile</Text>
@@ -154,6 +157,7 @@ export default function GroupScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
+      <ScreenGlow />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Pressable
@@ -186,7 +190,7 @@ export default function GroupScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
       <View style={{ flex: 1 }}>
         {tab === 'chat' ? (
-          <ChatTab groupId={groupId} roster={roster} searchOpen={chatSearchOpen} setSearchOpen={setChatSearchOpen} />
+          <ChatTab groupId={groupId} roster={roster} />
         ) : null}
         {tab === 'links' ? (
           <LinksTab
@@ -258,18 +262,8 @@ export default function GroupScreen() {
       ) : null}
 
       <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
-        {tab === 'chat' ? (
-          <Pressable
-            onPress={() => {
-              setMenuOpen(false);
-              setChatSearchOpen(true);
-            }}
-            style={[styles.menuRow, { borderBottomColor: colors.border }]}
-          >
-            <SearchIcon size={18} color={colors.textDim} />
-            <Text style={[styles.menuRowText, { color: colors.text }]}>Ricerca</Text>
-          </Pressable>
-        ) : null}
+        {/* La ricerca nei messaggi non sta più qui: è la barra in cima
+            alla chat, come in Link e Mappa. */}
         <Pressable
           onPress={() => {
             setMenuOpen(false);
@@ -369,5 +363,5 @@ const styles = StyleSheet.create({
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
   centerTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginTop: 4 },
   centerSub: { fontSize: 13, textAlign: 'center', lineHeight: 19, maxWidth: 300, marginBottom: 6 },
-  centerBtn: { paddingVertical: 13, paddingHorizontal: 28, borderRadius: RADIUS.sm, alignItems: 'center' },
+  centerBtn: { height: 46, paddingHorizontal: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 });

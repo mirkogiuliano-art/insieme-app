@@ -356,3 +356,109 @@ export function AutoThemeIcon({ size = 18, color = '#000', strokeWidth = 1.8 }: 
     </Svg>
   );
 }
+
+/** Due per due: la vista a griglia. */
+export function GridIcon({ size = 18, color = '#000', strokeWidth = 1.9 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round">
+      <Rect x="3.5" y="3.5" width="7" height="7" rx="2" />
+      <Rect x="13.5" y="3.5" width="7" height="7" rx="2" />
+      <Rect x="3.5" y="13.5" width="7" height="7" rx="2" />
+      <Rect x="13.5" y="13.5" width="7" height="7" rx="2" />
+    </Svg>
+  );
+}
+
+/** Righe con un quadratino a sinistra: la vista a elenco. */
+export function ListIcon({ size = 18, color = '#000', strokeWidth = 1.9 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3.5" y="4" width="6" height="6" rx="1.8" />
+      <Rect x="3.5" y="14" width="6" height="6" rx="1.8" />
+      <Line x1="13" y1="6" x2="20.5" y2="6" />
+      <Line x1="13" y1="9" x2="18" y2="9" />
+      <Line x1="13" y1="16" x2="20.5" y2="16" />
+      <Line x1="13" y1="19" x2="18" y2="19" />
+    </Svg>
+  );
+}
+
+/** Due frecce, su e giù: l'ordinamento. */
+export function SortIcon({ size = 14, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M7 4v16M3.5 7.5 7 4l3.5 3.5" />
+      <Path d="M17 20V4M13.5 16.5 17 20l3.5-3.5" />
+    </Svg>
+  );
+}
+
+/** Due anelli di catena: un indirizzo web da incollare. */
+export function ChainIcon({ size = 18, color = '#000', strokeWidth = 1.9 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7" />
+      <Path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7" />
+    </Svg>
+  );
+}
+
+/** Due fogli sovrapposti: copia. */
+export function CopyIcon({ size = 17, color = '#000', strokeWidth = 1.9 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="9" y="9" width="12" height="12" rx="2.5" />
+      <Path d="M5 15V5a2 2 0 012-2h10" />
+    </Svg>
+  );
+}
+
+export function MailIcon({ size = 16, color = '#000', strokeWidth = 1.9 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="5" width="18" height="14" rx="3" />
+      <Polyline points="3 7 12 13 21 7" />
+    </Svg>
+  );
+}
+
+export function LockIcon({ size = 16, color = '#000', strokeWidth = 1.9 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="5" y="11" width="14" height="10" rx="2.5" />
+      <Path d="M8 11V8a4 4 0 018 0v3" />
+    </Svg>
+  );
+}
+
+/** Catena spezzata: un invito che non vale più. */
+export function BrokenLinkIcon({ size = 18, color = '#000', strokeWidth = 1.9 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7" />
+      <Path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7" />
+      <Line x1="4" y1="4" x2="20" y2="20" />
+    </Svg>
+  );
+}
+
+/** Nuvola barrata: qualcosa non è arrivato dalla rete. */
+export function CloudOffIcon({ size = 18, color = '#000', strokeWidth = 1.9 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M22.6 16.6A5 5 0 0018 10h-1.3A8 8 0 007.6 4.6" />
+      <Path d="M5 5.7A8 8 0 009 20h9a5 5 0 001.4-.2" />
+      <Line x1="2" y1="2" x2="22" y2="22" />
+    </Svg>
+  );
+}
+
+/** Freccia che torna su sé stessa: riprova. */
+export function RetryIcon({ size = 18, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="1 4 1 10 7 10" />
+      <Path d="M3.5 15a9 9 0 102.1-9.4L1 10" />
+    </Svg>
+  );
+}

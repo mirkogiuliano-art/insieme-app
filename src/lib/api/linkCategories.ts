@@ -48,6 +48,13 @@ export async function renameCategory(id: string, name: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Il colore di una categoria, per tutto il gruppo. La regola di modifica
+ * è la stessa della rinomina. */
+export async function recolorCategory(id: string, color: string): Promise<void> {
+  const { error } = await supabase.from('link_categories').update({ color }).eq('id', id);
+  if (error) throw error;
+}
+
 /** Riassegna i link rimasti alla categoria più vecchia del gruppo, poi
  * cancella la categoria (funzione atomica lato database — vedi migrazione
  * 20260828110000). Fallisce se è l'unica categoria del gruppo. */

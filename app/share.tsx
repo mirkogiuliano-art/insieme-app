@@ -13,12 +13,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { router } from 'expo-router';
 import { useShareIntentContext } from 'expo-share-intent';
-import { useTheme, RADIUS } from '@/theme/theme';
+import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
+import { FilterChip } from '@/components/FilterChip';
+import { getLinkPreview } from '@/lib/api/linkPreviews';
 import { useAuth } from '@/lib/authStore';
 import { useAppStore, groupColor } from '@/lib/appStore';
 import { useToast } from '@/components/Toast';
 import { CloseIcon, LinkIcon, PlayIcon, ChatIcon, CheckIcon, MapIcon } from '@/components/Icon';
-import { platformInfo, normalizeUrl, parseGoogleMapsUrl, withTimeout, WRITE_TIMEOUT, UPLOAD_TIMEOUT } from '@/lib/utils';
+import { platformInfo, normalizeUrl, parseGoogleMapsUrl, inkOn, withTimeout, WRITE_TIMEOUT, UPLOAD_TIMEOUT } from '@/lib/utils';
 import { listCategories, type RawLinkCategory } from '@/lib/api/linkCategories';
 import { listCategories as listPlaceCategories, type RawPlaceCategory } from '@/lib/api/placeCategories';
 import { createLink } from '@/lib/api/links';
@@ -26,6 +28,7 @@ import { createPin } from '@/lib/api/pins';
 import { createPlaceLink } from '@/lib/api/placeLinks';
 import { sendMessage } from '@/lib/api/messages';
 import { uploadGroupMedia, type AttachmentKind } from '@/lib/api/mediaUpload';
+import { ScreenGlow } from '@/components/ScreenGlow';
 
 type Section = 'links' | 'chat';
 
@@ -52,6 +55,8 @@ export default function ShareScreen() {
   const [alsoSavePlace, setAlsoSavePlace] = useState(true);
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
+  /** Titolo e immagine veri della pagina condivisa, per l'anteprima. */
+  const [page, setPage] = useState<{ title: string | null; image: string | null } | null>(null);
 
   const file = shareIntent.files?.[0] ?? null;
   const sharedUrl = shareIntent.webUrl ?? null;
@@ -80,6 +85,17 @@ export default function ShareScreen() {
       cancelled = true;
     };
   }, [groupId]);
+
+  useEffect(() => {
+    if (!sharedUrl) return;
+    let alive = true;
+    getLinkPreview(normalizeUrl(sharedUrl)).then((p) => {
+      if (alive && p) setPage({ title: p.title, image: p.imageUrl });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [sharedUrl]);
 
   useEffect(() => {
     if (mapsPlace && title.length === 0 && mapsPlace.name) setTitle(mapsPlace.name);
@@ -188,34 +204,34 @@ export default function ShareScreen() {
   }
 
   const isImage = !!file && !file.mimeType?.startsWith('video/');
+  const thumb = file && isImage ? file.path : page?.image ?? (sharedUrl ? platformInfo(normalizeUrl(sharedUrl)).thumb : null);
+  const chosenCategory = categories.find((c) => c.id === categoryId);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'bottom']}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Salva in Insieme</Text>
-        <Pressable onPress={close} hitSlop={10} style={styles.closeBtn}>
-          <CloseIcon size={16} color={colors.textDim} />
-        </Pressable>
-      </View>
+      <ScreenGlow />
+      <Header onClose={close} />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        {/* Anteprima di quello che è arrivato */}
-        <View style={[styles.preview, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {file && isImage ? (
-            <Image source={{ uri: file.path }} style={styles.previewThumb} />
+        {/* Quello che è arrivato, con la faccia che avrà nella pagina Link. */}
+        <View style={[styles.preview, { backgroundColor: colors.surface }]}>
+          {thumb ? (
+            <Image source={{ uri: thumb }} style={styles.previewThumb} resizeMode="cover" />
           ) : (
             <View style={[styles.previewThumb, styles.previewFallback, { backgroundColor: colors.surface2 }]}>
-              {file ? <PlayIcon size={22} color={colors.textDim} /> : <LinkIcon size={22} color={colors.textDim} />}
+              {file ? <PlayIcon size={22} color={colors.textDim} /> : mapsPlace ? <MapIcon size={22} color={colors.teal} /> : <LinkIcon size={22} color={colors.textDim} />}
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }} numberOfLines={2}>
-              {file ? file.fileName || 'File condiviso' : sharedUrl || sharedText}
+            <Text style={[styles.previewTitle, { color: colors.text }]} numberOfLines={2}>
+              {file ? file.fileName || 'File condiviso' : page?.title || mapsPlace?.name || sharedUrl || sharedText}
             </Text>
-            <Text style={{ fontSize: 10.5, color: colors.textFaint, marginTop: 3 }}>
+            <Text style={[styles.previewSub, { color: colors.textFaint }]} numberOfLines={1}>
               {file
-                ? file.mimeType || 'file'
+                ? isImage
+                  ? 'Foto'
+                  : 'Video'
                 : mapsPlace
                   ? 'Google Maps'
                   : sharedUrl
@@ -225,8 +241,9 @@ export default function ShareScreen() {
           </View>
         </View>
 
-        <Text style={[styles.label, { color: colors.textDim }]}>GRUPPO</Text>
-        <View style={styles.chipRow}>
+        <Text style={[styles.label, { color: colors.textFaint }]}>IN QUALE GRUPPO</Text>
+        {/* I gruppi come piccole schede del loro colore, come nella home. */}
+        <View style={styles.groups}>
           {myGroups.map((g) => {
             const sel = groupId === g.id;
             const c = groupColor(g);
@@ -234,66 +251,49 @@ export default function ShareScreen() {
               <Pressable
                 key={g.id}
                 onPress={() => setGroupId(g.id)}
-                style={[styles.chip, { borderColor: sel ? c : colors.border, backgroundColor: sel ? colors.surface : 'transparent' }]}
+                style={[styles.groupPick, { backgroundColor: c, opacity: sel ? 1 : 0.5, borderColor: sel ? colors.text : 'transparent' }]}
               >
-                <View style={[styles.dot, { backgroundColor: c }]} />
-                <Text style={{ fontSize: 13, color: sel ? colors.text : colors.textDim }}>{g.name}</Text>
+                <Text style={[styles.groupPickText, { color: inkOn(c) }]} numberOfLines={1}>
+                  {g.name}
+                </Text>
               </Pressable>
             );
           })}
         </View>
 
-        <Text style={[styles.label, { color: colors.textDim }]}>SEZIONE</Text>
-        <View style={styles.chipRow}>
-          <Pressable
-            onPress={() => setSection('links')}
-            style={[
-              styles.chip,
-              { borderColor: section === 'links' ? colors.amber : colors.border, backgroundColor: section === 'links' ? colors.surface : 'transparent' },
-            ]}
-          >
-            <LinkIcon size={14} color={section === 'links' ? colors.amber : colors.textFaint} />
-            <Text style={{ fontSize: 13, color: section === 'links' ? colors.text : colors.textDim }}>Link e video</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setSection('chat')}
-            style={[
-              styles.chip,
-              { borderColor: section === 'chat' ? colors.amber : colors.border, backgroundColor: section === 'chat' ? colors.surface : 'transparent' },
-            ]}
-          >
-            <ChatIcon size={14} color={section === 'chat' ? colors.amber : colors.textFaint} />
-            <Text style={{ fontSize: 13, color: section === 'chat' ? colors.text : colors.textDim }}>Chat</Text>
-          </Pressable>
+        <Text style={[styles.label, { color: colors.textFaint }]}>DOVE</Text>
+        <View style={[styles.seg, { backgroundColor: colors.surface }]}>
+          {(['links', 'chat'] as const).map((k) => (
+            <Pressable key={k} onPress={() => setSection(k)} style={[styles.segBtn, section === k && { backgroundColor: colors.amber }]}>
+              {k === 'links' ? (
+                <LinkIcon size={15} color={section === k ? colors.inkOnAmber : colors.textDim} />
+              ) : (
+                <ChatIcon size={15} color={section === k ? colors.inkOnAmber : colors.textDim} />
+              )}
+              <Text style={[styles.segText, { color: section === k ? colors.inkOnAmber : colors.textDim }]}>
+                {k === 'links' ? 'Link e video' : 'Chat'}
+              </Text>
+            </Pressable>
+          ))}
         </View>
 
         {section === 'links' ? (
           <>
-            <Text style={[styles.label, { color: colors.textDim }]}>CATEGORIA</Text>
+            <Text style={[styles.label, { color: colors.textFaint }]}>CATEGORIA</Text>
             <View style={styles.chipRow}>
-              {categories.map((c) => {
-                const sel = categoryId === c.id;
-                return (
-                  <Pressable
-                    key={c.id}
-                    onPress={() => setCategoryId(c.id)}
-                    style={[styles.chip, { borderColor: sel ? c.color : colors.border, backgroundColor: sel ? colors.surface : 'transparent' }]}
-                  >
-                    <View style={[styles.dot, { backgroundColor: c.color }]} />
-                    <Text style={{ fontSize: 13, color: sel ? colors.text : colors.textDim }}>{c.name}</Text>
-                  </Pressable>
-                );
-              })}
+              {categories.map((c) => (
+                <FilterChip key={c.id} label={c.name} dotColor={c.color} active={categoryId === c.id} onPress={() => setCategoryId(c.id)} />
+              ))}
             </View>
           </>
         ) : null}
 
-        <Text style={[styles.label, { color: colors.textDim }]}>
-          {section === 'chat' && file ? 'DIDASCALIA (FACOLTATIVA)' : 'TITOLO (FACOLTATIVO)'}
+        <Text style={[styles.label, { color: colors.textFaint }]}>
+          {section === 'chat' ? (file ? 'DIDASCALIA (FACOLTATIVA)' : 'MESSAGGIO') : 'TITOLO (FACOLTATIVO)'}
         </Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-          placeholder={section === 'chat' && file ? 'Scrivi qualcosa…' : 'Come vuoi chiamarlo'}
+          style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
+          placeholder={section === 'chat' ? 'Aggiungi due righe…' : 'Come vuoi chiamarlo'}
           placeholderTextColor={colors.textFaint}
           value={title}
           onChangeText={setTitle}
@@ -301,28 +301,26 @@ export default function ShareScreen() {
         />
 
         {mapsPlace && section === 'links' ? (
-          <Pressable
-            onPress={() => setAlsoSavePlace((v) => !v)}
-            style={[styles.placeToggle, { borderColor: alsoSavePlace ? colors.teal : colors.border, backgroundColor: colors.surface }]}
-          >
+          <Pressable onPress={() => setAlsoSavePlace((v) => !v)} style={[styles.placeToggle, { backgroundColor: colors.surface }]}>
             <View
               style={[
                 styles.check,
                 { borderColor: alsoSavePlace ? colors.teal : colors.border, backgroundColor: alsoSavePlace ? colors.teal : 'transparent' },
               ]}
             >
-              {alsoSavePlace ? <CheckIcon size={11} color="#fff" /> : null}
+              {alsoSavePlace ? <CheckIcon size={12} color={colors.bg} /> : null}
             </View>
-            <MapIcon size={15} color={colors.teal} strokeWidth={1.9} />
-            <Text style={{ flex: 1, fontSize: 12.5, color: colors.textDim, lineHeight: 17 }}>
-              Salvalo anche come posto sulla mappa
-              {placeCategories[0] ? ` (categoria "${placeCategories[0].name}")` : ''}, già collegato a questo link.
+            <Text style={{ flex: 1, fontSize: 13, color: colors.text, lineHeight: 18, fontWeight: '600' }}>
+              Mettilo anche sulla mappa
+              <Text style={{ color: colors.textDim, fontWeight: '400' }}>
+                {placeCategories[0] ? `, in «${placeCategories[0].name}»` : ''}, già collegato a questo link.
+              </Text>
             </Text>
           </Pressable>
         ) : null}
       </ScrollView>
 
-      <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.bg }]}>
+      <View style={[styles.footer, { backgroundColor: colors.bg }]}>
         <Pressable
           onPress={save}
           disabled={saving || !groupId}
@@ -331,7 +329,9 @@ export default function ShareScreen() {
           {saving ? (
             <ActivityIndicator size="small" color={colors.inkOnAmber} />
           ) : (
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '700', fontSize: 15 }}>Salva</Text>
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 15 }}>
+              {section === 'chat' ? 'Manda nella chat' : chosenCategory ? `Salva in «${chosenCategory.name}»` : 'Salva'}
+            </Text>
           )}
         </Pressable>
       </View>
@@ -340,43 +340,61 @@ export default function ShareScreen() {
   );
 }
 
+function Header({ onClose }: { onClose: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.header}>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>Salva in Insieme</Text>
+      <Pressable onPress={onClose} hitSlop={10} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
+        <CloseIcon size={15} color={colors.textDim} />
+      </Pressable>
+    </View>
+  );
+}
+
 function Message({ title, body, onClose }: { title: string; body: string; onClose: () => void }) {
   const { colors } = useTheme();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'bottom']}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Salva in Insieme</Text>
-        <Pressable onPress={onClose} hitSlop={10} style={styles.closeBtn}>
-          <CloseIcon size={16} color={colors.textDim} />
-        </Pressable>
-      </View>
+      <ScreenGlow />
+      <Header onClose={onClose} />
       <View style={styles.messageBox}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 6 }}>{title}</Text>
-        <Text style={{ fontSize: 13, color: colors.textDim, textAlign: 'center', lineHeight: 19 }}>{body}</Text>
+        <View style={[styles.bigIcon, { backgroundColor: colors.surface }]}>
+          <LinkIcon size={30} color={colors.textDim} />
+        </View>
+        <Text style={{ fontSize: 21, fontWeight: '800', color: colors.text, marginBottom: 6, letterSpacing: -0.3 }}>{title}</Text>
+        <Text style={{ fontSize: 13.5, color: colors.textDim, textAlign: 'center', lineHeight: 20 }}>{body}</Text>
+        <Pressable onPress={onClose} style={[styles.saveBtn, { backgroundColor: colors.surface, alignSelf: 'stretch', marginTop: 18 }]}>
+          <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>Chiudi</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1,
-  },
-  headerTitle: { flex: 1, fontSize: 17, fontWeight: '700' },
-  closeBtn: { padding: 4 },
-  body: { padding: 18, paddingBottom: 30 },
-  preview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: RADIUS.md, padding: 10, marginBottom: 20 },
-  previewThumb: { width: 54, height: 54, borderRadius: RADIUS.sm },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 10 },
+  headerTitle: { flex: 1, fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
+  closeBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  body: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 30 },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: RADIUS.md, padding: 10, marginBottom: 8 },
+  previewThumb: { width: 60, height: 60, borderRadius: 14 },
   previewFallback: { alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 9 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 9 },
-  dot: { width: 9, height: 9, borderRadius: 5 },
-  input: { borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14.5 },
-  placeToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: RADIUS.sm, padding: 13, marginTop: 16 },
-  check: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  footer: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 12, borderTopWidth: 1 },
-  saveBtn: { paddingVertical: 15, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
-  messageBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
+  previewTitle: { fontSize: 14, fontWeight: '800', lineHeight: 18 },
+  previewSub: { fontSize: 11.5, marginTop: 3 },
+  label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 18, marginBottom: 9 },
+  groups: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  groupPick: { borderRadius: 14, borderWidth: 2, paddingHorizontal: 13, paddingVertical: 9, maxWidth: '100%' },
+  groupPickText: { fontFamily: FONT_ROUNDED, fontSize: 15 },
+  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14 },
+  segBtn: { flex: 1, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 11 },
+  segText: { fontSize: 13, fontWeight: '800' },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 8 },
+  input: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 13, fontSize: 14.5 },
+  placeToggle: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: RADIUS.md, padding: 13, marginTop: 16 },
+  check: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  footer: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 12 },
+  saveBtn: { height: 50, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  messageBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 34 },
+  bigIcon: { width: 76, height: 76, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
 });

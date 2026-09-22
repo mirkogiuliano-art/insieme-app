@@ -28,11 +28,12 @@ export function VoiceBubble({ uri, durationSeconds, own }: { uri: string; durati
   const unplayedColor = own ? 'rgba(0,0,0,0.3)' : colors.surface2;
   return (
     <Pressable onPress={toggle} style={styles.voiceRow}>
-      <View style={[styles.voicePlayBtn, { backgroundColor: own ? 'rgba(0,0,0,0.15)' : colors.surface2 }]}>
+      {/* Il pulsante pieno, come il play sulle schede video dei link. */}
+      <View style={[styles.voicePlayBtn, { backgroundColor: own ? colors.inkOnAmber : colors.teal }]}>
         {status.playing ? (
-          <PauseIcon size={15} color={own ? colors.inkOnAmber : colors.text} />
+          <PauseIcon size={16} color={own ? colors.amber : colors.bg} />
         ) : (
-          <PlayIcon size={15} color={own ? colors.inkOnAmber : colors.text} />
+          <PlayIcon size={16} color={own ? colors.amber : colors.bg} />
         )}
       </View>
       <View style={styles.waveform}>
@@ -41,19 +42,20 @@ export function VoiceBubble({ uri, durationSeconds, own }: { uri: string; durati
             key={i}
             style={[
               styles.waveformBar,
-              { height: 3 + h * 15, backgroundColor: i / heights.length <= progress ? playedColor : unplayedColor },
+              { height: 4 + h * 18, backgroundColor: i / heights.length <= progress ? playedColor : unplayedColor },
             ]}
           />
         ))}
       </View>
-      <Text style={{ fontSize: 12.5, color: own ? colors.inkOnAmber : colors.text }}>{label}</Text>
+      <Text style={[styles.time, { color: own ? colors.inkOnAmber : colors.text }]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  voiceRow: { flexDirection: 'row', alignItems: 'center', gap: 9, minWidth: 190 },
-  voicePlayBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  voiceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 200, paddingVertical: 2 },
+  voicePlayBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   waveform: { flexDirection: 'row', alignItems: 'center', gap: 2, flex: 1 },
-  waveformBar: { width: 2.5, borderRadius: 1.5 },
+  waveformBar: { width: 3, borderRadius: 1.5 },
+  time: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
 });

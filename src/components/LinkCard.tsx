@@ -1,18 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, Linking } from 'react-native';
-import { useTheme, RADIUS } from '@/theme/theme';
-import { LinkIcon, TrashIcon, PlayIcon, StarIcon, FileIcon } from '@/components/Icon';
-import { dateLabel, platformInfo, fileKindFor } from '@/lib/utils';
+import { useTheme } from '@/theme/theme';
+import { LinkIcon, PlayIcon, StarIcon, FileIcon, MapIcon, MoreIcon } from '@/components/Icon';
+import { platformInfo, fileKindFor } from '@/lib/utils';
 import { fileBadgeColor } from '@/components/FileAttachmentBubble';
 import { getLinkPreview } from '@/lib/api/linkPreviews';
 import type { RawLink } from '@/lib/api/links';
-
-/** Larghezza del riquadro della miniatura nelle card. */
-const THUMB_W = 132;
-/** L'immagine viene disegnata più larga del riquadro e ritagliata ai lati:
- * a parità di altezza della card questo dimezza le bande vuote sopra e
- * sotto. Con un'immagine 16:9 si perde circa il 20% della larghezza. */
-const THUMB_ZOOM_W = Math.round(THUMB_W * 1.25);
 
 function hostOf(url: string): string {
   try {
@@ -44,27 +37,30 @@ function hasAutoTitle(item: RawLink): boolean {
 }
 
 /**
- * Anteprima di una card: immagine e titolo veri della pagina.
+ * Anteprima di un link: immagine e titolo veri della pagina.
  *
- * Una sola richiesta per card — titolo e immagine vengono dalla stessa
- * lettura. Definita fuori dal componente della schermata: dentro verrebbe
- * ricreata a ogni ridisegno, rimontando tutto e rifacendo le richieste.
+ * Una sola richiesta per link — titolo e immagine vengono dalla stessa
+ * lettura, ed è in cache: la stessa anteprima chiesta dalla scheda e dal
+ * suo menu costa una volta sola.
  */
-function useCardPreview(item: RawLink) {
+export function useLinkPreview(item: RawLink | null) {
   const [preview, setPreview] = useState<{ title: string | null; imageUrl: string | null } | null>(null);
-  const uploaded = isUploadedFile(item);
+  const url = item?.url ?? '';
+  const uploaded = item ? isUploadedFile(item) : true;
 
   useEffect(() => {
-    if (uploaded) return;
+    setPreview(null);
+    if (!url || uploaded) return;
     let alive = true;
-    getLinkPreview(item.url).then((p) => {
+    getLinkPreview(url).then((p) => {
       if (alive && p) setPreview({ title: p.title, imageUrl: p.imageUrl });
     });
     return () => {
       alive = false;
     };
-  }, [item.url, uploaded]);
+  }, [url, uploaded]);
 
+  if (!item) return { title: '', image: null as string | null };
   return {
     // Il titolo vero sostituisce solo quello generato in automatico:
     // quello scritto da una persona non si tocca mai.
@@ -73,128 +69,263 @@ function useCardPreview(item: RawLink) {
   };
 }
 
+/** Colore e scritta del marchio di piattaforma sulla miniatura. Per i
+ * siti qualunque il marchio è il dominio stesso: dice da dove viene. */
+function badgeFor(item: RawLink): { text: string; bg: string } {
+  switch (item.platform) {
+    case 'youtube':
+      return { text: 'YouTube', bg: '#E23B32' };
+    case 'instagram':
+      return { text: 'Instagram', bg: '#C8356E' };
+    case 'tiktok':
+      return { text: 'TikTok', bg: '#111111' };
+    case 'vimeo':
+      return { text: 'Vimeo', bg: '#1A9FD6' };
+    case 'spotify':
+      return { text: 'Spotify', bg: '#1C9E4B' };
+    case 'twitter':
+      return { text: 'X', bg: '#111111' };
+    case 'image':
+      return { text: 'Foto', bg: 'rgba(14,20,27,0.72)' };
+    case 'video':
+      return { text: 'Video', bg: 'rgba(14,20,27,0.72)' };
+    case 'file':
+      return { text: item.label, bg: 'rgba(14,20,27,0.72)' };
+    default:
+      return { text: item.label === 'Google Maps' ? 'Maps' : hostOf(item.url), bg: 'rgba(14,20,27,0.72)' };
+  }
+}
+
+/** I posti della mappa collegati a un link, già risolti col loro colore. */
+export interface LinkedPlace {
+  id: string;
+  name: string;
+  color: string;
+}
+
+interface CardProps {
+  item: RawLink;
+  addedBy: string;
+  places: LinkedPlace[];
+  onOpenMenu: () => void;
+  onShowPlace: (pinId: string) => void;
+}
+
 /**
- * Card di un link.
- *
- * La miniatura sta a lato e mostra l'immagine **intera** (`contain`), non
- * ritagliata per riempire il riquadro: le immagini di anteprima sono
- * panoramiche e riempire un riquadro quasi quadrato significava buttarne
- * via i due terzi. Restano quindi due bande vuote sopra e sotto, con un
- * fondo diverso da quello della card così la miniatura si legge come
- * un'immagine e non come un buco.
- *
- * Il riquadro è largo abbastanza da rendere l'immagine leggibile senza far
- * crescere l'altezza della card, che era il difetto della versione con
- * l'immagine a fascia sopra al testo.
+ * La miniatura, riempita: l'immagine è ritagliata per coprire il riquadro
+ * (come fanno YouTube e Instagram) invece che mostrata intera con le bande
+ * vuote sopra e sotto. Il titolo accanto dice già di che cosa si tratta.
  */
-export function LinkCard({
+function Thumb({
   item,
-  catName,
-  catColor,
-  addedBy,
-  onRemove,
-  onToggleFavorite,
-  onPickPlace,
-  children,
+  image,
+  compact,
+  style,
 }: {
   item: RawLink;
-  catName: string;
-  catColor: string;
-  addedBy: string;
-  onRemove: () => void;
-  onToggleFavorite: () => void;
-  onPickPlace: () => void;
-  children: React.ReactNode;
+  image: string | null;
+  compact?: boolean;
+  style: object;
 }) {
   const { colors } = useTheme();
-  const { title, image } = useCardPreview(item);
-
+  const badge = badgeFor(item);
+  const fileColor = item.platform === 'file' ? fileBadgeColor(fileKindFor(item.title), colors) : colors.textDim;
   return (
-    <Pressable
-      onPress={() => Linking.openURL(item.url)}
-      style={[styles.card, { backgroundColor: colors.surface }]}
-    >
+    <View style={[style, { backgroundColor: colors.surface2 }]}>
       {image ? (
-        <View style={[styles.thumb, { backgroundColor: colors.surface2 }]}>
-          <Image source={{ uri: image }} style={styles.thumbImage} resizeMode="contain" />
-        </View>
+        <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       ) : item.platform === 'video' ? (
-        <View style={[styles.thumb, { backgroundColor: '#1B2530' }]}>
-          <PlayIcon size={22} color="#fff" />
+        <View style={[StyleSheet.absoluteFill, styles.center, { backgroundColor: '#1B2530' }]}>
+          <PlayIcon size={compact ? 18 : 26} color="#fff" />
         </View>
       ) : item.platform === 'file' ? (
-        <View style={[styles.thumb, { backgroundColor: colors.surface2 }]}>
-          <FileIcon size={28} color={fileBadgeColor(fileKindFor(item.title), colors)} strokeWidth={1.6} />
-          <Text style={[styles.thumbFileLabel, { color: fileBadgeColor(fileKindFor(item.title), colors) }]}>{item.label}</Text>
+        <View style={[StyleSheet.absoluteFill, styles.center]}>
+          <FileIcon size={compact ? 24 : 34} color={fileColor} strokeWidth={1.6} />
         </View>
       ) : (
-        <View style={[styles.thumb, { backgroundColor: colors.surface2 }]}>
-          <LinkIcon size={26} color={catColor} strokeWidth={1.6} />
+        <View style={[StyleSheet.absoluteFill, styles.center]}>
+          <LinkIcon size={compact ? 22 : 30} color={colors.textFaint} strokeWidth={1.6} />
         </View>
       )}
-      <View style={styles.cardBody}>
-        <Text style={[styles.catLabel, { color: catColor }]}>{catName.toUpperCase()}</Text>
-        <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
-          {title}
+      <View
+        style={[
+          styles.badge,
+          compact ? styles.badgeCompact : null,
+          { backgroundColor: item.platform === 'file' ? fileColor : badge.bg },
+        ]}
+      >
+        <Text style={[styles.badgeText, compact && { fontSize: 8 }]} numberOfLines={1}>
+          {compact && item.platform === 'youtube' ? '▶' : badge.text}
         </Text>
-        <Text style={[styles.cardMeta, { color: colors.textFaint }]}>
-          {addedBy} · {item.label} · {dateLabel(item.ts)}
-        </Text>
-        {children}
       </View>
-      <View style={styles.actions}>
-        <Pressable
-          hitSlop={8}
-          onPress={(e) => {
-            // Come per il link toccabile nel testo della chat: senza questo
-            // il tocco proseguirebbe fino alla card e aprirebbe l'indirizzo.
-            e.stopPropagation?.();
-            onToggleFavorite();
-          }}
-          style={styles.actionBtn}
-        >
-          <StarIcon size={16} color={item.isFavorite ? colors.amber : colors.textFaint} filled={item.isFavorite} />
-        </Pressable>
-        <Pressable hitSlop={8} onPress={onRemove} style={styles.actionBtn}>
-          <TrashIcon size={16} color={colors.textFaint} />
-        </Pressable>
+      {/* La stella si vede solo quando è vera: su un link non preferito
+          non c'è niente da dire. Si mette e si toglie dal menu. */}
+      {item.isFavorite && !compact ? (
+        <View style={styles.favBadge}>
+          <StarIcon size={11} color="#E9A23B" filled />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** Pastiglia del posto collegato: tocca e la mappa si apre su quello. */
+function PlaceChip({ place, onPress }: { place: LinkedPlace; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={(e) => {
+        e.stopPropagation?.();
+        onPress();
+      }}
+      hitSlop={4}
+      style={[styles.placeChip, { backgroundColor: place.color + '24' }]}
+    >
+      <MapIcon size={10} color={place.color} strokeWidth={2.2} />
+      <Text style={[styles.placeChipText, { color: colors.text }]} numberOfLines={1}>
+        {place.name}
+      </Text>
+    </Pressable>
+  );
+}
+
+function MoreButton({ onPress }: { onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={(e) => {
+        // Come per il link toccabile nel testo della chat: senza questo
+        // il tocco proseguirebbe fino alla scheda e aprirebbe l'indirizzo.
+        e.stopPropagation?.();
+        onPress();
+      }}
+      hitSlop={10}
+      style={styles.moreBtn}
+    >
+      <View style={{ transform: [{ rotate: '90deg' }] }}>
+        <MoreIcon size={16} color={colors.textFaint} />
       </View>
     </Pressable>
   );
 }
 
+/**
+ * Il link in forma di riga: miniatura quadrata, titolo, chi l'ha
+ * condiviso, e il posto se ce n'è uno. Le azioni stanno nel menu — tenendo
+ * premuto o col pulsante a destra, che serve anche sul web dove la
+ * pressione lunga non arriva.
+ */
+export function LinkRow({ item, addedBy, places, onOpenMenu, onShowPlace }: CardProps) {
+  const { colors } = useTheme();
+  const { title, image } = useLinkPreview(item);
+  return (
+    <Pressable onPress={() => Linking.openURL(item.url)} onLongPress={onOpenMenu} style={styles.row}>
+      <Thumb item={item} image={image} compact style={styles.rowThumb} />
+      <View style={styles.rowBody}>
+        <View style={styles.rowTitleLine}>
+          <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={2}>
+            {title}
+          </Text>
+          {item.isFavorite ? <StarIcon size={12} color={colors.amber} filled /> : null}
+        </View>
+        <Text style={[styles.meta, { color: colors.textFaint }]} numberOfLines={1}>
+          <Text style={{ color: colors.textDim, fontWeight: '700' }}>{addedBy}</Text> · {item.label}
+        </Text>
+        {places.length > 0 ? (
+          <View style={styles.places}>
+            {places.map((p) => (
+              <PlaceChip key={p.id} place={p} onPress={() => onShowPlace(p.id)} />
+            ))}
+          </View>
+        ) : null}
+      </View>
+      <MoreButton onPress={onOpenMenu} />
+    </Pressable>
+  );
+}
+
+/**
+ * Il link in forma di riquadro, per la griglia a due colonne: la
+ * miniatura è protagonista, il titolo sta sotto su due righe.
+ */
+export function LinkTile({ item, addedBy, places, onOpenMenu, onShowPlace }: CardProps) {
+  const { colors } = useTheme();
+  const { title, image } = useLinkPreview(item);
+  return (
+    <Pressable onPress={() => Linking.openURL(item.url)} onLongPress={onOpenMenu} style={styles.tile}>
+      <Thumb item={item} image={image} style={styles.tileThumb} />
+      <Text style={[styles.tileTitle, { color: colors.text }]} numberOfLines={2}>
+        {title}
+      </Text>
+      <View style={styles.tileFoot}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={[styles.meta, { color: colors.textDim, fontWeight: '700' }]} numberOfLines={1}>
+            {addedBy}
+          </Text>
+          {places[0] ? <PlaceChip place={places[0]} onPress={() => onShowPlace(places[0].id)} /> : null}
+        </View>
+        <MoreButton onPress={onOpenMenu} />
+      </View>
+    </Pressable>
+  );
+}
+
+/** La miniatura piccola, per il menu del link. */
+export function LinkThumbMini({ item }: { item: RawLink }) {
+  const { image } = useLinkPreview(item);
+  return <Thumb item={item} image={image} compact style={styles.miniThumb} />;
+}
+
 const styles = StyleSheet.create({
-  // `thumb` è posizionato in assoluto invece di usare `alignSelf: 'stretch'`
-  // per riempire l'altezza della card: uno `stretch` senza un'altezza
-  // dichiarata lascia ambigua l'altezza del contenitore, e l'immagine al
-  // suo interno (che usa `height: '100%'`) può risolvere quel 100% contro
-  // il primo antenato con un'altezza vera — nei casi peggiori l'intera
-  // schermata. Con `top/left/bottom` l'altezza di `thumb` è sempre quella
-  // reale della card, senza ambiguità, su web e su nativo.
-  // Il `gap` qui vale solo fra i figli nel flusso normale (cardBody,
-  // delBtn): `thumb` è in posizione assoluta e ne resta fuori, per questo
-  // il suo spazio da cardBody è nel `paddingLeft` di cardBody, non qui.
-  //
-  // La fascia colorata che stava sul bordo sinistro non c'è più, come
-  // tutti gli altri contorni: la categoria si riconosce dalla sua
-  // etichetta colorata sopra al titolo, che la dice anche a parole.
-  card: { flexDirection: 'row', gap: 11, borderRadius: RADIUS.md, overflow: 'hidden', minHeight: 84 },
-  cardBody: { flex: 1, paddingVertical: 10, paddingLeft: THUMB_W + 11, justifyContent: 'center', gap: 3 },
-  cardMeta: { fontSize: 10.5 },
-  cardTitle: { fontSize: 13.5, fontWeight: '600', lineHeight: 17 },
-  catLabel: { fontSize: 10, letterSpacing: 0.5, fontWeight: '700' },
-  actions: { justifyContent: 'center', gap: 2, paddingHorizontal: 8 },
-  actionBtn: { paddingVertical: 7, alignItems: 'center' },
-  thumb: {
+  center: { alignItems: 'center', justifyContent: 'center' },
+  badge: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: THUMB_W,
+    left: 7,
+    top: 7,
+    maxWidth: '80%',
+    height: 18,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    justifyContent: 'center',
+  },
+  badgeCompact: { left: 4, top: undefined, bottom: 4, height: 15, paddingHorizontal: 4, borderRadius: 5 },
+  badgeText: { color: '#fff', fontSize: 9.5, fontWeight: '800' },
+  favBadge: {
+    position: 'absolute',
+    right: 7,
+    top: 7,
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    backgroundColor: 'rgba(14,20,27,0.72)',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
   },
-  thumbImage: { width: THUMB_ZOOM_W, height: '100%' },
-  thumbFileLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4, marginTop: 3 },
+  placeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    maxWidth: 170,
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  placeChipText: { fontSize: 10.5, fontWeight: '700', flexShrink: 1 },
+  places: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 2 },
+  moreBtn: { paddingHorizontal: 4, paddingVertical: 6 },
+  meta: { fontSize: 11.5 },
+
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  rowThumb: { width: 68, height: 68, borderRadius: 14, overflow: 'hidden' },
+  rowBody: { flex: 1, gap: 3 },
+  rowTitleLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  rowTitle: { flex: 1, fontSize: 14, fontWeight: '700', lineHeight: 18 },
+
+  tile: { flex: 1 },
+  tileThumb: { width: '100%', aspectRatio: 4 / 3, borderRadius: 16, overflow: 'hidden' },
+  tileTitle: { fontSize: 13, fontWeight: '700', lineHeight: 17, marginTop: 7 },
+  tileFoot: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 3 },
+
+  miniThumb: { width: 52, height: 40, borderRadius: 10, overflow: 'hidden' },
 });

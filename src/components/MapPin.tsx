@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Path, G, Circle } from 'react-native-svg';
+import Svg, { Path, G, Circle, Rect } from 'react-native-svg';
 
 /**
  * Il segnaposto dei posti salvati.
@@ -102,6 +102,35 @@ export function MapPin({
             fill="none"
             stroke="#FFFFFF"
             strokeWidth={2.4 / 0.6667}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </G>
+      )}
+    </Svg>
+  );
+}
+
+/**
+ * Il riquadro del posto negli elenchi: stesso colore e stessa icona del
+ * suo segnaposto sulla mappa, così fra mappa ed elenco il posto si
+ * riconosce a colpo d'occhio.
+ */
+export function PlaceTile({ color, categoryName, size = 52 }: { color: string; categoryName: string; size?: number }) {
+  const icona = iconaPerCategoria(categoryName);
+  const lato = Math.round(size * 0.46);
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <Rect width={size} height={size} rx={size * 0.27} fill={color} />
+      {icona === 'punto' ? (
+        <Circle cx={size / 2} cy={size / 2} r={size * 0.11} fill="#FFFFFF" />
+      ) : (
+        <G transform={`translate(${(size - lato) / 2} ${(size - lato) / 2}) scale(${lato / 24})`}>
+          <Path
+            d={ICONE[icona]}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth={2.2 / (lato / 24)}
             strokeLinecap="round"
             strokeLinejoin="round"
           />

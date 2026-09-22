@@ -40,11 +40,13 @@ export async function getMyGroup(code: string): Promise<Group | null> {
  * create_group). Rigenera il codice e riprova in caso di collisione
  * (rarissima, spazio di 33^6 combinazioni).
  */
-export async function createGroupWithMembership(name: string): Promise<Group> {
+/** Crea un gruppo e mi ci iscrive. Il colore della scheda lo sceglie chi
+ * crea; se non lo sceglie, uno della tavolozza. */
+export async function createGroupWithMembership(name: string, chosenColor?: string): Promise<Group> {
   const maxAttempts = 5;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const code = genGroupCode();
-    const color = GROUP_PALETTE[Math.abs(code.charCodeAt(0)) % GROUP_PALETTE.length];
+    const color = chosenColor || GROUP_PALETTE[Math.abs(code.charCodeAt(0)) % GROUP_PALETTE.length];
     // create_group ritorna una singola riga groups (non SETOF), quindi
     // `data` è già l'oggetto — niente .single() qui.
     const { data, error } = await supabase.rpc('create_group', {
@@ -57,6 +59,13 @@ export async function createGroupWithMembership(name: string): Promise<Group> {
     if (error && (error as { code?: string }).code !== '23505') throw error;
   }
   throw new Error('Impossibile generare un codice gruppo univoco, riprova.');
+}
+
+/** Cambia il colore della scheda del gruppo, per tutti. Passa da una
+ * funzione del database: vedi 20260922100000_colore_gruppo.sql. */
+export async function setGroupColor(groupId: string, color: string): Promise<void> {
+  const { error } = await supabase.rpc('cambia_colore_gruppo', { p_group_id: groupId, p_color: color });
+  if (error) throw error;
 }
 
 export async function listMyGroups(): Promise<Group[]> {

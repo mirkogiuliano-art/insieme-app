@@ -100,10 +100,17 @@ export async function setFavorite(id: string, isFavorite: boolean): Promise<void
   if (error) throw error;
 }
 
+/** Sposta un link in un'altra categoria, per tutto il gruppo. La regola
+ * di modifica è la stessa dei preferiti: può farlo chiunque ne fa parte. */
+export async function setLinkCategory(id: string, categoryId: string): Promise<void> {
+  const { error } = await supabase.from('links').update({ category_id: categoryId }).eq('id', id);
+  if (error) throw error;
+}
+
 /** Sottoscrive inserimenti, cancellazioni e modifiche di link nel gruppo.
- * L'UPDATE serve solo a propagare la riassegnazione di categoria quando
- * qualcuno elimina una categoria non vuota (vedi linkCategories.deleteCategory) —
- * non esiste una UI per modificare un link esistente. */
+ * L'UPDATE propaga preferiti e cambi di categoria: quelli fatti dal menu
+ * di un link e quelli dovuti all'eliminazione di una categoria non vuota
+ * (vedi linkCategories.deleteCategory). */
 /** Il suffisso casuale rende univoco il nome del canale.
  * supabase-js riusa lo stesso oggetto canale a parità di nome: se due
  * componenti montati insieme si iscrivono allo stesso, la seconda `.on()`

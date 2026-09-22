@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme, RADIUS } from '@/theme/theme';
+import { CloudOffIcon, RetryIcon } from '@/components/Icon';
 
 interface LoadErrorProps {
   /** Cosa non si è riuscito a caricare, in due parole: "i messaggi",
@@ -20,7 +21,10 @@ interface LoadErrorProps {
 export function LoadError({ what, onRetry }: LoadErrorProps) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.box, { backgroundColor: colors.surface, borderColor: colors.danger }]}>
+    <View style={[styles.box, { backgroundColor: colors.surface }]}>
+      <View style={[styles.icon, { backgroundColor: colors.danger + '1F' }]}>
+        <CloudOffIcon size={20} color={colors.danger} />
+      </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.title, { color: colors.text }]}>Non sono riuscito a caricare {what}</Text>
         <Text style={[styles.sub, { color: colors.textDim }]}>
@@ -28,7 +32,8 @@ export function LoadError({ what, onRetry }: LoadErrorProps) {
         </Text>
       </View>
       <Pressable onPress={onRetry} style={[styles.btn, { backgroundColor: colors.amber }]}>
-        <Text style={{ color: colors.inkOnAmber, fontWeight: '700', fontSize: 12.5 }}>Riprova</Text>
+        <RetryIcon size={13} color={colors.inkOnAmber} strokeWidth={2.4} />
+        <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 12.5 }}>Riprova</Text>
       </Pressable>
     </View>
   );
@@ -39,13 +44,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderWidth: 1,
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
+    borderRadius: RADIUS.md,
+    padding: 12,
     margin: 16,
   },
+  icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 13.5, fontWeight: '700' },
   sub: { fontSize: 11.5, marginTop: 2, lineHeight: 16 },
-  btn: { paddingHorizontal: 15, paddingVertical: 9, borderRadius: RADIUS.sm },
+  btn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 34, borderRadius: 999 },
 });
