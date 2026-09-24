@@ -8,7 +8,16 @@ interface GroupRow {
   color: string | null;
   created_by: string | null;
   created_at: string;
+  description: string | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  place_pin_id: string | null;
+  info_updated_by: string | null;
+  info_updated_at: string | null;
 }
+
+const SELECT_COLUMNS =
+  'id, name, color, created_by, created_at, description, starts_on, ends_on, place_pin_id, info_updated_by, info_updated_at';
 
 function toGroup(row: GroupRow, joinedAt?: number): Group {
   return {
@@ -18,6 +27,12 @@ function toGroup(row: GroupRow, joinedAt?: number): Group {
     createdBy: row.created_by ?? undefined,
     createdAt: new Date(row.created_at).getTime(),
     joinedAt,
+    description: row.description,
+    startsOn: row.starts_on,
+    endsOn: row.ends_on,
+    placePinId: row.place_pin_id,
+    infoUpdatedBy: row.info_updated_by,
+    infoUpdatedAt: row.info_updated_at ? new Date(row.info_updated_at).getTime() : null,
   };
 }
 
@@ -27,7 +42,7 @@ function toGroup(row: GroupRow, joinedAt?: number): Group {
 export async function getMyGroup(code: string): Promise<Group | null> {
   const { data, error } = await supabase
     .from('groups')
-    .select('id, name, color, created_by, created_at')
+    .select(SELECT_COLUMNS)
     .eq('id', code)
     .maybeSingle();
   if (error || !data) return null;
@@ -68,12 +83,47 @@ export async function setGroupColor(groupId: string, color: string): Promise<voi
   if (error) throw error;
 }
 
+/**
+ * Descrizione, date e meta del gruppo, tutte insieme: `null` vuol dire
+ * "vuoto", ed e' cosi' che si toglie una data o la meta. Passa da una
+ * funzione del database - vedi 20260923120000_info_gruppo.sql.
+ */
+export async function setGroupInfo(
+  groupId: string,
+  info: { description: string | null; startsOn: string | null; endsOn: string | null; placePinId: string | null },
+): Promise<void> {
+  const { error } = await supabase.rpc('aggiorna_info_gruppo', {
+    p_group_id: groupId,
+    p_description: info.description,
+    p_starts_on: info.startsOn,
+    p_ends_on: info.endsOn,
+    p_place_pin_id: info.placePinId,
+  });
+  if (error) throw error;
+}
+
+/** Le info del gruppo cambiate da qualcun altro, mentre si guarda. */
+export function subscribeToGroup(groupId: string, onChange: (group: Group) => void): () => void {
+  const uniqueSuffix = Math.random().toString(36).slice(2, 8);
+  const channel = supabase
+    .channel(`groups:${groupId}:${uniqueSuffix}`)
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'groups', filter: `id=eq.${groupId}` },
+      (payload) => onChange(toGroup(payload.new as GroupRow)),
+    )
+    .subscribe();
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
 export async function listMyGroups(): Promise<Group[]> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return [];
   const { data, error } = await supabase
     .from('group_members')
-    .select('joined_at, groups(id, name, color, created_by, created_at)')
+    .select(`joined_at, groups(${SELECT_COLUMNS})`)
     .eq('user_id', auth.user.id)
     .order('joined_at', { ascending: false });
   // Un elenco vuoto per errore è indistinguibile da un elenco davvero

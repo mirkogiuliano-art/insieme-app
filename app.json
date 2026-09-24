@@ -48,6 +48,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withNoAutofillHighlight",
       "expo-document-picker",
       [
         "expo-location",

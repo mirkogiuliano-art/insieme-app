@@ -67,7 +67,17 @@ giusto in ciascun contesto.
 
 ## I colori
 
-Sono le tinte del tema scuro (`src/theme/theme.tsx`), non una tavolozza a parte:
-verde `#4FB3A5` dietro, corallo `#E4707A` in mezzo, ambra `#E9A23B` davanti, su fondo
-`#0E141B`. L'icona resta così parente dell'app: cambiando i colori del tema, questi
+I colori sono le tinte del tema scuro (`src/theme/theme.tsx`), non una tavolozza
+a parte: corallo `#E4707A` dietro, lilla `#9A8BEA` in mezzo, ambra `#E9A23B`
+davanti, su fondo `#0E141B`.
+
+Sono **tre tinte calde e vicine fra loro**: il verde acqua che stava dietro fino
+a ieri era l'unico colore freddo del mucchio e si contendeva l'occhio con
+l'ambra. Corallo, lilla e ambra si passano la mano invece di litigare.
+
+Conta soprattutto **chi sta davanti**, perché è il cartoncino più grande e il
+primo che si legge: l'ambra tiene il marchio imparentato con i pulsanti
+dell'app. Il lilla, che è la tinta più vicina al corallo, sta in mezzo: alle
+misure piccole la sua fettina e quella del corallo tendono a fondersi, ed è il
+punto da guardare per primo se un giorno si cambiano queste tinte. L'icona resta così parente dell'app: cambiando i colori del tema, questi
 vanno cambiati insieme, altrimenti l'icona sembra di un'altra applicazione.

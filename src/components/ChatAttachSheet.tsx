@@ -4,7 +4,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { PlaceTile } from '@/components/MapPin';
 import { LinkThumbMini, useLinkPreview } from '@/components/LinkCard';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { ImageIcon, PlayIcon, FileIcon, MapIcon, LinkIcon, LocateIcon, BackIcon, SearchIcon } from '@/components/Icon';
+import { ImageIcon, PlayIcon, FileIcon, MapIcon, LinkIcon, LocateIcon, BackIcon, SearchIcon, PollIcon } from '@/components/Icon';
 import type { RawPin } from '@/lib/api/pins';
 import type { RawLink } from '@/lib/api/links';
 
@@ -20,6 +20,8 @@ interface ChatAttachSheetProps {
   onPlace: (pin: RawPin) => void;
   onLink: (link: RawLink) => void;
   onMyPosition: () => Promise<void>;
+  /** Apre "Nuovo sondaggio": la scheda la crea poi il server. */
+  onPoll: () => void;
 }
 
 type Step = 'grid' | 'places' | 'links';
@@ -60,6 +62,7 @@ export function ChatAttachSheet({
   onPlace,
   onLink,
   onMyPosition,
+  onPoll,
 }: ChatAttachSheetProps) {
   const { colors } = useTheme();
   const [step, setStep] = useState<Step>('grid');
@@ -143,11 +146,26 @@ export function ChatAttachSheet({
     );
   }
 
-  const Tile = ({ icon, label, highlight, onPress, busy }: { icon: React.ReactNode; label: string; highlight?: boolean; onPress: () => void; busy?: boolean }) => (
+  const Tile = ({
+    icon,
+    label,
+    highlight,
+    tint,
+    onPress,
+    busy,
+  }: {
+    icon: React.ReactNode;
+    label: string;
+    highlight?: boolean;
+    /** Colore del contorno di una voce in evidenza (ambra se non detto). */
+    tint?: string;
+    onPress: () => void;
+    busy?: boolean;
+  }) => (
     <Pressable
       onPress={onPress}
       disabled={busy}
-      style={[styles.tile, { backgroundColor: colors.surface2, borderColor: highlight ? colors.amber + '88' : 'transparent' }]}
+      style={[styles.tile, { backgroundColor: colors.surface2, borderColor: highlight ? (tint ?? colors.amber) + '88' : 'transparent' }]}
     >
       {busy ? <ActivityIndicator size="small" color={colors.textDim} /> : icon}
       <Text style={[styles.tileText, { color: colors.textDim }]} numberOfLines={1}>
@@ -163,8 +181,9 @@ export function ChatAttachSheet({
         <Tile icon={<ImageIcon size={21} color={colors.textDim} />} label="Foto" onPress={() => run(onPhoto)} />
         <Tile icon={<PlayIcon size={19} color={colors.textDim} />} label="Video" onPress={() => run(onVideo)} />
         <Tile icon={<FileIcon size={21} color={colors.textDim} />} label="Documento" onPress={() => run(onDocument)} />
-        <Tile icon={<MapIcon size={21} color={colors.teal} />} label="Un posto" highlight onPress={() => setStep('places')} />
+        <Tile icon={<MapIcon size={21} color={colors.teal} />} label="Un posto" highlight tint={colors.teal} onPress={() => setStep('places')} />
         <Tile icon={<LinkIcon size={21} color={colors.amber} />} label="Un link" highlight onPress={() => setStep('links')} />
+        <Tile icon={<PollIcon size={21} color={colors.lilac} />} label="Sondaggio" highlight tint={colors.lilac} onPress={() => run(onPoll)} />
         <Tile
           icon={<LocateIcon size={21} color={colors.textDim} />}
           label="Dove sono"
@@ -197,7 +216,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tile: { width: '31.5%', height: 68, borderRadius: RADIUS.md, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  tile: { width: '23.5%', height: 68, borderRadius: RADIUS.md, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 6 },
   tileText: { fontSize: 11.5, fontWeight: '700' },
   label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 16, marginBottom: 8 },
   list: { borderRadius: RADIUS.md, overflow: 'hidden' },

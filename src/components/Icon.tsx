@@ -462,3 +462,32 @@ export function RetryIcon({ size = 18, color = '#000', strokeWidth = 2 }: IconPr
     </Svg>
   );
 }
+
+/** Il mondo: un sito qualunque, senza una piattaforma riconosciuta. */
+export function GlobeIcon({ size = 18, color = '#000', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="12" cy="12" r="8.5" />
+      <Path d="M3.5 12h17M12 3.5c2.8 2.8 2.8 14.2 0 17M12 3.5c-2.8 2.8-2.8 14.2 0 17" />
+    </Svg>
+  );
+}
+
+/** Tre barre di altezza diversa: un sondaggio. */
+export function PollIcon({ size = 18, color = '#000', strokeWidth = 2.2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round">
+      <Path d="M5 20V11M12 20V4M19 20v-6" />
+    </Svg>
+  );
+}
+
+/** Un calendario: le date del gruppo. */
+export function CalendarIcon({ size = 18, color = '#000', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3.5" y="5" width="17" height="16" rx="3" />
+      <Path d="M8 3v4M16 3v4M3.5 10h17" />
+    </Svg>
+  );
+}

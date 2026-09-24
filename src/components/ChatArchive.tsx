@@ -2,14 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, SectionList, ScrollView, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/theme/theme';
 import { FilterChip } from '@/components/FilterChip';
-import { PlayIcon, FileIcon, MicIcon, LinkIcon } from '@/components/Icon';
+import { PlayIcon, FileIcon, MicIcon, PollIcon } from '@/components/Icon';
 import { fileBadgeColor } from '@/components/FileAttachmentBubble';
+import { LinkFallbackThumb } from '@/components/LinkCard';
 import { firstUrl, platformInfo, fileKindFor, formatSeconds } from '@/lib/utils';
 import { parsePlaceMessage } from '@/lib/chatPlace';
 import { getLinkPreview } from '@/lib/api/linkPreviews';
 import type { RawMessage } from '@/lib/api/messages';
 
-export type ArchiveKind = 'media' | 'link' | 'doc' | 'voice';
+export type ArchiveKind = 'media' | 'link' | 'doc' | 'voice' | 'poll';
 
 const FILTERS: { key: ArchiveKind | 'all'; label: string }[] = [
   { key: 'all', label: 'Tutto' },
@@ -17,6 +18,7 @@ const FILTERS: { key: ArchiveKind | 'all'; label: string }[] = [
   { key: 'link', label: 'Link' },
   { key: 'doc', label: 'Documenti' },
   { key: 'voice', label: 'Vocali' },
+  { key: 'poll', label: 'Sondaggi' },
 ];
 
 /** Che cosa c'è da archiviare in un messaggio, se c'è qualcosa. I posti
@@ -27,36 +29,29 @@ export function archiveKindOf(m: RawMessage): ArchiveKind | null {
     if (m.attachmentType === 'file') return 'doc';
     if (m.attachmentType === 'audio') return 'voice';
   }
+  if (m.pollId) return 'poll';
   if (m.text && firstUrl(m.text) && !parsePlaceMessage(m.text)) return 'link';
   return null;
 }
 
 /** Miniatura di un link: l'immagine della pagina, quando c'è. */
 function LinkTileImage({ url }: { url: string }) {
-  const { colors } = useTheme();
   const info = platformInfo(url);
   const [image, setImage] = useState<string | null>(info.thumb);
-  const [title, setTitle] = useState<string | null>(null);
+  const [broken, setBroken] = useState(false);
   useEffect(() => {
     let alive = true;
     getLinkPreview(url).then((p) => {
       if (!alive || !p) return;
       if (p.imageUrl) setImage(p.imageUrl);
-      if (p.title) setTitle(p.title);
     });
     return () => {
       alive = false;
     };
   }, [url]);
-  if (image) return <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" />;
-  return (
-    <View style={[StyleSheet.absoluteFill, styles.center, { padding: 8, gap: 5 }]}>
-      <LinkIcon size={20} color={colors.textDim} />
-      <Text style={[styles.tileText, { color: colors.textDim }]} numberOfLines={3}>
-        {title ?? info.host}
-      </Text>
-    </View>
-  );
+  if (image && !broken) return <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setBroken(true)} />;
+  // Lo stesso ripiego della pagina Link e della chat.
+  return <LinkFallbackThumb source={{ url }} iconSize={28} />;
 }
 
 function Tile({ message, onPress }: { message: RawMessage; onPress: () => void }) {
@@ -73,6 +68,13 @@ function Tile({ message, onPress }: { message: RawMessage; onPress: () => void }
         </View>
       ) : kind === 'link' && url ? (
         <LinkTileImage url={url} />
+      ) : kind === 'poll' ? (
+        <View style={[StyleSheet.absoluteFill, styles.center, { padding: 8, gap: 6 }]}>
+          <PollIcon size={22} color={colors.lilac} />
+          <Text style={[styles.tileText, { color: colors.textDim }]} numberOfLines={3}>
+            {message.text || 'Sondaggio'}
+          </Text>
+        </View>
       ) : kind === 'doc' ? (
         <View style={[StyleSheet.absoluteFill, styles.center, { padding: 8, gap: 5 }]}>
           <FileIcon size={24} color={fileBadgeColor(fileKindFor(message.attachmentName ?? ''), colors)} strokeWidth={1.7} />

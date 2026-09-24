@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, SectionList } from 'react-native';
 import MapView, { Marker, type MapPressEvent, type PoiClickEvent, type Region } from 'react-native-maps';
 import * as Location from 'expo-location';
+import { useTabBarSpace } from '@/lib/tabBarSpace';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { FilterChip } from '@/components/FilterChip';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -89,6 +90,7 @@ type Point = { lat: number; lng: number };
 
 export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabProps) {
   const { colors } = useTheme();
+  const tabBarSpace = useTabBarSpace();
   const { session } = useAuth();
   const toast = useToast();
   const mapRef = useRef<MapView>(null);
@@ -596,7 +598,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
             onPress={centerOnMe}
             style={[
               styles.locateBtn,
-              { backgroundColor: colors.surface, opacity: locating ? 0.6 : 1, bottom: anteprima ? 196 : 16 },
+              { backgroundColor: colors.surface, opacity: locating ? 0.6 : 1, bottom: (anteprima ? 196 : 16) + tabBarSpace },
             ]}
           >
             <LocateIcon size={20} color={locationGranted ? colors.amber : colors.textDim} />
@@ -607,7 +609,9 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
               altro pin cambia contenuto senza chiudersi. Per questo non è
               un BottomSheet ma una scheda appoggiata qui. */}
           {anteprima ? (
-            <View style={[styles.anteprima, { backgroundColor: colors.surface }]}>
+            // La mappa arriva fino al bordo, sotto la barra delle sezioni:
+            // la scheda invece si appoggia sopra di lei.
+            <View style={[styles.anteprima, { backgroundColor: colors.surface, bottom: 10 + tabBarSpace }]}>
               <View style={styles.anteprimaTop}>
                 <Text style={[styles.anteprimaCat, { color: catFor(anteprima.categoryId).color }]} numberOfLines={1}>
                   {catFor(anteprima.categoryId).name.toUpperCase()}
@@ -682,7 +686,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         <SectionList
           sections={sections}
           keyExtractor={(p) => p.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: 20 + tabBarSpace }]}
           stickySectionHeadersEnabled={false}
           ItemSeparatorComponent={() => <View style={[styles.rowSep, { backgroundColor: colors.border }]} />}
           renderSectionHeader={({ section }) =>

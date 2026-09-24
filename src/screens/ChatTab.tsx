@@ -14,13 +14,17 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAudioRecorder, useAudioPlayer, useAudioPlayerStatus, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio';
+import { useTabBarSpace } from '@/lib/tabBarSpace';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { SendIcon, ChatIcon, CloseIcon, PlayIcon, MicIcon, StopIcon, SearchIcon, CheckIcon, ChevronIcon, PlusIcon, GridIcon } from '@/components/Icon';
+import { SendIcon, ChatIcon, CloseIcon, PlayIcon, MicIcon, StopIcon, SearchIcon, CheckIcon, ChevronIcon, PlusIcon, GridIcon, MapIcon, CalendarIcon } from '@/components/Icon';
 import { ChatLinkPreview } from '@/components/ChatLinkPreview';
 import { ChatPlaceCard } from '@/components/ChatPlaceCard';
 import { VoiceBubble } from '@/components/VoiceBubble';
 import { FileAttachmentBubble } from '@/components/FileAttachmentBubble';
 import { ChatAttachSheet } from '@/components/ChatAttachSheet';
+import { PollCard } from '@/components/PollCard';
+import { NewPollSheet } from '@/components/NewPollSheet';
+import { PollVotersSheet } from '@/components/PollVotersSheet';
 import { MessageActionsSheet } from '@/components/MessageActionsSheet';
 import { ChatArchive } from '@/components/ChatArchive';
 import { LoadError } from '@/components/LoadError';
@@ -44,6 +48,7 @@ import { useAuth } from '@/lib/authStore';
 import { useToast } from '@/components/Toast';
 import { listMessages, sendMessage, subscribeToMessages, type RawMessage } from '@/lib/api/messages';
 import { listReactions, toggleReaction, subscribeToReactions, type RawReaction } from '@/lib/api/reactions';
+import { listPolls, listVotes, createPoll, votePoll, closePoll, subscribeToPolls, type RawPoll, type RawVote } from '@/lib/api/polls';
 import { uploadGroupMedia, uploadGroupFile, type AttachmentKind } from '@/lib/api/mediaUpload';
 import { listLastReads, updateLastRead, subscribeToLastReads } from '@/lib/api/groupMembers';
 import { subscribeToTyping } from '@/lib/api/typing';
@@ -52,6 +57,8 @@ import { reportMessage, blockUser, listBlocked } from '@/lib/api/moderation';
 import * as Location from 'expo-location';
 import { parsePlaceMessage, placeMessageText } from '@/lib/chatPlace';
 import { listPins, type RawPin } from '@/lib/api/pins';
+import { rangeLabel, countdownLabel } from '@/lib/groupInfo';
+import type { Group } from '@/types';
 import { listCategories as listPlaceCategories, type RawPlaceCategory } from '@/lib/api/placeCategories';
 import { listLinks, createLink, type RawLink } from '@/lib/api/links';
 import { listCategories as listLinkCategories, type RawLinkCategory } from '@/lib/api/linkCategories';
@@ -59,6 +66,9 @@ import { listCategories as listLinkCategories, type RawLinkCategory } from '@/li
 interface ChatTabProps {
   groupId: string;
   roster: Record<string, string>;
+  /** Le info del gruppo, per la riga in cima; assenti se non ci sono. */
+  group?: Group | null;
+  onOpenInfo?: () => void;
 }
 
 /** Quanti messaggi per pagina, sia al primo caricamento sia scorrendo
@@ -108,12 +118,15 @@ function highlightSegments(text: string, term: string): { text: string; match: b
   return segments;
 }
 
-export function ChatTab({ groupId, roster }: ChatTabProps) {
+export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
   const { colors } = useTheme();
+  const tabBarSpace = useTabBarSpace();
   const { session } = useAuth();
   const toast = useToast();
   const [messages, setMessages] = useState<RawMessage[]>([]);
   const [reactions, setReactions] = useState<RawReaction[]>([]);
+  const [polls, setPolls] = useState<RawPoll[]>([]);
+  const [votes, setVotes] = useState<RawVote[]>([]);
   const [draft, setDraft] = useState('');
   const [reactSheetFor, setReactSheetFor] = useState<string | null>(null);
   /** Le persone che ho bloccato: i loro messaggi non compaiono qui. */
@@ -121,6 +134,9 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
   const [replyingTo, setReplyingTo] = useState<RawMessage | null>(null);
   const [uploading, setUploading] = useState(false);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [newPollOpen, setNewPollOpen] = useState(false);
+  /** Il sondaggio di cui si sta guardando chi ha votato. */
+  const [votersFor, setVotersFor] = useState<RawPoll | null>(null);
   /** Conversazione, o archivio di tutto ciò che vi è passato. */
   const [mode, setMode] = useState<'chat' | 'archive'>('chat');
   /** Il messaggio a cui tornare uscendo dall'archivio. */
@@ -281,9 +297,13 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
    * l'avviso, invece di una chat che sembra semplicemente vuota. */
   const loadAll = useCallback(async () => {
     try {
-      const [msgs, reacts] = await withTimeout(Promise.all([listMessages(groupId, PAGE_SIZE), listReactions(groupId)]));
+      const [msgs, reacts, sondaggi, voti] = await withTimeout(
+        Promise.all([listMessages(groupId, PAGE_SIZE), listReactions(groupId), listPolls(groupId), listVotes(groupId)]),
+      );
       setMessages(msgs);
       setReactions(reacts);
+      setPolls(sondaggi);
+      setVotes(voti);
       setHasMore(msgs.length === PAGE_SIZE);
       setLoadError(false);
     } catch {
@@ -306,6 +326,17 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
       onInsert: (r) => setReactions((prev) => (prev.some((x) => x.id === r.id) ? prev : [...prev, r])),
       onDelete: (id) => setReactions((prev) => prev.filter((r) => r.id !== id)),
     });
+    // I conteggi arrivano dagli UPDATE sul sondaggio; chi ha votato cosa si
+    // rilegge, perché i voti altrui passano dalle regole di accesso e in un
+    // sondaggio segreto non arrivano affatto.
+    const unsubscribePolls = subscribeToPolls(groupId, {
+      onPoll: (poll) => setPolls((prev) => [poll, ...prev.filter((p) => p.id !== poll.id)]),
+      onVotesChanged: () => {
+        listVotes(groupId)
+          .then(setVotes)
+          .catch(() => {});
+      },
+    });
     const unsubscribeLastReads = subscribeToLastReads(groupId, (userId, lastReadAt) => {
       setLastReads((prev) => ({ ...prev, [userId]: lastReadAt }));
     });
@@ -319,6 +350,7 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
       cancelled = true;
       unsubscribeMessages();
       unsubscribeReactions();
+      unsubscribePolls();
       unsubscribeLastReads();
       typing.unsubscribe();
       typingSendRef.current = null;
@@ -428,6 +460,44 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
     placeCategories.find((c) => c.id === pin.categoryId) ?? { name: 'Altro', color: '#75828C' };
 
   const sendPlace = (pin: RawPin) => sendText(placeMessageText(pin.name, mapsUrlForPlace(pin)));
+
+  /** Il sondaggio nasce sul server insieme al suo messaggio: qui non si
+   * anticipa niente a schermo, arrivano entrambi dal tempo reale. */
+  const creaSondaggio = async (question: string, options: string[], opts: { multi: boolean; secret: boolean }) => {
+    try {
+      await withTimeout(createPoll(groupId, question, options, opts), WRITE_TIMEOUT);
+      setNewPollOpen(false);
+      return null;
+    } catch (err) {
+      return (err as { message?: string })?.message || 'Non sono riuscito a creare il sondaggio, riprova.';
+    }
+  };
+
+  /** Il voto si vede subito, e se il server rifiuta si torna com'era. */
+  const vota = async (poll: RawPoll, scelte: number[]) => {
+    if (!session) return;
+    const me = session.user.id;
+    const prima = votes;
+    setVotes((prev) => [
+      ...prev.filter((v) => !(v.pollId === poll.id && v.userId === me)),
+      ...scelte.map((optionIndex) => ({ pollId: poll.id, userId: me, optionIndex })),
+    ]);
+    try {
+      await withTimeout(votePoll(poll.id, scelte), WRITE_TIMEOUT);
+    } catch (err) {
+      setVotes(prima);
+      toast.show((err as { message?: string })?.message || 'Non sono riuscito a registrare il voto.');
+    }
+  };
+
+  const chiudiSondaggio = async (poll: RawPoll) => {
+    try {
+      await withTimeout(closePoll(poll.id), WRITE_TIMEOUT);
+      setVotersFor(null);
+    } catch (err) {
+      toast.show((err as { message?: string })?.message || 'Non sono riuscito a chiudere il sondaggio.');
+    }
+  };
 
   /** Un link salvato: se è un file caricato (foto, video, documento) parte
    * come allegato vero, altrimenti come indirizzo con la sua anteprima. */
@@ -744,9 +814,13 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
     const sameAsOlder = !!older && !startsDay && older.userId === item.userId && item.ts - older.ts < GROUP_GAP_MS;
     const sameAsNewer = !!newer && sameDay(newer.ts, item.ts) && newer.userId === item.userId && newer.ts - item.ts < GROUP_GAP_MS;
 
-    const place = parsePlaceMessage(item.text);
-    const bodyText = place ? place.note : item.text;
-    const linkUrl = !item.attachmentUrl && !place && item.text ? firstUrl(item.text) : null;
+    // Il testo del messaggio di un sondaggio è la domanda (serve alla
+    // ricerca e alla notifica): a schermo però la dice la scheda, quindi
+    // qui il fumetto non ci va.
+    const poll = item.pollId ? (polls.find((p) => p.id === item.pollId) ?? null) : null;
+    const place = poll ? null : parsePlaceMessage(item.text);
+    const bodyText = poll ? null : place ? place.note : item.text;
+    const linkUrl = !poll && !item.attachmentUrl && !place && item.text ? firstUrl(item.text) : null;
     const hasBubble = !!(item.replyToId || item.attachmentUrl || bodyText);
 
     const term = searching ? searchQuery.trim() : '';
@@ -859,8 +933,19 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
             {place ? (
               <ChatPlaceCard name={place.name} url={place.url} pin={placePin} category={placePin ? placeCategoryFor(placePin) : null} onMenu={openMenu} />
             ) : null}
+            {poll ? (
+              <PollCard
+                poll={poll}
+                votes={votes.filter((v) => v.pollId === poll.id)}
+                myId={session?.user.id ?? ''}
+                roster={roster}
+                onVote={(scelte) => vota(poll, scelte)}
+                onOpenVoters={() => setVotersFor(poll)}
+                onMenu={openMenu}
+              />
+            ) : null}
             {linkUrl ? <ChatLinkPreview url={linkUrl} onMenu={openMenu} /> : null}
-            {place || linkUrl ? <Pressable onPress={openMenu}>{timeRow}</Pressable> : null}
+            {place || linkUrl || poll ? <Pressable onPress={openMenu}>{timeRow}</Pressable> : null}
             {chips.length > 0 ? (
               <View style={styles.reactionsRow}>
                 {chips.map((c) => (
@@ -881,6 +966,17 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
       </View>
     );
   };
+
+  /** "Tokyo · mancano 24 giorni": la meta, il conto alla rovescia, o le
+   * date da sole. Niente info, niente riga. */
+  const infoMeta = group?.placePinId ? (pins.find((p) => p.id === group.placePinId) ?? null) : null;
+  const infoHasPlace = !!infoMeta;
+  const infoLabel = (() => {
+    if (!group) return null;
+    const conto = countdownLabel(group.startsOn, group.endsOn);
+    const pezzi = [infoMeta?.name, conto ?? rangeLabel(group.startsOn, group.endsOn)].filter(Boolean);
+    return pezzi.length > 0 ? pezzi.join(' · ') : null;
+  })();
 
   const selezionato = messaggioSelezionato ?? null;
   const salvabile = saveableOf(messaggioSelezionato);
@@ -951,6 +1047,25 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
           </Pressable>
         )}
       </View>
+
+      {/* Le info del gruppo in una riga sola: dove si va e quanto manca.
+          Tocca e si apre Info gruppo, dove si scrivono. Compare solo se
+          c'è qualcosa da dire — la chat deve restare la chat. */}
+      {infoLabel && mode === 'chat' ? (
+        <Pressable onPress={onOpenInfo} style={[styles.infoStrip, { backgroundColor: colors.surface }]}>
+          {/* Lo spillo solo quando c'è davvero una meta: senza, è il
+              calendario a dire di che informazione si tratta. */}
+          {infoHasPlace ? (
+            <MapIcon size={15} color={colors.teal} strokeWidth={1.9} />
+          ) : (
+            <CalendarIcon size={15} color={colors.amber} strokeWidth={1.9} />
+          )}
+          <Text style={[styles.infoStripText, { color: colors.text }]} numberOfLines={1}>
+            {infoLabel}
+          </Text>
+          <ChevronIcon size={14} color={colors.textFaint} />
+        </Pressable>
+      ) : null}
 
       {loadError ? <LoadError what="i messaggi" onRetry={loadAll} /> : null}
 
@@ -1073,6 +1188,19 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
           )}
         </>
       )}
+      {/* Il posto della barra delle sezioni, che galleggia qui sotto. */}
+      <View style={{ height: tabBarSpace }} />
+
+      <NewPollSheet visible={newPollOpen} onClose={() => setNewPollOpen(false)} onCreate={creaSondaggio} />
+
+      <PollVotersSheet
+        poll={votersFor}
+        votes={votersFor ? votes.filter((v) => v.pollId === votersFor.id) : []}
+        myId={session?.user.id ?? ''}
+        roster={roster}
+        onClose={() => setVotersFor(null)}
+        onCloseePoll={chiudiSondaggio}
+      />
 
       <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
         <Pressable style={styles.previewBackdrop} onPress={() => setPreviewImage(null)}>
@@ -1114,6 +1242,7 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
         onPlace={sendPlace}
         onLink={sendSavedLink}
         onMyPosition={sendMyPosition}
+        onPoll={() => setNewPollOpen(true)}
       />
     </View>
   );
@@ -1121,6 +1250,8 @@ export function ChatTab({ groupId, roster }: ChatTabProps) {
 
 const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
+  infoStrip: { flexDirection: 'row', alignItems: 'center', gap: 9, marginHorizontal: 16, marginBottom: 8, height: 42, borderRadius: RADIUS.sm, paddingHorizontal: 12 },
+  infoStripText: { flex: 1, fontSize: 13, fontWeight: '700' },
   search: { flex: 1, height: 40, borderRadius: RADIUS.sm, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11 },
   searchInput: { flex: 1, fontSize: 13.5, paddingVertical: 0 },
   searchCounter: { fontSize: 11.5, fontWeight: '700' },

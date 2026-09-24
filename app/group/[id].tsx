@@ -9,7 +9,7 @@ import { useTheme, RADIUS } from '@/theme/theme';
 import { useAppStore } from '@/lib/appStore';
 import { useAuth } from '@/lib/authStore';
 import { useToast } from '@/components/Toast';
-import { getMyGroup } from '@/lib/api/groups';
+import { getMyGroup, subscribeToGroup } from '@/lib/api/groups';
 import { listRoster, subscribeToRoster } from '@/lib/api/groupMembers';
 import { getInviteToken, rotateInvite, inviteUrl } from '@/lib/api/invites';
 import { SettingsSheet, type SettingsPage } from '@/components/SettingsSheet';
@@ -31,6 +31,7 @@ import {
 import { initials } from '@/lib/utils';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { TabBarSpaceContext } from '@/lib/tabBarSpace';
 
 type TabName = 'chat' | 'links' | 'map';
 
@@ -41,12 +42,12 @@ const TAB_TITLES: Record<TabName, string> = {
 };
 
 export default function GroupScreen() {
-  const { colors } = useTheme();
+  const { colors, theme } = useTheme();
   const router = useRouter();
   const toast = useToast();
   const { id } = useLocalSearchParams<{ id: string }>();
   const groupId = String(id);
-  const { getGroup, addGroup, ready: groupsReady } = useAppStore();
+  const { getGroup, addGroup, refreshGroups, ready: groupsReady } = useAppStore();
   const { session, ready: authReady, profile } = useAuth();
   const localGroup = getGroup(groupId);
 
@@ -73,6 +74,17 @@ export default function GroupScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authReady, session, groupsReady, !!localGroup, groupId]);
+
+  // Le info del gruppo si scrivono in due: se le cambia qualcun altro
+  // mentre si è dentro, devono comparire senza riaprire l'app.
+  useEffect(() => {
+    if (!localGroup) return;
+    const unsubscribe = subscribeToGroup(groupId, () => {
+      refreshGroups().catch(() => {});
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, !!localGroup]);
 
   const [tab, setTab] = useState<TabName>('chat');
   /** Da quale pagina aprire le impostazioni; `null` = chiuse. */
@@ -188,9 +200,15 @@ export default function GroupScreen() {
           tastiera, così la parte bassa della schermata resta appoggiata sopra
           di essa invece di finirci sotto. L'intestazione resta ferma. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
+      <TabBarSpaceContext.Provider value={keyboardOpen ? 0 : TABBAR_SPACE}>
       <View style={{ flex: 1 }}>
         {tab === 'chat' ? (
-          <ChatTab groupId={groupId} roster={roster} />
+          <ChatTab
+            groupId={groupId}
+            roster={roster}
+            group={localGroup}
+            onOpenInfo={() => setGroupInfoOpen(true)}
+          />
         ) : null}
         {tab === 'links' ? (
           <LinksTab
@@ -212,11 +230,12 @@ export default function GroupScreen() {
         ) : null}
       </View>
 
-      {/* Una pastiglia che galleggia sopra il contenuto invece di una
-          fascia incollata al bordo: si vede che sotto la lista continua,
-          e la sezione in cui ci si trova è l'unica con il nome scritto. */}
+      {/* La barra galleggia davvero sopra il contenuto: le liste e la mappa
+          le passano sotto fino al bordo dello schermo, e lei resta leggibile
+          perché è quasi opaca e staccata da un'ombra. Quanto spazio lasciarle
+          libero in fondo, le sezioni lo leggono da TabBarSpaceContext. */}
       {!keyboardOpen ? (
-        <View style={[styles.tabbar, { backgroundColor: colors.surface }]}>
+        <View style={[styles.tabbar, { backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.9)' : 'rgba(33,44,56,0.9)' }]}>
           <TabButton
             label="Chat"
             active={tab === 'chat'}
@@ -243,6 +262,7 @@ export default function GroupScreen() {
           />
         </View>
       ) : null}
+      </TabBarSpaceContext.Provider>
       </KeyboardAvoidingView>
 
       <SettingsSheet
@@ -258,6 +278,11 @@ export default function GroupScreen() {
           group={localGroup}
           roster={roster}
           onLeaveGroup={() => router.replace('/')}
+          onShowPlace={(pinId) => {
+            setGroupInfoOpen(false);
+            setFocusPinId(pinId);
+            setTab('map');
+          }}
         />
       ) : null}
 
@@ -325,6 +350,10 @@ function TabButton({
   );
 }
 
+/** Lo spazio che la barra occupa dal fondo: 12 di margine, 58 di barra
+ * (6 + 46 + 6) e 10 di respiro fra lei e quello che le sta sopra. */
+const TABBAR_SPACE = 80;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   // Niente riga di separazione: a staccare l'intestazione dal contenuto
@@ -346,10 +375,21 @@ const styles = StyleSheet.create({
   menuRowText: { fontSize: 15, fontWeight: '600' },
   title: { fontSize: 23, fontWeight: '800', letterSpacing: -0.4, marginTop: 1 },
   meAvatar: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  // `marginTop`: senza, la barra toccava il contenuto sopra (il campo di
-  // scrittura della chat, l'ultima scheda dei link, il bordo della mappa)
-  // e sembrava incollata alla sezione invece di galleggiarci sotto.
-  tabbar: { flexDirection: 'row', gap: 4, marginHorizontal: 14, marginTop: 8, marginBottom: 12, padding: 6, borderRadius: 22 },
+  tabbar: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 12,
+    flexDirection: 'row',
+    gap: 4,
+    padding: 6,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
   tabBtn: {
     flex: 1,
     flexDirection: 'row',

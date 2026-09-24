@@ -31,8 +31,9 @@ export function Logo({
   ground?: string;
 }) {
   const { colors } = useTheme();
-  // Dietro, in mezzo, davanti.
-  const [dietro, mezzo, davanti] = override ?? [colors.teal, colors.coral, colors.amber];
+  // Dietro, in mezzo, davanti: corallo, lilla e ambra — tinte tutte calde,
+  // che non si contendono l'occhio come faceva il verde acqua di prima.
+  const [dietro, mezzo, davanti] = override ?? [colors.coral, colors.lilac, colors.amber];
   const vuoto = ground ?? colors.bg;
 
   return (

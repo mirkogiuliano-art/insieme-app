@@ -19,7 +19,7 @@ import { getLinkPreview } from '@/lib/api/linkPreviews';
 import { useAuth } from '@/lib/authStore';
 import { useAppStore, groupColor } from '@/lib/appStore';
 import { useToast } from '@/components/Toast';
-import { CloseIcon, LinkIcon, PlayIcon, ChatIcon, CheckIcon, MapIcon } from '@/components/Icon';
+import { CloseIcon, LinkIcon, PlayIcon, ChatIcon, CheckIcon } from '@/components/Icon';
 import { platformInfo, normalizeUrl, parseGoogleMapsUrl, inkOn, withTimeout, WRITE_TIMEOUT, UPLOAD_TIMEOUT } from '@/lib/utils';
 import { listCategories, type RawLinkCategory } from '@/lib/api/linkCategories';
 import { listCategories as listPlaceCategories, type RawPlaceCategory } from '@/lib/api/placeCategories';
@@ -29,6 +29,7 @@ import { createPlaceLink } from '@/lib/api/placeLinks';
 import { sendMessage } from '@/lib/api/messages';
 import { uploadGroupMedia, type AttachmentKind } from '@/lib/api/mediaUpload';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { LinkFallbackThumb } from '@/components/LinkCard';
 
 type Section = 'links' | 'chat';
 
@@ -220,7 +221,12 @@ export default function ShareScreen() {
             <Image source={{ uri: thumb }} style={styles.previewThumb} resizeMode="cover" />
           ) : (
             <View style={[styles.previewThumb, styles.previewFallback, { backgroundColor: colors.surface2 }]}>
-              {file ? <PlayIcon size={22} color={colors.textDim} /> : mapsPlace ? <MapIcon size={22} color={colors.teal} /> : <LinkIcon size={22} color={colors.textDim} />}
+              {file ? (
+                <PlayIcon size={22} color={colors.textDim} />
+              ) : (
+                // La faccia che il link avrà nella pagina Link.
+                <LinkFallbackThumb source={{ url: normalizeUrl(sharedUrl ?? ''), label: mapsPlace ? 'Google Maps' : undefined }} iconSize={26} />
+              )}
             </View>
           )}
           <View style={{ flex: 1 }}>
@@ -379,7 +385,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 30 },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: RADIUS.md, padding: 10, marginBottom: 8 },
   previewThumb: { width: 60, height: 60, borderRadius: 14 },
-  previewFallback: { alignItems: 'center', justifyContent: 'center' },
+  previewFallback: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   previewTitle: { fontSize: 14, fontWeight: '800', lineHeight: 18 },
   previewSub: { fontSize: 11.5, marginTop: 3 },
   label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 18, marginBottom: 9 },

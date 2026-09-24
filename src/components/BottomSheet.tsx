@@ -13,24 +13,39 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
   const { colors } = useTheme();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <View style={styles.root}>
+        {/* Lo sfondo che chiude il foglio sta DIETRO al foglio, non
+            intorno al suo contenuto. Avvolgere la lista in un Pressable
+            (per fermare il tocco prima dello sfondo) gliene faceva
+            contendere il gesto: lo scorrimento partiva una volta su tre.
+            Così il tocco sul contenuto non incontra nessun Pressable di
+            troppo, e quello fuori dal foglio arriva qui. */}
+        <Pressable style={styles.backdrop} onPress={onClose} />
         {/* `automaticOffset` fa misurare alla vista la propria posizione
             reale, tenendo conto del fatto che qui siamo dentro una Modal. */}
-        <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.wrap}>
-          {/* Il Pressable interno cattura il tocco così non arriva al backdrop e non chiude il foglio. */}
-          <Pressable onPress={() => {}} style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.wrap} pointerEvents="box-none">
+          <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.handle, { backgroundColor: colors.border }]} />
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {/* `nestedScrollEnabled`: su Android, dentro una Modal, senza
+                questo la lista può restare "ferma" dopo un tocco su una
+                riga, finché non se ne fa un altro. */}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              keyboardDismissMode="on-drag"
+            >
               {children}
             </ScrollView>
-          </Pressable>
+          </View>
         </KeyboardAvoidingView>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   backdrop: {
     position: 'absolute',
     top: 0,

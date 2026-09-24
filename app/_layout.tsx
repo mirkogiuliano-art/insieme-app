@@ -16,6 +16,25 @@ import { AuthProvider } from '@/lib/authStore';
 import { AppStoreProvider } from '@/lib/appStore';
 import { ToastProvider } from '@/components/Toast';
 
+// Sul web Chrome colora di giallo (o azzurro) i campi riempiti dalla
+// compilazione automatica. Lo sfondo non si può togliere, solo rimandare
+// all'infinito con una transizione lunghissima; il testo tiene il colore
+// che il campo ha già. È lo stesso effetto del plugin
+// withNoAutofillHighlight su Android.
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+      -webkit-text-fill-color: currentColor;
+      caret-color: currentColor;
+      transition: background-color 600000s 0s, color 600000s 0s;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function ThemedStatusBar() {
   const { theme } = useTheme();
   return <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />;

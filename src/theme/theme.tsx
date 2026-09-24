@@ -58,10 +58,12 @@ const DARK: ThemeColors = {
  * sabbia) fallivano tutte per lo stesso motivo: un accento caldo su un
  * fondo caldo smette di essere un accento e si scioglie dentro.
  *
- * E l'ambra qui non è la stessa dello scuro. Là è chiara e satura perché
- * deve essere l'unica cosa luminosa in una stanza buia; su una pagina già
- * chiara quella stessa ambra non illumina niente e resta solo rumore, così
- * scende di un paio di gradini di saturazione e diventa un ottone.
+ * L'ambra invece è **la stessa dello scuro**. Per un po' qui è stata
+ * abbassata di saturazione, per paura che su una pagina già chiara quella
+ * accesa fosse troppo: il risultato però non era un'ambra più discreta ma
+ * un ottone, che su bianco legge come un colore sporco. Meglio la tinta
+ * piena: il tasto è la cosa che si tocca, e deve sembrare acceso in tutti
+ * e due i temi.
  */
 const LIGHT: ThemeColors = {
   bg: '#EDF0F3',
@@ -71,7 +73,7 @@ const LIGHT: ThemeColors = {
   text: '#16202B',
   textDim: '#55636F',
   textFaint: '#8794A0',
-  amber: '#BE8C4C',
+  amber: '#E9A23B',
   inkOnAmber: '#2B2109',
   teal: '#2F9C86',
   coral: '#D9555C',

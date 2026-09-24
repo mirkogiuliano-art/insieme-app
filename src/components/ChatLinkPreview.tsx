@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, Linking } from 'react-native';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { PlayIcon, LinkIcon } from '@/components/Icon';
+import { PlayIcon } from '@/components/Icon';
+import { LinkFallbackThumb } from '@/components/LinkCard';
 import { platformInfo } from '@/lib/utils';
 import { getLinkPreview, type LinkPreview as LinkPreviewData } from '@/lib/api/linkPreviews';
 
@@ -54,6 +55,8 @@ export function ChatLinkPreview({ url, onMenu }: { url: string; own?: boolean; o
   const title = meta?.title ?? info.label;
   const site = meta?.siteName ?? host;
   const badge = BADGES[info.platform] ?? { text: host, bg: 'rgba(14,20,27,0.72)' };
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [image]);
 
   return (
     <Pressable
@@ -65,9 +68,11 @@ export function ChatLinkPreview({ url, onMenu }: { url: string; own?: boolean; o
       onLongPress={onMenu}
       style={[styles.card, { backgroundColor: colors.surface }]}
     >
-      {image ? (
+      {/* Senza immagine, la stessa miniatura di ripiego della pagina Link:
+          cartina per Maps, colore e icona per il resto. */}
+      {image && !broken ? (
         <View style={styles.imageBox}>
-          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setBroken(true)} />
           {VIDEO_PLATFORMS.has(info.platform) ? (
             <View style={styles.play}>
               <PlayIcon size={24} color="#fff" />
@@ -79,13 +84,12 @@ export function ChatLinkPreview({ url, onMenu }: { url: string; own?: boolean; o
             </Text>
           </View>
         </View>
-      ) : null}
+      ) : (
+        <View style={[styles.imageBox, styles.fallbackBox]}>
+          <LinkFallbackThumb source={{ url }} iconSize={34} />
+        </View>
+      )}
       <View style={styles.body}>
-        {!image ? (
-          <View style={[styles.icon, { backgroundColor: colors.surface2 }]}>
-            <LinkIcon size={16} color={colors.textDim} strokeWidth={1.8} />
-          </View>
-        ) : null}
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
             {title}
@@ -102,11 +106,12 @@ export function ChatLinkPreview({ url, onMenu }: { url: string; own?: boolean; o
 const styles = StyleSheet.create({
   card: { width: 240, borderRadius: 18, overflow: 'hidden' },
   imageBox: { width: 240, height: 128 },
+  // Il ripiego non ha niente da ritagliare: basta una fascia più bassa.
+  fallbackBox: { height: 96, overflow: 'hidden' },
   play: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)' },
   badge: { position: 'absolute', left: 8, top: 8, maxWidth: '75%', height: 18, paddingHorizontal: 6, borderRadius: 6, justifyContent: 'center' },
   badgeText: { color: '#fff', fontSize: 9.5, fontWeight: '800' },
   body: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 11, paddingVertical: 9 },
-  icon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 13, fontWeight: '800', lineHeight: 17 },
   site: { fontSize: 11, marginTop: 2 },
 });

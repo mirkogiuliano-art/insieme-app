@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, Image, Linking } from 'react-native';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { BottomSheet } from '@/components/BottomSheet';
-import { LinkIcon, PlayIcon, PlusIcon, CloseIcon, SearchIcon, MapIcon } from '@/components/Icon';
+import { PlusIcon, CloseIcon, SearchIcon, MapIcon } from '@/components/Icon';
 import { dateLabel } from '@/lib/utils';
 import { PlaceTile } from '@/components/MapPin';
-import { LinkThumbMini, useLinkPreview } from '@/components/LinkCard';
+import { LinkThumbMini, LinkFallbackThumb, useLinkPreview } from '@/components/LinkCard';
 import { openPinInMaps } from '@/lib/api/places';
 import type { RawPin } from '@/lib/api/pins';
 import type { RawLink } from '@/lib/api/links';
@@ -33,20 +33,13 @@ interface PlaceSheetProps {
   distance?: string | null;
 }
 
-/** Miniatura di un link: foto se c'è, icona play per i video, icona
- * generica altrimenti — stessa logica delle card in LinksTab. */
-function LinkThumb({ link, tint, size }: { link: RawLink; tint: string; size: number }) {
-  const { colors } = useTheme();
-  if (link.thumb) return <Image source={{ uri: link.thumb }} style={{ width: size, height: size, borderRadius: 6 }} />;
-  const isVideo = link.platform === 'video' || link.platform === 'youtube' || link.platform === 'vimeo';
+/** Miniatura di un link: la foto se c'è, altrimenti lo stesso ripiego
+ * della pagina Link (cartina per Maps, colore e icona per il resto). */
+function LinkThumb({ link, size }: { link: RawLink; size: number }) {
+  if (link.thumb) return <Image source={{ uri: link.thumb }} style={{ width: size, height: size, borderRadius: 8 }} />;
   return (
-    <View
-      style={[
-        styles.thumbFallback,
-        { width: size, height: size, backgroundColor: isVideo ? '#1B2530' : colors.surface2 },
-      ]}
-    >
-      {isVideo ? <PlayIcon size={size * 0.5} color="#fff" /> : <LinkIcon size={size * 0.55} color={tint} strokeWidth={1.6} />}
+    <View style={[styles.thumbFallback, { width: size, height: size }]}>
+      <LinkFallbackThumb source={link} iconSize={size * 0.55} />
     </View>
   );
 }
@@ -149,7 +142,7 @@ export function PlaceSheet({
                 }}
                 style={[styles.pickRow, { borderColor: colors.border }]}
               >
-                <LinkThumb link={l} tint={categoryColor} size={38} />
+                <LinkThumb link={l} size={38} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }} numberOfLines={1}>
                     {l.title}
@@ -255,7 +248,7 @@ const styles = StyleSheet.create({
   linkedRow: { flexDirection: 'row', alignItems: 'center' },
   linkedMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   detachBtn: { paddingHorizontal: 12, paddingVertical: 14 },
-  thumbFallback: { alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+  thumbFallback: { borderRadius: 8, overflow: 'hidden' },
   attachRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     borderWidth: 1.5, borderStyle: 'dashed', borderRadius: RADIUS.sm, paddingVertical: 11, marginTop: 8,

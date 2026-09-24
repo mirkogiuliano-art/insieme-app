@@ -3,14 +3,14 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { useTheme } from '@/theme/theme';
 
-/** Fin dove arriva la luce, dall'alto dello schermo. */
+/** Fin dove arriva la luce, dal fondo dello schermo. */
 const HEIGHT = 340;
 
 /**
- * La luce dell'app: un solo bagliore ambra che scende dall'alto, al
- * centro, e si spegne prima di arrivare al contenuto. Sta dietro a ogni
+ * La luce dell'app: un solo bagliore ambra che sale dal fondo, al
+ * centro, e si spegne prima di arrivare a metà schermo. Sta dietro a ogni
  * schermata, come primo figlio del contenitore che dipinge il fondo:
- * posizionata in assoluto, parte dal bordo vero dello schermo anche dentro
+ * posizionata in assoluto, arriva fino al bordo vero dello schermo anche dentro
  * una SafeAreaView, perché il riferimento è il riquadro con il padding.
  *
  * È volutamente debole. Le schede sono già piene di colore: uno sfondo che
@@ -27,8 +27,8 @@ export function ScreenGlow() {
     <View pointerEvents="none" style={styles.wrap}>
       <Svg width={width} height={HEIGHT}>
         <Defs>
-          {/* Il centro sta sopra lo schermo: se ne vede solo la parte bassa. */}
-          <RadialGradient id="screenGlow" gradientUnits="userSpaceOnUse" cx={width / 2} cy={-100} rx={460} ry={300} fx={width / 2} fy={-100}>
+          {/* Il centro sta sotto lo schermo: se ne vede solo la parte alta. */}
+          <RadialGradient id="screenGlow" gradientUnits="userSpaceOnUse" cx={width / 2} cy={HEIGHT + 100} rx={460} ry={300} fx={width / 2} fy={HEIGHT + 100}>
             <Stop offset="0" stopColor={light ? '#D6A05A' : '#E9A23B'} stopOpacity={light ? 0.16 : 0.11} />
             <Stop offset="1" stopColor={light ? '#D6A05A' : '#E9A23B'} stopOpacity={0} />
           </RadialGradient>
@@ -40,5 +40,5 @@ export function ScreenGlow() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', top: 0, left: 0, right: 0, height: HEIGHT },
+  wrap: { position: 'absolute', bottom: 0, left: 0, right: 0, height: HEIGHT },
 });

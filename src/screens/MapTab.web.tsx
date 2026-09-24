@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, SectionList } from 'react-native';
 import * as Location from 'expo-location';
+import { useTabBarSpace } from '@/lib/tabBarSpace';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { FilterChip } from '@/components/FilterChip';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -88,6 +89,7 @@ type Point = { lat: number; lng: number };
 
 export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabProps) {
   const { colors } = useTheme();
+  const tabBarSpace = useTabBarSpace();
   const { session } = useAuth();
   const toast = useToast();
   const [pins, setPins] = useState<RawPin[]>([]);
@@ -445,7 +447,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         <SectionList
           sections={sections}
           keyExtractor={(p) => p.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: 20 + tabBarSpace }]}
           stickySectionHeadersEnabled={false}
           ItemSeparatorComponent={() => <View style={[styles.rowSep, { backgroundColor: colors.border }]} />}
           renderSectionHeader={({ section }) =>

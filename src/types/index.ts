@@ -16,6 +16,15 @@ export interface Group {
   createdBy?: string;
   createdAt: number;
   joinedAt?: number;
+  /** Le info del gruppo: a cosa serve, quando e dove. Tutte facoltative —
+   * un gruppo che non e' un viaggio ha solo la descrizione, o niente. */
+  description?: string | null;
+  startsOn?: string | null; // 'AAAA-MM-GG'
+  endsOn?: string | null;
+  /** La meta: un posto gia' salvato nella mappa del gruppo. */
+  placePinId?: string | null;
+  infoUpdatedBy?: string | null;
+  infoUpdatedAt?: number | null;
 }
 
 export type LinkPlatform =

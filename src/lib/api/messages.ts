@@ -12,6 +12,7 @@ interface MessageRow {
   attachment_duration_seconds: number | null;
   attachment_name: string | null;
   attachment_size: number | null;
+  poll_id: string | null;
 }
 
 export interface RawMessage {
@@ -28,10 +29,14 @@ export interface RawMessage {
    * leggibile: senza, in chat comparirebbe solo l'indirizzo dello storage. */
   attachmentName?: string | null;
   attachmentSize?: number | null;
+  /** Il sondaggio che questo messaggio porta in chat: il testo è la
+   * domanda (così ricerca e notifiche funzionano da sole), ma a schermo
+   * al posto del fumetto va la scheda del sondaggio. */
+  pollId?: string | null;
 }
 
 const SELECT_COLUMNS =
-  'id, user_id, text, created_at, reply_to_id, attachment_url, attachment_type, attachment_duration_seconds, attachment_name, attachment_size';
+  'id, user_id, text, created_at, reply_to_id, attachment_url, attachment_type, attachment_duration_seconds, attachment_name, attachment_size, poll_id';
 
 function toRaw(row: MessageRow): RawMessage {
   return {
@@ -45,6 +50,7 @@ function toRaw(row: MessageRow): RawMessage {
     attachmentDurationSeconds: row.attachment_duration_seconds,
     attachmentName: row.attachment_name,
     attachmentSize: row.attachment_size,
+    pollId: row.poll_id,
   };
 }
 

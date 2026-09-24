@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { useTabBarSpace } from '@/lib/tabBarSpace';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { PlusIcon, LinkIcon, StarIcon, SearchIcon, CloseIcon, GridIcon, ListIcon, SortIcon, CheckIcon } from '@/components/Icon';
 import { FilterChip } from '@/components/FilterChip';
@@ -105,6 +106,7 @@ function pairs<T>(list: T[]): T[][] {
 
 export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   const { colors } = useTheme();
+  const tabBarSpace = useTabBarSpace();
   const { session } = useAuth();
   const toast = useToast();
 
@@ -697,7 +699,9 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
           sections={listSections}
           keyExtractor={(row) => row.map((it) => it.id).join('+')}
           renderItem={renderRow}
-          contentContainerStyle={styles.listContent}
+          // La lista scorre fin sotto la barra delle sezioni, ma l'ultimo
+          // link si ferma sopra di lei.
+          contentContainerStyle={[styles.listContent, { paddingBottom: 20 + tabBarSpace }]}
           stickySectionHeadersEnabled={false}
           ItemSeparatorComponent={() =>
             view === 'grid' ? <View style={{ height: 16 }} /> : <View style={[styles.rowSep, { backgroundColor: colors.border }]} />
