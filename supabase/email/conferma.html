@@ -1,0 +1,74 @@
+<!-- Insieme — conferma dell'indirizzo email.
+     Va in Supabase → Authentication → Emails → Confirm signup.
+     Oggetto (anche lui un modello):
+       {{ if and .Data (eq (printf "%v" .Data.lang) "it") }}Conferma il tuo indirizzo{{ else }}Confirm your address{{ end }}
+     La lingua arriva dai dati dell'utente (`lang`), che l'app manda alla
+     registrazione: italiano se è "it", inglese in tutti gli altri casi —
+     compreso quello in cui manca. Vedi README.md per il perché della forma
+     della condizione.
+     Stili in linea e tabelle: è quello che i programmi di posta capiscono. -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F7;padding:32px 12px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#FFFFFF;border-radius:18px;padding:32px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+        <tr>
+          <td style="padding-bottom:22px;">
+            <span style="font-size:19px;font-weight:800;letter-spacing:-0.4px;color:#212C38;">Insieme</span>
+          </td>
+        </tr>
+
+{{ if and .Data (eq (printf "%v" .Data.lang) "it") }}
+        <tr>
+          <td>
+            <h1 style="margin:0 0 10px;font-size:21px;line-height:28px;font-weight:800;letter-spacing:-0.4px;color:#212C38;">
+              Conferma il tuo indirizzo
+            </h1>
+            <p style="margin:0 0 20px;font-size:15px;line-height:22px;color:#55606D;">
+              Manca solo questo per finire la registrazione. Il collegamento vale un'ora.
+            </p>
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#E9A23B;border-radius:999px;">
+                  <a href="{{ .ConfirmationURL }}"
+                     style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:700;color:#2B2109;text-decoration:none;">
+                    Conferma l'indirizzo
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:18px 0 0;font-size:12.5px;line-height:18px;color:#8A939E;">
+              Se non ti sei registrato tu, puoi ignorare questo messaggio: senza la conferma l'account non si attiva.
+            </p>
+          </td>
+        </tr>
+{{ else }}
+        <tr>
+          <td>
+            <h1 style="margin:0 0 10px;font-size:21px;line-height:28px;font-weight:800;letter-spacing:-0.4px;color:#212C38;">
+              Confirm your address
+            </h1>
+            <p style="margin:0 0 20px;font-size:15px;line-height:22px;color:#55606D;">
+              This is the last step to finish signing up. The link is good for an hour.
+            </p>
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#E9A23B;border-radius:999px;">
+                  <a href="{{ .ConfirmationURL }}"
+                     style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:700;color:#2B2109;text-decoration:none;">
+                    Confirm address
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:18px 0 0;font-size:12.5px;line-height:18px;color:#8A939E;">
+              If you didn't sign up, you can ignore this message: without the confirmation the account stays inactive.
+            </p>
+          </td>
+        </tr>
+{{ end }}
+
+      </table>
+    </td>
+  </tr>
+</table>

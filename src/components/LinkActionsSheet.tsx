@@ -6,6 +6,7 @@ import { StarIcon, MapIcon, ShareIcon, TrashIcon, BackIcon, CheckIcon, ChatIcon 
 import { LinkThumbMini, useLinkPreview } from '@/components/LinkCard';
 import type { RawLink } from '@/lib/api/links';
 import type { RawLinkCategory } from '@/lib/api/linkCategories';
+import { useT } from '@/i18n';
 
 interface LinkActionsSheetProps {
   /** `null` tiene il foglio chiuso. */
@@ -38,6 +39,7 @@ export function LinkActionsSheet({
   onSendToChat,
 }: LinkActionsSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [step, setStep] = useState<Step>('menu');
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
@@ -90,7 +92,7 @@ export function LinkActionsSheet({
           <Pressable onPress={() => setStep('menu')} hitSlop={10}>
             <BackIcon size={20} color={colors.textDim} />
           </Pressable>
-          <Text style={[styles.stepTitle, { color: colors.text }]}>Sposta in…</Text>
+          <Text style={[styles.stepTitle, { color: colors.text }]}>{t.menuLink.spostaIn}</Text>
         </View>
         {categories.map((c) => {
           const current = c.id === link.categoryId;
@@ -126,12 +128,12 @@ export function LinkActionsSheet({
           <Pressable onPress={() => setStep('menu')} hitSlop={10}>
             <BackIcon size={20} color={colors.textDim} />
           </Pressable>
-          <Text style={[styles.stepTitle, { color: colors.text }]}>Manda in chat</Text>
+          <Text style={[styles.stepTitle, { color: colors.text }]}>{t.menuLink.mandaInChat}</Text>
         </View>
         <View style={[styles.chatPreview, { backgroundColor: colors.surface2 }]}>{header}</View>
         <TextInput
           style={[styles.noteInput, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
-          placeholder="Aggiungi due righe (facoltativo) — es. «guardate questo!»"
+          placeholder={t.menuLink.didascalia}
           placeholderTextColor={colors.textFaint}
           value={note}
           onChangeText={setNote}
@@ -147,7 +149,7 @@ export function LinkActionsSheet({
           {sending ? (
             <ActivityIndicator size="small" color={colors.inkOnAmber} />
           ) : (
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>Invia nella chat</Text>
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>{t.menuLink.invia}</Text>
           )}
         </Pressable>
       </BottomSheet>
@@ -157,16 +159,16 @@ export function LinkActionsSheet({
   if (step === 'delete') {
     return (
       <BottomSheet visible onClose={onClose}>
-        <Text style={[styles.stepTitle, { color: colors.text }]}>Eliminare questo link?</Text>
+        <Text style={[styles.stepTitle, { color: colors.text }]}>{t.menuLink.eliminare}</Text>
         <Text style={[styles.body, { color: colors.textDim }]}>
-          Sparisce per tutti nel gruppo, insieme ai suoi collegamenti con i posti. Non si può annullare.
+          {t.menuLink.eliminaTesto}
         </Text>
         <View style={styles.actions}>
           <Pressable onPress={() => setStep('menu')} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
-            <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
+            <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
           <Pressable onPress={() => run(() => onDelete(link))} style={[styles.btn, { backgroundColor: colors.danger }]}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Elimina</Text>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>{t.comune.elimina}</Text>
           </Pressable>
         </View>
       </BottomSheet>
@@ -178,34 +180,34 @@ export function LinkActionsSheet({
       {header}
       <Item
         icon={<StarIcon size={18} color={colors.amber} filled={link.isFavorite} />}
-        label={link.isFavorite ? 'Togli dai preferiti' : 'Aggiungi ai preferiti'}
+        label={link.isFavorite ? t.menuLink.togliPreferiti : t.menuLink.aggiungiPreferiti}
         onPress={() => run(() => onToggleFavorite(link))}
       />
       <Item
         icon={<ChatIcon size={18} color={colors.lilac} strokeWidth={2} />}
-        label="Manda in chat"
+        label={t.menuLink.mandaInChat}
         onPress={() => setStep('chat')}
       />
       <Item
         icon={<MapIcon size={18} color={colors.teal} strokeWidth={2} />}
-        label="Collega a un posto"
+        label={t.menuLink.collegaPosto}
         onPress={() => run(() => onPickPlace(link))}
       />
       {categories.length > 1 ? (
         <Item
           icon={<View style={[styles.dotBig, { borderColor: colors.textDim }]} />}
-          label="Sposta in un’altra categoria"
+          label={t.menuLink.spostaCategoria}
           onPress={() => setStep('move')}
         />
       ) : null}
       <Item
         icon={<ShareIcon size={17} color={colors.textDim} />}
-        label="Condividi fuori da Insieme"
+        label={t.menuLink.condividiFuori}
         onPress={() => run(() => Share.share({ message: link.url }).catch(() => {}))}
       />
       <Item
         icon={<TrashIcon size={18} color={colors.danger} />}
-        label="Elimina"
+        label={t.comune.elimina}
         danger
         onPress={() => setStep('delete')}
       />

@@ -7,6 +7,7 @@ import { MapIcon, ShareIcon, TrashIcon, BackIcon, CheckIcon, ChatIcon, LinkIcon,
 import { mapsUrlForPlace } from '@/lib/utils';
 import type { RawPin } from '@/lib/api/pins';
 import type { RawPlaceCategory } from '@/lib/api/placeCategories';
+import { useT } from '@/i18n';
 
 interface PlaceActionsSheetProps {
   /** `null` tiene il foglio chiuso. */
@@ -44,6 +45,7 @@ export function PlaceActionsSheet({
   onSendToChat,
 }: PlaceActionsSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [step, setStep] = useState<Step>('menu');
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
@@ -95,7 +97,7 @@ export function PlaceActionsSheet({
   if (step === 'move') {
     return (
       <BottomSheet visible onClose={onClose}>
-        <StepTitle title="Sposta in…" />
+        <StepTitle title={t.menuLink.spostaIn} />
         {categories.map((c) => {
           const current = c.id === pin.categoryId;
           return (
@@ -126,11 +128,11 @@ export function PlaceActionsSheet({
     };
     return (
       <BottomSheet visible onClose={onClose}>
-        <StepTitle title="Manda in chat" />
+        <StepTitle title={t.posto.mandaInChat} />
         <View style={[styles.chatPreview, { backgroundColor: colors.surface2 }]}>{header}</View>
         <TextInput
           style={[styles.noteInput, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
-          placeholder="Aggiungi due righe (facoltativo) — es. «ci andiamo martedì?»"
+          placeholder={t.posto.didascalia}
           placeholderTextColor={colors.textFaint}
           value={note}
           onChangeText={setNote}
@@ -146,7 +148,7 @@ export function PlaceActionsSheet({
           {sending ? (
             <ActivityIndicator size="small" color={colors.inkOnAmber} />
           ) : (
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>Invia nella chat</Text>
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>{t.menuLink.invia}</Text>
           )}
         </Pressable>
       </BottomSheet>
@@ -156,16 +158,16 @@ export function PlaceActionsSheet({
   if (step === 'delete') {
     return (
       <BottomSheet visible onClose={onClose}>
-        <Text style={[styles.stepTitle, { color: colors.text }]}>Eliminare «{pin.name}»?</Text>
+        <Text style={[styles.stepTitle, { color: colors.text }]}>{t.posto.eliminare(pin.name)}</Text>
         <Text style={[styles.body, { color: colors.textDim }]}>
-          Il posto sparisce dalla mappa per tutti nel gruppo. I link collegati restano nella sezione Link, perdono solo il collegamento.
+          {t.posto.eliminaConLinkBreve}
         </Text>
         <View style={styles.actions}>
           <Pressable onPress={() => setStep('menu')} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
-            <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
+            <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
           <Pressable onPress={() => run(() => onDelete(pin))} style={[styles.btn, { backgroundColor: colors.danger }]}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Elimina</Text>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>{t.comune.elimina}</Text>
           </Pressable>
         </View>
       </BottomSheet>
@@ -175,33 +177,33 @@ export function PlaceActionsSheet({
   return (
     <BottomSheet visible onClose={onClose}>
       {header}
-      <Item icon={<SendIcon size={17} color={colors.amber} />} label="Portami lì" onPress={() => run(() => onNavigate(pin))} />
+      <Item icon={<SendIcon size={17} color={colors.amber} />} label={t.posto.portamiLi} onPress={() => run(() => onNavigate(pin))} />
       {onShowOnMap ? (
         <Item
           icon={<MapIcon size={18} color={colors.teal} strokeWidth={2} />}
-          label="Mostra sulla mappa"
+          label={t.posto.mostraSullaMappa}
           onPress={() => run(() => onShowOnMap(pin))}
         />
       ) : null}
       <Item
         icon={<LinkIcon size={18} color={colors.textDim} strokeWidth={2} />}
-        label="Collega un link"
+        label={t.posto.collegaLink}
         onPress={() => run(() => onLinkLinks(pin))}
       />
-      <Item icon={<ChatIcon size={18} color={colors.lilac} strokeWidth={2} />} label="Manda in chat" onPress={() => setStep('chat')} />
+      <Item icon={<ChatIcon size={18} color={colors.lilac} strokeWidth={2} />} label={t.posto.mandaInChat} onPress={() => setStep('chat')} />
       {categories.length > 1 ? (
         <Item
           icon={<View style={[styles.dotBig, { borderColor: colors.textDim }]} />}
-          label="Sposta in un’altra categoria"
+          label={t.posto.spostaCategoria}
           onPress={() => setStep('move')}
         />
       ) : null}
       <Item
         icon={<ShareIcon size={17} color={colors.textDim} />}
-        label="Condividi fuori da Insieme"
+        label={t.posto.condividiFuori}
         onPress={() => run(() => Share.share({ message: `${pin.name}\n${mapsUrlForPlace(pin)}` }).catch(() => {}))}
       />
-      <Item icon={<TrashIcon size={18} color={colors.danger} />} label="Elimina" danger onPress={() => setStep('delete')} />
+      <Item icon={<TrashIcon size={18} color={colors.danger} />} label={t.comune.elimina} danger onPress={() => setStep('delete')} />
     </BottomSheet>
   );
 }

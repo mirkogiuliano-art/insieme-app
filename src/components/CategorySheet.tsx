@@ -5,6 +5,7 @@ import { useTheme, RADIUS } from '@/theme/theme';
 import { CheckIcon, TrashIcon } from '@/components/Icon';
 import { inkOn } from '@/lib/utils';
 import { CATEGORY_PALETTE } from '@/types';
+import { useT } from '@/i18n';
 
 /** Categoria, sia dei link sia dei posti: le due tabelle hanno la stessa
  * forma e questo foglio non ha motivo di distinguerle. */
@@ -54,6 +55,7 @@ export function CategorySheet({
   onClose,
 }: CategorySheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [draft, setDraft] = useState('');
   const [color, setColor] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -108,22 +110,22 @@ export function CategorySheet({
     <BottomSheet visible onClose={close}>
       {confirming ? (
         <>
-          <Text style={[styles.title, { color: colors.text }]}>Eliminare &quot;{category.name}&quot;?</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t.categoria.eliminare(category.name)}</Text>
           <Text style={[styles.sub, { color: colors.textDim }]}>
-            Contiene ancora {itemCount} {itemLabel}. Verranno spostati nella categoria &quot;{fallbackName}&quot;.
+            {t.categoria.contiene(itemCount, itemLabel, fallbackName)}
           </Text>
           <View style={styles.actions}>
             <Pressable onPress={() => setConfirming(false)} disabled={busy} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
-              <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
+              <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
             </Pressable>
             <Pressable onPress={remove} disabled={busy} style={[styles.btnPrimary, { backgroundColor: colors.danger, opacity: busy ? 0.6 : 1 }]}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Elimina</Text>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{t.comune.elimina}</Text>
             </Pressable>
           </View>
         </>
       ) : (
         <>
-          <Text style={[styles.title, { color: colors.text }]}>Categoria</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t.categoria.titolo}</Text>
           <TextInput
             style={[styles.input, { backgroundColor: colors.surface2, color: colors.text }]}
             value={draft}
@@ -131,7 +133,7 @@ export function CategorySheet({
             maxLength={24}
             onSubmitEditing={save}
           />
-          <Text style={[styles.label, { color: colors.textFaint }]}>COLORE</Text>
+          <Text style={[styles.label, { color: colors.textFaint }]}>{t.categoria.colore}</Text>
           {/* La stessa tavolozza dei gruppi. Il colore è quello delle
               etichette, dei filtri e — per i posti — dei segnaposto. */}
           <View style={styles.swatches}>
@@ -153,14 +155,14 @@ export function CategorySheet({
             disabled={busy || !draft.trim()}
             style={[styles.saveBtn, { backgroundColor: colors.amber, opacity: busy || !draft.trim() ? 0.5 : 1 }]}
           >
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14.5 }}>Salva</Text>
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14.5 }}>{t.comune.salva}</Text>
           </Pressable>
           {canDelete ? (
             <Pressable onPress={askDelete} disabled={busy} style={styles.deleteBtn}>
               <TrashIcon size={15} color={colors.danger} />
               <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
-                Elimina categoria
-                {itemCount > 0 ? ` · ${itemCount} ${itemLabel} passano in «${fallbackName}»` : ''}
+                {t.categoria.elimina}
+                {itemCount > 0 ? t.categoria.passanoIn(itemCount, itemLabel, fallbackName) : ''}
               </Text>
             </Pressable>
           ) : null}

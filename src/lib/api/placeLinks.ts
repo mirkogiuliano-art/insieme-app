@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dizionario } from '@/i18n';
 
 /** Collegamento molti-a-molti fra un posto della mappa e un elemento della
  * sezione Link (vedi supabase/migrations/20260831120000_place_links.sql). */
@@ -54,7 +55,7 @@ export async function createPlaceLink(
     .insert({ group_id: groupId, pin_id: pinId, link_id: linkId, created_by: userId })
     .select(SELECT_COLUMNS)
     .single();
-  if (error || !data) throw error ?? new Error('Collegamento non riuscito.');
+  if (error || !data) throw error ?? new Error(dizionario().errori.collegamento);
   return toRaw(data);
 }
 

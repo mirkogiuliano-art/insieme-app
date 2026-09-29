@@ -1,0 +1,6 @@
+{
+  "NSLocationWhenInUseUsageDescription": "Insieme uses your location to centre the map and help you save the places near you.",
+  "NSCameraUsageDescription": "Insieme uses the camera to take photos and videos to share in the chat.",
+  "NSPhotoLibraryUsageDescription": "Insieme reaches your photos so you can share them in the chat.",
+  "NSMicrophoneUsageDescription": "Insieme uses the microphone to record voice messages in the chat."
+}

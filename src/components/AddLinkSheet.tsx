@@ -7,6 +7,7 @@ import { LinkIcon, ImageIcon, PlayIcon, FileIcon } from '@/components/Icon';
 import { normalizeUrl } from '@/lib/utils';
 import { getLinkPreview } from '@/lib/api/linkPreviews';
 import type { RawLinkCategory } from '@/lib/api/linkCategories';
+import { useT } from '@/i18n';
 
 interface AddLinkSheetProps {
   visible: boolean;
@@ -52,6 +53,7 @@ export function AddLinkSheet({
   onPickDocument,
 }: AddLinkSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -110,7 +112,7 @@ export function AddLinkSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={[styles.title, { color: colors.text }]}>Aggiungi al gruppo</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{t.aggiungiLink.titolo}</Text>
 
       {copied ? (
         <Pressable
@@ -122,7 +124,7 @@ export function AddLinkSheet({
             <LinkIcon size={18} color={colors.amber} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.copiedLabel, { color: colors.amber }]}>HAI COPIATO UN LINK · TOCCA PER SALVARLO</Text>
+            <Text style={[styles.copiedLabel, { color: colors.amber }]}>{t.aggiungiLink.hoCopiato}</Text>
             <Text style={[styles.copiedTitle, { color: colors.text }]} numberOfLines={2}>
               {copied.title ?? copied.url}
             </Text>
@@ -132,7 +134,7 @@ export function AddLinkSheet({
 
       <TextInput
         style={[styles.input, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
-        placeholder={copied ? '…oppure incolla un altro indirizzo' : 'Incolla un indirizzo (YouTube, Instagram, un sito…)'}
+        placeholder={copied ? t.aggiungiLink.incollaAltro : t.aggiungiLink.incolla}
         placeholderTextColor={colors.textFaint}
         value={url}
         onChangeText={setUrl}
@@ -144,14 +146,14 @@ export function AddLinkSheet({
       />
       <TextInput
         style={[styles.input, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
-        placeholder="Titolo (facoltativo)"
+        placeholder={t.aggiungiLink.titoloCampo}
         placeholderTextColor={colors.textFaint}
         value={title}
         onChangeText={setTitle}
         maxLength={80}
       />
 
-      <Text style={[styles.label, { color: colors.textFaint }]}>CATEGORIA</Text>
+      <Text style={[styles.label, { color: colors.textFaint }]}>{t.aggiungiLink.categoria}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
         {categories.map((c) => {
           const on = categoryId === c.id;
@@ -168,12 +170,12 @@ export function AddLinkSheet({
         })}
       </ScrollView>
 
-      <Text style={[styles.label, { color: colors.textFaint }]}>OPPURE DAL TELEFONO</Text>
+      <Text style={[styles.label, { color: colors.textFaint }]}>{t.aggiungiLink.dalTelefono}</Text>
       <View style={styles.files}>
         {[
-          { key: 'img', label: 'Foto', icon: <ImageIcon size={20} color={colors.textDim} />, fn: () => onPickMedia('images', title, categoryId) },
-          { key: 'vid', label: 'Video', icon: <PlayIcon size={18} color={colors.textDim} />, fn: () => onPickMedia('videos', title, categoryId) },
-          { key: 'doc', label: 'Documento', icon: <FileIcon size={20} color={colors.textDim} />, fn: () => onPickDocument(title, categoryId) },
+          { key: 'img', label: t.aggiungiLink.foto, icon: <ImageIcon size={20} color={colors.textDim} />, fn: () => onPickMedia('images', title, categoryId) },
+          { key: 'vid', label: t.aggiungiLink.video, icon: <PlayIcon size={18} color={colors.textDim} />, fn: () => onPickMedia('videos', title, categoryId) },
+          { key: 'doc', label: t.aggiungiLink.documento, icon: <FileIcon size={20} color={colors.textDim} />, fn: () => onPickDocument(title, categoryId) },
         ].map((b) => (
           <Pressable
             key={b.key}
@@ -195,11 +197,11 @@ export function AddLinkSheet({
         {busy ? (
           <ActivityIndicator size="small" color={colors.inkOnAmber} />
         ) : (
-          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>Salva nel gruppo</Text>
+          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>{t.aggiungiLink.salva}</Text>
         )}
       </Pressable>
       {uploading ? (
-        <Text style={[styles.uploading, { color: colors.textDim }]}>Sto caricando il file…</Text>
+        <Text style={[styles.uploading, { color: colors.textDim }]}>{t.aggiungiLink.caricamento}</Text>
       ) : null}
     </BottomSheet>
   );

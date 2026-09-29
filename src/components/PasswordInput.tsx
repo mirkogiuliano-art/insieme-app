@@ -3,6 +3,7 @@ import { View, TextInput, Pressable, StyleSheet, Platform, type TextInputProps }
 import { useTheme, RADIUS } from '@/theme/theme';
 import { EyeIcon, EyeOffIcon, LockIcon } from '@/components/Icon';
 import { FIELD_HEIGHT } from '@/components/Field';
+import { useT } from '@/i18n';
 
 /** Sul web il browser disegna il proprio contorno di messa a fuoco sul
  * campo interno: essendo il campo dentro una cornice, il contorno finiva
@@ -30,6 +31,7 @@ type PasswordInputProps = Omit<TextInputProps, 'secureTextEntry'>;
  */
 export function PasswordInput({ style, ...props }: PasswordInputProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [visibile, setVisibile] = useState(false);
 
   return (
@@ -53,7 +55,7 @@ export function PasswordInput({ style, ...props }: PasswordInputProps) {
         hitSlop={10}
         style={styles.toggle}
         accessibilityRole="button"
-        accessibilityLabel={visibile ? 'Nascondi la password' : 'Mostra la password'}
+        accessibilityLabel={visibile ? t.accesso.nascondiPassword : t.accesso.mostraPassword}
       >
         {visibile ? <EyeOffIcon color={colors.textDim} /> : <EyeIcon color={colors.textFaint} />}
       </Pressable>

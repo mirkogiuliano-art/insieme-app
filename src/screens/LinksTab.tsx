@@ -71,6 +71,7 @@ import { sendMessage } from '@/lib/api/messages';
 import { avvisaDelMessaggio } from '@/lib/api/push';
 import { colorForUser } from '@/lib/utils';
 import { CATEGORY_PALETTE } from '@/types';
+import { useT, dizionario } from '@/i18n';
 
 interface LinksTabProps {
   groupId: string;
@@ -79,7 +80,9 @@ interface LinksTabProps {
   onShowPlaceOnMap?: (pinId: string) => void;
 }
 
-const FALLBACK_PLACE_CATEGORY = { name: 'Altro', color: '#75828C' };
+/** La categoria di un posto che non ne ha più una: il nome segue la
+ * lingua, quindi si calcola al momento e non una volta sola. */
+const categoriaSenzaNome = () => ({ name: dizionario().segnaposto.altro, color: '#75828C' });
 
 /** Come si guardano i link: righe con miniatura, o riquadri a due colonne.
  * È una preferenza di chi guarda, non del gruppo: sta sul telefono. */
@@ -90,12 +93,7 @@ const VIEW_KEY = 'linksView';
  * guarda, salvata sul telefono. */
 type LinksSort = 'recent' | 'oldest' | 'title' | 'person';
 const SORT_KEY = 'linksSort';
-const SORT_LABELS: Record<LinksSort, string> = {
-  recent: 'Più recenti',
-  oldest: 'Meno recenti',
-  title: 'Titolo (A–Z)',
-  person: 'Chi l’ha condiviso',
-};
+const SORT_ORDER: LinksSort[] = ['recent', 'oldest', 'title', 'person'];
 
 /** Spezza un elenco in coppie, per la griglia a due colonne. */
 function pairs<T>(list: T[]): T[][] {
@@ -106,6 +104,13 @@ function pairs<T>(list: T[]): T[][] {
 
 export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   const { colors } = useTheme();
+  const t = useT();
+  const SORT_LABELS: Record<LinksSort, string> = {
+    recent: t.link.ordineRecente,
+    oldest: t.link.ordineVecchio,
+    title: t.link.ordineTitolo,
+    person: t.link.ordinePersona,
+  };
   const tabBarSpace = useTabBarSpace();
   const { session } = useAuth();
   const toast = useToast();
@@ -209,10 +214,10 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       const body = attachment ? text || null : text ? `${text}\n${link.url}` : link.url;
       const sent = await withTimeout(sendMessage(groupId, session.user.id, body, null, attachment), WRITE_TIMEOUT);
       avvisaDelMessaggio(sent.id);
-      toast.show('Mandato in chat');
+      toast.show(t.link.mandato);
       return true;
     } catch {
-      toast.show('Non sono riuscito a mandarlo in chat, riprova.');
+      toast.show(t.link.erroreChat, 'error');
       return false;
     }
   };
@@ -275,7 +280,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       new URL(normalized);
       info = platformInfo(normalized);
     } catch {
-      toast.show('Il link non sembra valido.');
+      toast.show(t.link.urlNonValido, 'hint');
       return false;
     }
     const catId = categoryId || categories[0]?.id;
@@ -301,13 +306,13 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       }
       return true;
     } catch {
-      toast.show('Non sono riuscito a salvare il link, riprova.');
+      toast.show(t.link.erroreSalva, 'error');
       return false;
     }
   };
 
   const placeCatFor = (pin: RawPin) =>
-    placeCategories.find((c) => c.id === pin.categoryId) ?? FALLBACK_PLACE_CATEGORY;
+    placeCategories.find((c) => c.id === pin.categoryId) ?? categoriaSenzaNome();
 
   const pinIdsForLink = (linkId: string) => placeLinks.filter((pl) => pl.linkId === linkId).map((pl) => pl.pinId);
 
@@ -321,7 +326,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         await withTimeout(createPlaceLink(groupId, session.user.id, pinId, linkId), WRITE_TIMEOUT);
       }
     } catch {
-      toast.show('Non sono riuscito ad aggiornare il collegamento.');
+      toast.show(t.link.erroreCollegamento, 'error');
     }
   };
 
@@ -330,7 +335,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     if (!mapsPrompt || !session || savingPlace) return;
     const catId = mapsPromptCat || placeCategories[0]?.id;
     if (!catId) {
-      toast.show('Serve almeno una categoria di posti.');
+      toast.show(t.link.serveCategoriaPosti, 'hint');
       return;
     }
     setSavingPlace(true);
@@ -339,14 +344,14 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       const pin = await withTimeout(createPin(groupId, session.user.id, {
         lat: mapsPrompt.info.lat,
         lng: mapsPrompt.info.lng,
-        name: mapsPrompt.info.name || 'Posto da Google Maps',
+        name: mapsPrompt.info.name || t.link.postoDaMaps,
         categoryId: catId,
         // Il link incollato apre già la scheda del luogo: lo teniamo com'è.
         mapsUrl: mapsPrompt.url,
       }), WRITE_TIMEOUT);
       pinId = pin.id;
     } catch {
-      toast.show('Non sono riuscito a salvare il posto.');
+      toast.show(t.link.errorePosto, 'error');
       setSavingPlace(false);
       return;
     }
@@ -354,9 +359,9 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     // si torna indietro — il posto resta salvato ed è ricollegabile a mano.
     try {
       await withTimeout(createPlaceLink(groupId, session.user.id, pinId, mapsPrompt.linkId), WRITE_TIMEOUT);
-      toast.show('Posto salvato e collegato al link');
+      toast.show(t.link.postoSalvato);
     } catch {
-      toast.show('Posto salvato, ma il collegamento al link non è riuscito.');
+      toast.show(t.link.postoSenzaLink, 'hint');
     } finally {
       setMapsPrompt(null);
       setSavingPlace(false);
@@ -367,7 +372,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     if (!session || uploadingFile) return false;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      toast.show('Serve il permesso per accedere ai file.');
+      toast.show(t.link.permessoFile, 'hint');
       return false;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: [mediaType], quality: 0.7 });
@@ -382,15 +387,15 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       const uploadedUrl = await withTimeout(uploadGroupMedia(groupId, asset.uri), UPLOAD_TIMEOUT);
       await withTimeout(createLink(groupId, session.user.id, {
         url: uploadedUrl,
-        title: title.trim() || (kind === 'video' ? 'Video' : 'Foto'),
+        title: title.trim() || (kind === 'video' ? t.segnaposto.video : t.segnaposto.foto),
         platform: kind,
-        label: kind === 'video' ? 'Video' : 'Foto',
+        label: kind === 'video' ? t.segnaposto.video : t.segnaposto.foto,
         thumb: kind === 'image' ? uploadedUrl : null,
         categoryId: catId,
       }), WRITE_TIMEOUT);
       return true;
     } catch {
-      toast.show('Caricamento del file non riuscito, riprova.');
+      toast.show(t.link.erroreCaricamentoFile, 'error');
       return false;
     } finally {
       setUploadingFile(false);
@@ -423,7 +428,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       }), WRITE_TIMEOUT);
       return true;
     } catch {
-      toast.show('Caricamento del documento non riuscito, riprova.');
+      toast.show(t.link.erroreCaricamentoDoc, 'error');
       return false;
     } finally {
       setUploadingFile(false);
@@ -437,7 +442,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     try {
       await withTimeout(setFavorite(link.id, !link.isFavorite), WRITE_TIMEOUT);
     } catch {
-      toast.show('Non sono riuscito ad aggiornare il preferito.');
+      toast.show(t.link.errorePreferito, 'error');
     }
   };
 
@@ -445,9 +450,9 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     try {
       await withTimeout(setLinkCategory(link.id, categoryId), WRITE_TIMEOUT);
       const cat = categories.find((c) => c.id === categoryId);
-      toast.show(cat ? `Spostato in "${cat.name}"` : 'Link spostato');
+      toast.show(cat ? t.link.spostatoIn(cat.name) : t.link.spostato);
     } catch {
-      toast.show('Non sono riuscito a spostare il link.');
+      toast.show(t.link.erroreSposta, 'error');
     }
   };
 
@@ -458,7 +463,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       // nel deposito: la spazzata lo toglie di mezzo.
       sweepGroupMedia(groupId);
     } catch {
-      toast.show('Non sono riuscito a eliminare il link.');
+      toast.show(t.link.erroreElimina, 'error');
     }
   };
 
@@ -474,7 +479,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       setNewCatName('');
       setCatModalOpen(false);
     } catch {
-      toast.show('Non sono riuscito a creare la categoria.');
+      toast.show(t.link.erroreCreaCategoria, 'error');
     }
   };
 
@@ -493,7 +498,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       if (color && color !== manageCat.color) await recolorCategory(manageCat.id, color);
       closeManageCat();
     } catch {
-      toast.show('Non sono riuscito a salvare la categoria.');
+      toast.show(t.link.erroreSalvaCategoria, 'error');
     }
   };
 
@@ -504,7 +509,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       if (filter === manageCat.id) setFilter('all');
       closeManageCat();
     } catch (err) {
-      toast.show((err as { message?: string })?.message || 'Non sono riuscito a eliminare la categoria.');
+      toast.show((err as { message?: string })?.message || t.link.erroreEliminaCategoria, 'error');
     }
   };
 
@@ -526,7 +531,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     );
 
   const displayTitle = (it: RawLink) => pageTitles[it.url] || it.title;
-  const authorOf = (it: RawLink) => roster[it.userId] ?? 'Utente';
+  const authorOf = (it: RawLink) => roster[it.userId] ?? t.segnaposto.utente;
   filtered.sort((a, b) => {
     switch (sort) {
       case 'oldest':
@@ -580,7 +585,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
 
   const cardProps = (item: RawLink) => ({
     item,
-    addedBy: roster[item.userId] ?? 'Utente',
+    addedBy: roster[item.userId] ?? t.segnaposto.utente,
     places: placesFor(item.id),
     onOpenMenu: () => setMenuFor(item),
     onShowPlace: (pinId: string) => onShowPlaceOnMap?.(pinId),
@@ -605,7 +610,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
           <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder={items.length > 0 ? `Cerca fra ${items.length} link` : 'Cerca'}
+            placeholder={items.length > 0 ? t.link.cercaFra(items.length) : t.link.cerca}
             placeholderTextColor={colors.textFaint}
             value={query}
             onChangeText={setQuery}
@@ -622,13 +627,13 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
           onPress={toggleView}
           hitSlop={4}
           style={[styles.viewBtn, { backgroundColor: colors.surface }]}
-          accessibilityLabel={view === 'list' ? 'Mostra a griglia' : 'Mostra a elenco'}
+          accessibilityLabel={view === 'list' ? t.link.griglia : t.link.elenco}
         >
           {view === 'list' ? <GridIcon size={17} color={colors.textDim} /> : <ListIcon size={17} color={colors.textDim} />}
         </Pressable>
         <Pressable onPress={() => setAddOpen(true)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
           <PlusIcon size={13} color={colors.inkOnAmber} />
-          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>Aggiungi</Text>
+          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.link.aggiungi}</Text>
         </Pressable>
       </View>
 
@@ -640,9 +645,9 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
             onPress={() => setSortOpen(true)}
           />
           <View style={[styles.chipDivider, { backgroundColor: colors.border }]} />
-          <FilterChip label="Tutti" active={filter === 'all'} onPress={() => setFilter('all')} />
+          <FilterChip label={t.link.tutti} active={filter === 'all'} onPress={() => setFilter('all')} />
           <FilterChip
-            label="Preferiti"
+            label={t.link.preferiti}
             icon={<StarIcon size={12} color={colors.amber} filled={filter === 'favorites'} />}
             active={filter === 'favorites'}
             onPress={() => setFilter('favorites')}
@@ -657,11 +662,11 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
               onEdit={() => openManageCat(c)}
             />
           ))}
-          <FilterChip label="+ Categoria" dashed onPress={() => setCatModalOpen(true)} />
+          <FilterChip label={t.link.nuovaCategoriaChip} dashed onPress={() => setCatModalOpen(true)} />
         </ScrollView>
       </View>
 
-      {loadError ? <LoadError what="i link" onRetry={loadAll} /> : null}
+      {loadError ? <LoadError what={t.erroreCaricamento.link} onRetry={loadAll} /> : null}
 
       {filtered.length === 0 ? (
         <View style={styles.empty}>
@@ -671,20 +676,20 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
               {term ? (
                 <>
                   <SearchIcon size={34} color={colors.textFaint} strokeWidth={1.6} />
-                  <Text style={[styles.emptyText, { color: colors.textFaint }]}>Nessun link corrisponde a «{query.trim()}».</Text>
+                  <Text style={[styles.emptyText, { color: colors.textFaint }]}>{t.link.nessunoConTesto(query.trim())}</Text>
                 </>
               ) : filter === 'favorites' ? (
                 <>
                   <StarIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
                   <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-                    Nessun preferito ancora. Tieni premuto un link (o tocca ⋯) e scegli «Aggiungi ai preferiti».
+                    {t.link.nessunPreferito}
                   </Text>
                 </>
               ) : (
                 <>
                   <LinkIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
                   <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-                    Nessun link qui. Tocca «Aggiungi» per salvare un video, un sito, una foto o un documento.
+                    {t.link.vuoto}
                   </Text>
                 </>
               )}
@@ -719,13 +724,13 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       )}
 
       <BottomSheet visible={catModalOpen} onClose={() => setCatModalOpen(false)}>
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>Nuova categoria</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>{t.link.nuovaCategoria}</Text>
         <Text style={[styles.sheetSub, { color: colors.textDim }]}>
-          Crea una categoria per organizzare i link e i video salvati.
+          {t.link.nuovaCategoriaTesto}
         </Text>
         <TextInput
           style={[styles.mInput, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
-          placeholder="Es. Ricette, Musica, Da vedere"
+          placeholder={t.link.esempioCategoria}
           placeholderTextColor={colors.textFaint}
           value={newCatName}
           onChangeText={setNewCatName}
@@ -734,10 +739,10 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         />
         <View style={styles.sheetActions}>
           <Pressable onPress={() => setCatModalOpen(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
-            <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
+            <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
           <Pressable onPress={createCat} style={[styles.btnPrimary, { backgroundColor: colors.amber }]}>
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>Crea</Text>
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>{t.link.crea}</Text>
           </Pressable>
         </View>
       </BottomSheet>
@@ -745,7 +750,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       <CategorySheet
         category={manageCat}
         itemCount={manageCat ? items.filter((x) => x.categoryId === manageCat.id).length : 0}
-        itemLabel="link"
+        itemLabel={t.categoria.link}
         fallbackName={categories.find((x) => x.id !== manageCat?.id)?.name ?? ''}
         canDelete={!!manageCat && manageCat.name !== 'Generale' && categories.length > 1}
         onSave={saveRename}
@@ -766,11 +771,12 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       <BottomSheet visible={!!mapsPrompt} onClose={() => setMapsPrompt(null)}>
         {mapsPrompt ? (
           <>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>Sembra un posto su Google Maps</Text>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>{t.link.mapsTitolo}</Text>
             <Text style={[styles.sheetSub, { color: colors.textDim }]}>
               {mapsPrompt.info.name ? `"${mapsPrompt.info.name}" — ` : ''}
               {mapsPrompt.info.lat.toFixed(4)}, {mapsPrompt.info.lng.toFixed(4)}.
-              {'\n'}Vuoi salvarlo anche sulla mappa del gruppo, già collegato a questo link?
+              {'\n'}
+              {t.link.mapsDomanda}
             </Text>
             {placeCategories.length > 0 ? (
               <View style={styles.catRow}>
@@ -794,14 +800,14 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
             ) : null}
             <View style={styles.sheetActions}>
               <Pressable onPress={() => setMapsPrompt(null)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
-                <Text style={{ color: colors.textDim, fontWeight: '600' }}>No, grazie</Text>
+                <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.link.noGrazie}</Text>
               </Pressable>
               <Pressable
                 onPress={savePlaceFromMaps}
                 disabled={savingPlace}
                 style={[styles.btnPrimary, { backgroundColor: colors.amber, opacity: savingPlace ? 0.6 : 1 }]}
               >
-                <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>Sì, salva</Text>
+                <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>{t.link.siSalva}</Text>
               </Pressable>
             </View>
           </>
@@ -831,7 +837,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       />
 
       <BottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
-        <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 8 }]}>Ordina per</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 8 }]}>{t.link.ordinaPer}</Text>
         {(Object.keys(SORT_LABELS) as LinksSort[]).map((k, i) => (
           <Pressable
             key={k}

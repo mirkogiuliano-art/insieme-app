@@ -32,17 +32,18 @@ import { initials } from '@/lib/utils';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { TabBarSpaceContext } from '@/lib/tabBarSpace';
+import { useT } from '@/i18n';
 
 type TabName = 'chat' | 'links' | 'map';
 
-const TAB_TITLES: Record<TabName, string> = {
-  chat: 'Chat',
-  links: 'Link e video',
-  map: 'Mappa',
-};
-
 export default function GroupScreen() {
   const { colors, theme } = useTheme();
+  const t = useT();
+  const TAB_TITLES: Record<TabName, string> = {
+    chat: t.gruppo.chat,
+    links: t.gruppo.linkEVideo,
+    map: t.gruppo.mappa,
+  };
   const router = useRouter();
   const toast = useToast();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -118,10 +119,10 @@ export default function GroupScreen() {
     try {
       const token = (await getInviteToken(localGroup.id)) ?? (await rotateInvite(localGroup.id));
       await Share.share({
-        message: `Entra nel gruppo "${localGroup.name}" su Insieme:\n${inviteUrl(token)}`,
+        message: t.home.invitoTesto(localGroup.name, inviteUrl(token)),
       });
     } catch {
-      toast.show('Non sono riuscito a preparare il link di invito.');
+      toast.show(t.home.erroreInvito, 'error');
     } finally {
       setSharing(false);
     }
@@ -155,12 +156,12 @@ export default function GroupScreen() {
         <ScreenGlow />
         <View style={styles.centerState}>
           <UsersIcon size={38} color={colors.textFaint} />
-          <Text style={[styles.centerTitle, { color: colors.text }]}>Gruppo non disponibile</Text>
+          <Text style={[styles.centerTitle, { color: colors.text }]}>{t.gruppo.nonDisponibile}</Text>
           <Text style={[styles.centerSub, { color: colors.textDim }]}>
-            Non fai parte di questo gruppo. Per entrare serve un link di invito da parte di chi è già dentro.
+            {t.gruppo.nonDisponibileTesto}
           </Text>
           <Pressable onPress={() => router.replace('/')} style={[styles.centerBtn, { backgroundColor: colors.amber }]}>
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>Torna ai tuoi gruppi</Text>
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>{t.invito.tornaAiGruppi}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -180,7 +181,7 @@ export default function GroupScreen() {
           </Pressable>
           <View style={{ flexShrink: 1 }}>
             <Text style={[styles.eyebrow, { color: colors.textFaint }]} numberOfLines={1}>
-              {localGroup?.name ?? 'Gruppo'}
+              {localGroup?.name ?? t.gruppo.nomeMancante}
             </Text>
             <Text style={[styles.title, { color: colors.text }]}>{TAB_TITLES[tab]}</Text>
           </View>
@@ -237,7 +238,7 @@ export default function GroupScreen() {
       {!keyboardOpen ? (
         <View style={[styles.tabbar, { backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.9)' : 'rgba(33,44,56,0.9)' }]}>
           <TabButton
-            label="Chat"
+            label={t.gruppo.chat}
             active={tab === 'chat'}
             onPress={() => setTab('chat')}
             icon={<ChatIcon size={21} color={tab === 'chat' ? colors.inkOnAmber : colors.textFaint} />}
@@ -245,7 +246,7 @@ export default function GroupScreen() {
             activeText={colors.inkOnAmber}
           />
           <TabButton
-            label="Link"
+            label={t.gruppo.link}
             active={tab === 'links'}
             onPress={() => setTab('links')}
             icon={<LinkIcon size={21} color={tab === 'links' ? colors.inkOnAmber : colors.textFaint} />}
@@ -253,7 +254,7 @@ export default function GroupScreen() {
             activeText={colors.inkOnAmber}
           />
           <TabButton
-            label="Mappa"
+            label={t.gruppo.mappa}
             active={tab === 'map'}
             onPress={() => setTab('map')}
             icon={<MapIcon size={21} color={tab === 'map' ? colors.inkOnAmber : colors.textFaint} />}
@@ -297,7 +298,7 @@ export default function GroupScreen() {
           style={[styles.menuRow, { borderBottomColor: colors.border }]}
         >
           <UsersIcon size={18} color={colors.textDim} />
-          <Text style={[styles.menuRowText, { color: colors.text }]}>Info gruppo</Text>
+          <Text style={[styles.menuRowText, { color: colors.text }]}>{t.gruppo.info}</Text>
         </Pressable>
         <Pressable
           onPress={() => {
@@ -307,7 +308,7 @@ export default function GroupScreen() {
           style={[styles.menuRow, { borderBottomColor: colors.border }]}
         >
           <ShareIcon size={18} color={colors.textDim} />
-          <Text style={[styles.menuRowText, { color: colors.text }]}>Condividi</Text>
+          <Text style={[styles.menuRowText, { color: colors.text }]}>{t.gruppo.condividi}</Text>
         </Pressable>
         <Pressable
           onPress={() => {
@@ -317,7 +318,7 @@ export default function GroupScreen() {
           style={[styles.menuRow, { borderBottomWidth: 0 }]}
         >
           <SettingsIcon size={18} color={colors.textDim} />
-          <Text style={[styles.menuRowText, { color: colors.text }]}>Impostazioni</Text>
+          <Text style={[styles.menuRowText, { color: colors.text }]}>{t.gruppo.impostazioni}</Text>
         </Pressable>
       </BottomSheet>
     </SafeAreaView>

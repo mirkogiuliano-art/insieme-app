@@ -1,0 +1,73 @@
+<!-- Insieme — link per scegliere una nuova password.
+     Va in Supabase → Authentication → Emails → Reset password.
+     Oggetto (anche lui un modello):
+       {{ if and .Data (eq (printf "%v" .Data.lang) "it") }}Scegli una nuova password{{ else }}Choose a new password{{ end }}
+     La lingua è quella salvata l'ultima volta che la persona era dentro
+     l'app: il link parte quando non si è dentro, e non può portarla con sé.
+     Il collegamento porta a insieme://reset-password (vedi AuthScreen), che
+     si apre solo sul telefono dove l'app è installata. -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F7;padding:32px 12px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#FFFFFF;border-radius:18px;padding:32px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+        <tr>
+          <td style="padding-bottom:22px;">
+            <span style="font-size:19px;font-weight:800;letter-spacing:-0.4px;color:#212C38;">Insieme</span>
+          </td>
+        </tr>
+
+{{ if and .Data (eq (printf "%v" .Data.lang) "it") }}
+        <tr>
+          <td>
+            <h1 style="margin:0 0 10px;font-size:21px;line-height:28px;font-weight:800;letter-spacing:-0.4px;color:#212C38;">
+              Scegli una nuova password
+            </h1>
+            <p style="margin:0 0 20px;font-size:15px;line-height:22px;color:#55606D;">
+              Apri questo collegamento dal telefono dove hai Insieme: da lì scegli la password nuova. Vale un'ora e si usa una volta sola.
+            </p>
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#E9A23B;border-radius:999px;">
+                  <a href="{{ .ConfirmationURL }}"
+                     style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:700;color:#2B2109;text-decoration:none;">
+                    Scegli la password
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:18px 0 0;font-size:12.5px;line-height:18px;color:#8A939E;">
+              Se non l'hai chiesto tu, ignora pure il messaggio: la password di adesso resta quella che è.
+            </p>
+          </td>
+        </tr>
+{{ else }}
+        <tr>
+          <td>
+            <h1 style="margin:0 0 10px;font-size:21px;line-height:28px;font-weight:800;letter-spacing:-0.4px;color:#212C38;">
+              Choose a new password
+            </h1>
+            <p style="margin:0 0 20px;font-size:15px;line-height:22px;color:#55606D;">
+              Open this link on the phone where you have Insieme: that's where you choose the new password. It lasts an hour and works once.
+            </p>
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#E9A23B;border-radius:999px;">
+                  <a href="{{ .ConfirmationURL }}"
+                     style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:700;color:#2B2109;text-decoration:none;">
+                    Choose a password
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:18px 0 0;font-size:12.5px;line-height:18px;color:#8A939E;">
+              If you didn't ask for this, ignore the message: your current password stays as it is.
+            </p>
+          </td>
+        </tr>
+{{ end }}
+
+      </table>
+    </td>
+  </tr>
+</table>

@@ -8,6 +8,7 @@ import { LockIcon, CheckIcon, BrokenLinkIcon } from '@/components/Icon';
 import { PasswordInput } from '@/components/PasswordInput';
 import { supabase } from '@/lib/supabase';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { useT, messaggioAuth } from '@/i18n';
 
 /**
  * Destinazione del link "password dimenticata" (Supabase Auth →
@@ -32,6 +33,7 @@ function Screen({ icon, tone, title, text, children }: { icon: React.ReactNode; 
 
 export default function ResetPasswordScreen() {
   const { colors } = useTheme();
+  const t = useT();
   const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [hasSession, setHasSession] = useState(false);
@@ -60,14 +62,14 @@ export default function ResetPasswordScreen() {
   const submit = async () => {
     setError('');
     if (password.length < 8) {
-      setError('La password deve avere almeno 8 caratteri.');
+      setError(t.accesso.passwordCorta(8));
       return;
     }
     setLoading(true);
     const { error: err } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (err) {
-      setError(err.message);
+      setError(messaggioAuth(err));
       return;
     }
     setDone(true);
@@ -90,28 +92,28 @@ export default function ResetPasswordScreen() {
           <Screen
             icon={<BrokenLinkIcon size={32} color={colors.danger} />}
             tone={colors.textDim}
-            title="Link scaduto"
-            text="Questo link non è valido o è già stato usato. Chiedine uno nuovo da «Password dimenticata?» nella schermata di accesso."
+            title={t.nuovaPassword.scadutoTitolo}
+            text={t.nuovaPassword.scadutoTesto}
           >
             <Pressable onPress={() => router.replace('/')} style={[styles.button, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.buttonText, { color: colors.text }]}>Vai all’accesso</Text>
+              <Text style={[styles.buttonText, { color: colors.text }]}>{t.nuovaPassword.vaiAccesso}</Text>
             </Pressable>
           </Screen>
         ) : done ? (
           <Screen
             icon={<CheckIcon size={32} color={colors.teal} />}
             tone={colors.textDim}
-            title="Password aggiornata"
-            text="D’ora in poi accedi con quella nuova."
+            title={t.nuovaPassword.fattaTitolo}
+            text={t.nuovaPassword.fattaTesto}
           >
             <Pressable onPress={() => router.replace('/')} style={[styles.button, { backgroundColor: colors.amber }]}>
-              <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>Torna all’app</Text>
+              <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>{t.nuovaPassword.tornaApp}</Text>
             </Pressable>
           </Screen>
         ) : (
-          <Screen icon={<LockIcon size={32} color={colors.amber} />} tone={colors.textDim} title="Nuova password" text="Scegline una di almeno 8 caratteri.">
+          <Screen icon={<LockIcon size={32} color={colors.amber} />} tone={colors.textDim} title={t.nuovaPassword.titolo} text={t.nuovaPassword.testo}>
             <PasswordInput
-              placeholder="Nuova password"
+              placeholder={t.nuovaPassword.campo}
               value={password}
               onChangeText={setPassword}
               onSubmitEditing={submit}
@@ -126,7 +128,7 @@ export default function ResetPasswordScreen() {
               {loading ? (
                 <ActivityIndicator size="small" color={colors.inkOnAmber} />
               ) : (
-                <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>Salva la password</Text>
+                <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>{t.nuovaPassword.salva}</Text>
               )}
             </Pressable>
           </Screen>

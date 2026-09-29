@@ -8,6 +8,7 @@ import { inkOn } from '@/lib/utils';
 import { fitFontSize } from '@/lib/fitText';
 import { inviteTokenFrom } from '@/lib/api/invites';
 import { GROUP_PALETTE } from '@/types';
+import { useT } from '@/i18n';
 
 interface NewGroupSheetProps {
   visible: boolean;
@@ -25,6 +26,7 @@ interface NewGroupSheetProps {
  */
 export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: NewGroupSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [tab, setTab] = useState<'create' | 'join'>('create');
   const [name, setName] = useState('');
   const [color, setColor] = useState(GROUP_PALETTE[0]);
@@ -75,25 +77,25 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
   const join = (text: string) => {
     const token = inviteTokenFrom(text);
     if (!token) {
-      setPasteError('Non sembra un link d’invito di Insieme. Fattelo rimandare da chi è nel gruppo.');
+      setPasteError(t.nuovoGruppo.nonUnInvito);
       return;
     }
     onClose();
     onJoin(token);
   };
 
-  const shownName = name.trim() || 'Nome del gruppo';
+  const shownName = name.trim() || t.nuovoGruppo.nomeSegnaposto;
   const ink = inkOn(color);
   const fontSize = previewWidth > 0 ? fitFontSize(shownName, previewWidth, 18, 40) : 24;
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={[styles.title, { color: colors.text }]}>Nuovo</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{t.nuovoGruppo.titolo}</Text>
       <View style={[styles.seg, { backgroundColor: colors.surface2 }]}>
         {(['create', 'join'] as const).map((k) => (
           <Pressable key={k} onPress={() => setTab(k)} style={[styles.segBtn, tab === k && { backgroundColor: colors.amber }]}>
             <Text style={[styles.segText, { color: tab === k ? colors.inkOnAmber : colors.textDim }]}>
-              {k === 'create' ? 'Crea un gruppo' : 'Entra con un invito'}
+              {k === 'create' ? t.nuovoGruppo.crea : t.nuovoGruppo.entra}
             </Text>
           </Pressable>
         ))}
@@ -103,7 +105,7 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
         <>
           <TextInput
             style={[styles.input, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
-            placeholder="Es. Weekend a Lisbona"
+            placeholder={t.nuovoGruppo.esempioNome}
             placeholderTextColor={colors.textFaint}
             value={name}
             onChangeText={setName}
@@ -111,7 +113,7 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
             returnKeyType="done"
             onSubmitEditing={create}
           />
-          <Text style={[styles.label, { color: colors.textFaint }]}>COLORE</Text>
+          <Text style={[styles.label, { color: colors.textFaint }]}>{t.nuovoGruppo.colore}</Text>
           <View style={styles.swatches}>
             {GROUP_PALETTE.map((c) => (
               <Pressable
@@ -144,11 +146,11 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
             {creating ? (
               <ActivityIndicator size="small" color={colors.inkOnAmber} />
             ) : (
-              <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>Crea il gruppo</Text>
+              <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>{t.nuovoGruppo.creaBottone}</Text>
             )}
           </Pressable>
           <Text style={[styles.note, { color: colors.textFaint }]}>
-            Dopo avrai il link d’invito da mandare a chi vuoi far entrare.
+            {t.nuovoGruppo.notaCrea}
           </Text>
         </>
       ) : (
@@ -165,8 +167,8 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
                 <UsersIcon size={20} color={colors.amber} strokeWidth={2} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.copiedLabel, { color: colors.amber }]}>HAI COPIATO UN INVITO</Text>
-                <Text style={[styles.copiedText, { color: colors.text }]}>Tocca per entrare nel gruppo</Text>
+                <Text style={[styles.copiedLabel, { color: colors.amber }]}>{t.nuovoGruppo.hoCopiato}</Text>
+                <Text style={[styles.copiedText, { color: colors.text }]}>{t.nuovoGruppo.toccaPerEntrare}</Text>
               </View>
             </Pressable>
           ) : null}
@@ -174,7 +176,7 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
             <ChainIcon size={15} color={colors.textFaint} />
             <TextInput
               style={[styles.pasteInput, { color: colors.text }]}
-              placeholder={copiedToken ? '…oppure incolla un altro link' : 'Incolla il link d’invito'}
+              placeholder={copiedToken ? t.nuovoGruppo.incollaAltro : t.nuovoGruppo.incolla}
               placeholderTextColor={colors.textFaint}
               value={pasted}
               onChangeText={(t) => {
@@ -192,10 +194,10 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
             disabled={!pasted.trim()}
             style={[styles.primary, { backgroundColor: colors.amber, opacity: pasted.trim() ? 1 : 0.5 }]}
           >
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>Entra nel gruppo</Text>
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>{t.nuovoGruppo.entraBottone}</Text>
           </Pressable>
           <Text style={[styles.note, { color: colors.textFaint }]}>
-            Il link te lo manda chi è già nel gruppo, da Info gruppo.
+            {t.nuovoGruppo.notaEntra}
           </Text>
         </>
       )}

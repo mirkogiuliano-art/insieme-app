@@ -5,6 +5,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { SearchIcon, CheckIcon } from '@/components/Icon';
 import { PlaceTile } from '@/components/MapPin';
 import type { RawPin } from '@/lib/api/pins';
+import { useT } from '@/i18n';
 
 interface PlacePickerSheetProps {
   visible: boolean;
@@ -32,6 +33,7 @@ export function PlacePickerSheet({
   onClose,
 }: PlacePickerSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -43,14 +45,14 @@ export function PlacePickerSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={[styles.title, { color: colors.text }]}>Collega a un posto</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{t.posto.collegaAPosto}</Text>
       <Text style={[styles.sub, { color: colors.textDim }]} numberOfLines={2}>
         {linkTitle}
       </Text>
 
       {pins.length === 0 ? (
         <Text style={[styles.empty, { color: colors.textFaint }]}>
-          Non ci sono ancora posti salvati. Aggiungine uno dalla sezione Mappa, poi torna qui.
+          {t.posto.nessunPostoSalvato}
         </Text>
       ) : (
         <>
@@ -58,14 +60,14 @@ export function PlacePickerSheet({
             <SearchIcon size={15} color={colors.textFaint} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Cerca tra i posti salvati"
+              placeholder={t.posto.cercaPosti}
               placeholderTextColor={colors.textFaint}
               value={query}
               onChangeText={setQuery}
             />
           </View>
           {shown.length === 0 ? (
-            <Text style={[styles.empty, { color: colors.textFaint }]}>Nessun posto corrisponde alla ricerca.</Text>
+            <Text style={[styles.empty, { color: colors.textFaint }]}>{t.posto.nessunPostoTrovato}</Text>
           ) : (
             // Le righe dei posti come nella Mappa, in un blocco unico, con la
             // spunta da accendere o spegnere.
@@ -103,7 +105,7 @@ export function PlacePickerSheet({
       )}
 
       <Pressable onPress={onClose} style={[styles.done, { backgroundColor: colors.amber }]}>
-        <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14.5 }}>Fatto</Text>
+        <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14.5 }}>{t.posto.fatto}</Text>
       </Pressable>
     </BottomSheet>
   );

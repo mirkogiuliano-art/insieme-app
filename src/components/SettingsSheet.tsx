@@ -23,7 +23,8 @@ import { deleteMyAccount } from '@/lib/api/account';
 import { listBlockedWithNames, unblockUser } from '@/lib/api/moderation';
 import { initials } from '@/lib/utils';
 import { PRIVACY_URL, TERMINI_URL, haiPubblicatoIDocumenti } from '@/lib/legal';
-import type { ThemePreference } from '@/types';
+import { useLingua, LINGUE, NOMI_LINGUA } from '@/i18n';
+import type { ThemePreference, LanguagePreference } from '@/types';
 
 /**
  * Le pagine del foglio. Le impostazioni vere sono poche (aspetto e persone
@@ -52,6 +53,7 @@ const APP_VERSION = Constants.expoConfig?.version ?? '';
 
 export function SettingsSheet({ visible, onClose, startAt = 'settings' }: SettingsSheetProps) {
   const { colors, preference, setPreference } = useTheme();
+  const { t, preference: lingua, setPreference: setLingua } = useLingua();
   const { profile, session, refreshProfile, signOut } = useAuth();
   const [page, setPage] = useState<Page>(startAt);
   const [nameDraft, setNameDraft] = useState(profile?.displayName ?? '');
@@ -122,10 +124,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
       closeSheet();
       await signOut();
     } catch (err) {
-      setConfirmError(
-        (err as { message?: string })?.message ||
-          'Non sono riuscito a eliminare l’account. Riprova, o scrivici se il problema resta.',
-      );
+      setConfirmError((err as { message?: string })?.message || t.eliminaAccount.errore);
     } finally {
       setBusy(false);
     }
@@ -133,18 +132,15 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
 
   const CONFIRMS: Record<Confirm, { title: string; body: string; action: string; onConfirm: () => void }> = {
     signout: {
-      title: 'Uscire da Insieme?',
-      body: 'Dovrai accedere di nuovo con email e password. I tuoi gruppi e i messaggi restano dove sono.',
-      action: 'Esci',
+      title: t.uscita.titolo,
+      body: t.uscita.corpo,
+      action: t.uscita.azione,
       onConfirm: runSignOut,
     },
     'delete-account': {
-      title: 'Eliminare il tuo account?',
-      body:
-        'Spariscono per sempre il tuo profilo, i tuoi messaggi, i link e i posti che hai aggiunto, in tutti i gruppi. ' +
-        'I gruppi in cui resta qualcun altro continuano a esistere senza di te; quelli in cui eri solo vengono eliminati per intero. ' +
-        'Non si può annullare e non serve altro: la cancellazione è immediata.',
-      action: 'Elimina tutto',
+      title: t.eliminaAccount.titolo,
+      body: t.eliminaAccount.corpo,
+      action: t.eliminaAccount.azione,
       onConfirm: runDeleteAccount,
     },
   };
@@ -228,7 +224,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
             disabled={busy}
             style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}
           >
-            <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
+            <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
           <Pressable
             onPress={c.onConfirm}
@@ -253,7 +249,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
       <BottomSheet visible={visible} onClose={closeSheet}>
         {/* Aperto dalle iniziali, il profilo è la prima pagina: non c'è
             niente a cui tornare, quindi niente freccia. */}
-        <PageTitle title="Profilo" back={startAt === 'profile' ? undefined : 'settings'} />
+        <PageTitle title={t.profilo.titolo} back={startAt === 'profile' ? undefined : 'settings'} />
 
         <View style={styles.profileHero}>
           <View style={[styles.bigAvatar, { backgroundColor: colors.amber }]}>
@@ -270,7 +266,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
             first
             icon={<EditIcon size={15} color={colors.amber} strokeWidth={2} />}
             tint={colors.amber}
-            label="Nome"
+            label={t.profilo.nome}
             value={displayName}
             trailing={chevron}
             onPress={openNameEditor}
@@ -279,14 +275,14 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
 
         {haiPubblicatoIDocumenti ? (
           <>
-            <SectionLabel>DOCUMENTI</SectionLabel>
+            <SectionLabel>{t.profilo.documenti}</SectionLabel>
             <Block>
               {PRIVACY_URL ? (
                 <Row
                   first
                   icon={<ShieldIcon size={15} color={colors.teal} strokeWidth={2} />}
                   tint={colors.teal}
-                  label="Informativa privacy"
+                  label={t.profilo.informativaPrivacy}
                   trailing={external}
                   onPress={() => Linking.openURL(PRIVACY_URL)}
                 />
@@ -296,7 +292,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
                   first={!PRIVACY_URL}
                   icon={<FileIcon size={15} color={colors.lilac} strokeWidth={2} />}
                   tint={colors.lilac}
-                  label="Condizioni d’uso"
+                  label={t.profilo.condizioni}
                   trailing={external}
                   onPress={() => Linking.openURL(TERMINI_URL)}
                 />
@@ -305,13 +301,13 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
           </>
         ) : null}
 
-        <SectionLabel>ACCOUNT</SectionLabel>
+        <SectionLabel>{t.profilo.account}</SectionLabel>
         <Block>
           <Row
             first
             icon={<LogoutIcon size={15} color={colors.textDim} strokeWidth={2} />}
             tint={colors.textDim}
-            label="Esci dall’account"
+            label={t.profilo.esci}
             onPress={() => setConfirm('signout')}
           />
           {/* Ultima e in rosso: è l'unica azione da cui non si torna
@@ -319,7 +315,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
           <Row
             icon={<TrashIcon size={15} color={colors.danger} />}
             tint={colors.danger}
-            label="Elimina account"
+            label={t.profilo.eliminaAccount}
             danger
             onPress={() => setConfirm('delete-account')}
           />
@@ -335,10 +331,8 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     const changed = nameDraft.trim() !== '' && nameDraft.trim() !== displayName;
     return (
       <BottomSheet visible={visible} onClose={closeSheet}>
-        <PageTitle title="Il tuo nome" back="profile" />
-        <Text style={[styles.note, { color: colors.textDim }]}>
-          È il nome che vedono gli altri nei gruppi, accanto ai tuoi messaggi.
-        </Text>
+        <PageTitle title={t.nome.titolo} back="profile" />
+        <Text style={[styles.note, { color: colors.textDim }]}>{t.nome.nota}</Text>
         <TextInput
           style={[styles.input, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
           value={nameDraft}
@@ -356,7 +350,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
           {savingName ? (
             <ActivityIndicator size="small" color={colors.inkOnAmber} />
           ) : (
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '700', fontSize: 14 }}>Salva</Text>
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '700', fontSize: 14 }}>{t.comune.salva}</Text>
           )}
         </Pressable>
       </BottomSheet>
@@ -369,11 +363,9 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     const list = bloccati ?? [];
     return (
       <BottomSheet visible={visible} onClose={closeSheet}>
-        <PageTitle title="Persone bloccate" back="settings" />
+        <PageTitle title={t.bloccati.titolo} back="settings" />
         {list.length === 0 ? (
-          <Text style={[styles.note, { color: colors.textDim }]}>
-            Non hai bloccato nessuno. Per farlo, apri il menu di un suo messaggio in chat e scegli «Blocca».
-          </Text>
+          <Text style={[styles.note, { color: colors.textDim }]}>{t.bloccati.vuoto}</Text>
         ) : (
           <>
             <Block>
@@ -392,14 +384,14 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
                     }}
                     style={[styles.unblockBtn, { borderColor: colors.teal }]}
                   >
-                    <Text style={{ color: colors.teal, fontSize: 12.5, fontWeight: '700' }}>Sblocca</Text>
+                    <Text style={{ color: colors.teal, fontSize: 12.5, fontWeight: '700' }}>
+                      {t.bloccati.sblocca}
+                    </Text>
                   </Pressable>
                 </View>
               ))}
             </Block>
-            <Text style={[styles.note, { color: colors.textFaint, marginTop: 10 }]}>
-              I loro messaggi non ti compaiono nelle chat. Dopo lo sblocco tornano visibili riaprendo la chat.
-            </Text>
+            <Text style={[styles.note, { color: colors.textFaint, marginTop: 10 }]}>{t.bloccati.nota}</Text>
           </>
         )}
       </BottomSheet>
@@ -422,9 +414,28 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     );
   };
 
+  /** Come i bottoni del tema, ma senza icona: il nome di una lingua si
+   * riconosce da sé, e una bandiera direbbe il paese, non la lingua. */
+  const LangOpt = ({ value, label }: { value: LanguagePreference; label: string }) => {
+    const active = lingua === value;
+    return (
+      <Pressable
+        onPress={() => setLingua(value)}
+        style={[styles.themeOpt, styles.langOpt, active && { backgroundColor: colors.amber }]}
+      >
+        <Text
+          style={[styles.themeLabel, { color: active ? colors.inkOnAmber : colors.textDim }]}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    );
+  };
+
   return (
     <BottomSheet visible={visible} onClose={closeSheet}>
-      <PageTitle title="Impostazioni" />
+      <PageTitle title={t.impostazioni.titolo} />
 
       <Pressable onPress={() => setPage('profile')} style={[styles.profileCard, { backgroundColor: colors.surface2 }]}>
         <View style={[styles.avatar, { backgroundColor: colors.amber }]}>
@@ -434,25 +445,37 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
           <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>
             {displayName}
           </Text>
-          <Text style={[styles.cardSub, { color: colors.textDim }]}>Gestisci profilo</Text>
+          <Text style={[styles.cardSub, { color: colors.textDim }]}>{t.impostazioni.gestisciProfilo}</Text>
         </View>
         <ChevronIcon size={18} color={colors.textFaint} />
       </Pressable>
 
-      <SectionLabel>ASPETTO</SectionLabel>
+      <SectionLabel>{t.impostazioni.aspetto}</SectionLabel>
       <View style={[styles.themeToggle, { backgroundColor: colors.surface2 }]}>
-        <ThemeOpt value="light" label="Chiaro" icon={(c) => <SunIcon size={18} color={c} />} />
-        <ThemeOpt value="dark" label="Scuro" icon={(c) => <MoonIcon size={18} color={c} />} />
-        <ThemeOpt value="system" label="Automatico" icon={(c) => <AutoThemeIcon size={18} color={c} />} />
+        <ThemeOpt value="light" label={t.impostazioni.temaChiaro} icon={(c) => <SunIcon size={18} color={c} />} />
+        <ThemeOpt value="dark" label={t.impostazioni.temaScuro} icon={(c) => <MoonIcon size={18} color={c} />} />
+        <ThemeOpt
+          value="system"
+          label={t.impostazioni.temaAutomatico}
+          icon={(c) => <AutoThemeIcon size={18} color={c} />}
+        />
       </View>
 
-      <SectionLabel>PRIVACY</SectionLabel>
+      <SectionLabel>{t.lingua.sezione}</SectionLabel>
+      <View style={[styles.themeToggle, { backgroundColor: colors.surface2 }]}>
+        {LINGUE.map((l) => (
+          <LangOpt key={l} value={l} label={NOMI_LINGUA[l]} />
+        ))}
+        <LangOpt value="system" label={t.lingua.automatico} />
+      </View>
+
+      <SectionLabel>{t.impostazioni.privacy}</SectionLabel>
       <Block>
         <Row
           first
           icon={<BanIcon size={15} color={colors.danger} strokeWidth={2} />}
           tint={colors.danger}
-          label="Persone bloccate"
+          label={t.impostazioni.personeBloccate}
           value={bloccati ? String(bloccati.length) : undefined}
           trailing={chevron}
           onPress={() => setPage('blocked')}
@@ -460,7 +483,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
       </Block>
 
       {APP_VERSION ? (
-        <Text style={[styles.version, { color: colors.textFaint }]}>Insieme · versione {APP_VERSION}</Text>
+        <Text style={[styles.version, { color: colors.textFaint }]}>{t.impostazioni.versione(APP_VERSION)}</Text>
       ) : null}
     </BottomSheet>
   );
@@ -494,6 +517,9 @@ const styles = StyleSheet.create({
 
   themeToggle: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14 },
   themeOpt: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 9, borderRadius: 11 },
+  // Senza icona sopra, il bottone della lingua resterebbe più basso degli
+  // altri: gli si restituisce l'altezza a mano.
+  langOpt: { paddingVertical: 13 },
   themeLabel: { fontSize: 12, fontWeight: '700' },
 
   input: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 },

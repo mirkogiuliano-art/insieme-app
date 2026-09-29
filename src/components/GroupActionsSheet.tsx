@@ -6,6 +6,7 @@ import { ShareIcon, UsersIcon, CheckIcon, BackIcon, LogoutIcon } from '@/compone
 import { groupColor } from '@/lib/appStore';
 import { inkOn } from '@/lib/utils';
 import { GROUP_PALETTE, type Group } from '@/types';
+import { useT } from '@/i18n';
 
 interface GroupActionsSheetProps {
   /** `null` tiene il foglio chiuso. */
@@ -41,6 +42,7 @@ export function GroupActionsSheet({
   onLeave,
 }: GroupActionsSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [step, setStep] = useState<Step>('menu');
   const [leaving, setLeaving] = useState(false);
 
@@ -76,8 +78,8 @@ export function GroupActionsSheet({
   if (step === 'color') {
     return (
       <BottomSheet visible onClose={onClose}>
-        <StepTitle title="Colore del gruppo" />
-        <Text style={[styles.sub, { color: colors.textDim }]}>Cambia per tutti nel gruppo.</Text>
+        <StepTitle title={t.menuGruppo.coloreTitolo} />
+        <Text style={[styles.sub, { color: colors.textDim }]}>{t.menuGruppo.coloreSotto}</Text>
         <View style={styles.swatches}>
           {GROUP_PALETTE.map((c) => {
             const on = c.toUpperCase() === tint.toUpperCase();
@@ -100,15 +102,13 @@ export function GroupActionsSheet({
     const lastOne = memberCount === 1;
     return (
       <BottomSheet visible onClose={onClose}>
-        <Text style={[styles.stepTitle, { color: colors.text }]}>{lastOne ? 'Sei l’ultimo rimasto' : 'Lasciare il gruppo?'}</Text>
+        <Text style={[styles.stepTitle, { color: colors.text }]}>{lastOne ? t.menuGruppo.ultimoTitolo : t.menuGruppo.lasciaTitolo}</Text>
         <Text style={[styles.body, { color: colors.textDim }]}>
-          {lastOne
-            ? 'Uscendo, il gruppo verrà eliminato per intero: chat, link, posti e categorie. Non si può annullare.'
-            : 'Non vedrai più chat, link e posti di questo gruppo. Per rientrare ti servirà un nuovo link di invito.'}
+          {lastOne ? t.menuGruppo.ultimoTesto : t.menuGruppo.lasciaTesto}
         </Text>
         <View style={styles.actions}>
           <Pressable onPress={() => setStep('menu')} disabled={leaving} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
-            <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
+            <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
           <Pressable
             onPress={async () => {
@@ -126,7 +126,7 @@ export function GroupActionsSheet({
             {leaving ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={{ color: '#fff', fontWeight: '700' }}>{lastOne ? 'Esci ed elimina' : 'Lascia'}</Text>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{lastOne ? t.menuGruppo.ultimoAzione : t.menuGruppo.lasciaAzione}</Text>
             )}
           </Pressable>
         </View>
@@ -145,21 +145,21 @@ export function GroupActionsSheet({
             {group.name}
           </Text>
           <Text style={[styles.headerSub, { color: colors.textDim }]} numberOfLines={1}>
-            {[memberCount ? `${memberCount} ${memberCount === 1 ? 'membro' : 'membri'}` : null, activity].filter(Boolean).join(' · ')}
+            {[memberCount ? t.menuGruppo.membriN(memberCount) : null, activity].filter(Boolean).join(' · ')}
           </Text>
         </View>
       </View>
-      <Item icon={<ShareIcon size={17} color={colors.amber} />} label="Invita qualcuno" onPress={() => run(() => onInvite(group))} />
-      <Item icon={<UsersIcon size={18} color={colors.teal} strokeWidth={2} />} label="Info gruppo e membri" onPress={() => run(() => onInfo(group))} />
+      <Item icon={<ShareIcon size={17} color={colors.amber} />} label={t.menuGruppo.invita} onPress={() => run(() => onInvite(group))} />
+      <Item icon={<UsersIcon size={18} color={colors.teal} strokeWidth={2} />} label={t.menuGruppo.info} onPress={() => run(() => onInfo(group))} />
       <Item
         icon={<View style={[styles.colorDot, { backgroundColor: tint, borderColor: colors.border }]} />}
-        label="Cambia colore"
+        label={t.menuGruppo.cambiaColore}
         onPress={() => setStep('color')}
       />
       {unread > 0 ? (
-        <Item icon={<CheckIcon size={18} color={colors.textDim} />} label="Segna tutto come letto" onPress={() => run(() => onMarkRead(group))} />
+        <Item icon={<CheckIcon size={18} color={colors.textDim} />} label={t.menuGruppo.segnaLetto} onPress={() => run(() => onMarkRead(group))} />
       ) : null}
-      <Item icon={<LogoutIcon size={17} color={colors.danger} strokeWidth={2} />} label="Lascia il gruppo" danger onPress={() => setStep('leave')} />
+      <Item icon={<LogoutIcon size={17} color={colors.danger} strokeWidth={2} />} label={t.menuGruppo.lascia} danger onPress={() => setStep('leave')} />
     </BottomSheet>
   );
 }

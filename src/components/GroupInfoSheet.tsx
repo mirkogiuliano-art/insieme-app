@@ -15,6 +15,7 @@ import { listLastReads, subscribeToLastReads, countMembers } from '@/lib/api/gro
 import { getInviteToken, rotateInvite, revokeInvite, inviteUrl } from '@/lib/api/invites';
 import { initials, colorForUser, dateLabel, inkOn } from '@/lib/utils';
 import type { Group } from '@/types';
+import { useT, dizionario } from '@/i18n';
 
 interface GroupInfoSheetProps {
   visible: boolean;
@@ -29,13 +30,14 @@ interface GroupInfoSheetProps {
 }
 
 function lastSeenLabel(ts: number | null | undefined): string {
-  if (ts == null) return 'Mai aperta';
+  const i = dizionario().infoGruppo;
+  if (ts == null) return i.maiAperta;
   const diffMs = Date.now() - ts;
   const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'proprio ora';
-  if (minutes < 60) return `${minutes} min fa`;
+  if (minutes < 1) return i.proprioOra;
+  if (minutes < 60) return i.minutiFa(minutes);
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} ${hours === 1 ? 'ora' : 'ore'} fa`;
+  if (hours < 24) return i.oreFa(hours);
   return dateLabel(ts);
 }
 
@@ -60,12 +62,13 @@ function FactEditor({
   first: boolean;
 }) {
   const { colors } = useTheme();
+  const t = useT();
   const pronto = draft.label.trim().length > 0 && draft.value.trim().length > 0;
   return (
     <View style={[styles.factEditor, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}>
       <TextInput
         style={[styles.factInputLabel, { backgroundColor: colors.surface, color: colors.text }]}
-        placeholder="Hotel"
+        placeholder={t.infoGruppo.esempioEtichetta}
         placeholderTextColor={colors.textFaint}
         value={draft.label}
         onChangeText={(t) => onChange({ ...draft, label: t })}
@@ -73,7 +76,7 @@ function FactEditor({
       />
       <TextInput
         style={[styles.factInputValue, { backgroundColor: colors.surface, color: colors.text }]}
-        placeholder="Gracery Shinjuku · check-in 15:00"
+        placeholder={t.infoGruppo.esempioValore}
         placeholderTextColor={colors.textFaint}
         value={draft.value}
         onChangeText={(t) => onChange({ ...draft, value: t })}
@@ -82,8 +85,8 @@ function FactEditor({
       />
       <View style={styles.factActions}>
         {onRemove ? (
-          <Pressable onPress={onRemove} hitSlop={8} accessibilityLabel="Togli la riga">
-            <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '700' }}>Togli</Text>
+          <Pressable onPress={onRemove} hitSlop={8} accessibilityLabel={t.infoGruppo.togliRiga}>
+            <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '700' }}>{t.infoGruppo.togli}</Text>
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }} />
@@ -121,6 +124,7 @@ function InfoEditor({
   onError: (message: string) => void;
 }) {
   const { colors } = useTheme();
+  const t = useT();
   const [description, setDescription] = useState(group.description ?? '');
   const [dal, setDal] = useState(isoToInput(group.startsOn));
   const [al, setAl] = useState(isoToInput(group.endsOn));
@@ -132,7 +136,7 @@ function InfoEditor({
     const inizio = inputToIso(dal);
     const fine = inputToIso(al);
     if (!inizio.ok || !fine.ok) {
-      setError('Le date si scrivono così: 12/04/2027.');
+      setError(t.infoGruppo.dateSbagliate);
       return;
     }
     setBusy(true);
@@ -146,7 +150,7 @@ function InfoEditor({
       });
       onSaved();
     } catch (err) {
-      onError((err as { message?: string })?.message || 'Non sono riuscito a salvare le info.');
+      onError((err as { message?: string })?.message || t.infoGruppo.erroreInfo);
     } finally {
       setBusy(false);
     }
@@ -154,12 +158,12 @@ function InfoEditor({
 
   return (
     <BottomSheet visible onClose={onCancel}>
-      <Text style={[styles.editTitle, { color: colors.text }]}>Info del gruppo</Text>
+      <Text style={[styles.editTitle, { color: colors.text }]}>{t.infoGruppo.modifica}</Text>
 
-      <Text style={[styles.sectionLabel, { color: colors.textDim }]}>DESCRIZIONE</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textDim }]}>{t.infoGruppo.descrizione}</Text>
       <TextInput
         style={[styles.editArea, { backgroundColor: colors.surface2, color: colors.text }]}
-        placeholder="A cosa serve questo gruppo"
+        placeholder={t.infoGruppo.aCosaServe}
         placeholderTextColor={colors.textFaint}
         value={description}
         onChangeText={setDescription}
@@ -168,11 +172,11 @@ function InfoEditor({
       />
       <Text style={[styles.counter, { color: colors.textFaint }]}>{description.trim().length} / 300</Text>
 
-      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>QUANDO</Text>
+      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.quando}</Text>
       <View style={styles.editDates}>
         <TextInput
           style={[styles.editDate, { backgroundColor: colors.surface2, color: colors.text }]}
-          placeholder="Dal  GG/MM/AAAA"
+          placeholder={t.infoGruppo.dal}
           placeholderTextColor={colors.textFaint}
           value={dal}
           onChangeText={(t) => {
@@ -184,7 +188,7 @@ function InfoEditor({
         />
         <TextInput
           style={[styles.editDate, { backgroundColor: colors.surface2, color: colors.text }]}
-          placeholder="Al  GG/MM/AAAA"
+          placeholder={t.infoGruppo.al}
           placeholderTextColor={colors.textFaint}
           value={al}
           onChangeText={(t) => {
@@ -196,10 +200,10 @@ function InfoEditor({
         />
       </View>
 
-      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>DOVE</Text>
+      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.dove}</Text>
       {pins.length === 0 ? (
         <Text style={[styles.factsEmpty, { color: colors.textFaint }]}>
-          Nessun posto salvato: la meta si sceglie fra i posti della mappa del gruppo.
+          {t.infoGruppo.nessunPosto}
         </Text>
       ) : (
         <View style={styles.metaList}>
@@ -225,13 +229,13 @@ function InfoEditor({
 
       <View style={styles.confirmActions}>
         <Pressable onPress={onCancel} disabled={busy} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
-          <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
+          <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
         </Pressable>
         <Pressable onPress={salva} disabled={busy} style={[styles.btnPrimary, { backgroundColor: colors.amber, opacity: busy ? 0.6 : 1 }]}>
           {busy ? (
             <ActivityIndicator size="small" color={colors.inkOnAmber} />
           ) : (
-            <Text style={{ color: colors.inkOnAmber, fontWeight: '800' }}>Salva</Text>
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '800' }}>{t.comune.salva}</Text>
           )}
         </Pressable>
       </View>
@@ -241,6 +245,7 @@ function InfoEditor({
 
 export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, onShowPlace }: GroupInfoSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const { session } = useAuth();
   const toast = useToast();
   const [lastReads, setLastReads] = useState<Record<string, number | null>>({});
@@ -307,7 +312,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       setFactDraft(null);
       setFacts(await listFacts(group.id));
     } catch {
-      toast.show('Non sono riuscito a salvare la riga.');
+      toast.show(t.infoGruppo.erroreRiga, 'error');
     }
   };
 
@@ -317,7 +322,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       setFactDraft(null);
       setFacts((prev) => prev.filter((f) => f.id !== id));
     } catch {
-      toast.show('Non sono riuscito a togliere la riga.');
+      toast.show(t.infoGruppo.erroreTogliRiga, 'error');
     }
   };
 
@@ -340,7 +345,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       onClose();
       onLeaveGroup();
     } catch {
-      toast.show('Non sono riuscito a farti uscire dal gruppo, riprova.');
+      toast.show(t.home.erroreUscita, 'error');
     } finally {
       setLeaving(false);
     }
@@ -357,9 +362,9 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
     try {
       const token = inviteToken ?? (await rotateInvite(group.id));
       setInviteToken(token);
-      await Share.share({ message: `Entra nel gruppo "${group.name}" su Insieme:\n${inviteUrl(token)}` });
+      await Share.share({ message: t.home.invitoTesto(group.name, inviteUrl(token)) });
     } catch {
-      toast.show('Non sono riuscito a preparare il link.');
+      toast.show(t.infoGruppo.erroreLink, 'error');
     } finally {
       setBusy(false);
     }
@@ -370,9 +375,9 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
     setBusy(true);
     try {
       setInviteToken(await rotateInvite(group.id));
-      toast.show('Nuovo link creato. Il precedente non funziona più.');
+      toast.show(t.infoGruppo.linkNuovo);
     } catch {
-      toast.show('Non sono riuscito a creare il nuovo link.');
+      toast.show(t.infoGruppo.erroreLinkNuovo, 'error');
     } finally {
       setBusy(false);
     }
@@ -384,9 +389,9 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
     try {
       await revokeInvite(group.id);
       setInviteToken(null);
-      toast.show('Link disattivato.');
+      toast.show(t.infoGruppo.linkDisattivato);
     } catch {
-      toast.show('Non sono riuscito a disattivare il link.');
+      toast.show(t.infoGruppo.erroreDisattiva, 'error');
     } finally {
       setBusy(false);
     }
@@ -416,7 +421,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
         pins={pins}
         onCancel={() => setEditingInfo(false)}
         onSaved={() => setEditingInfo(false)}
-        onError={(m) => toast.show(m)}
+        onError={(m) => toast.show(m, 'error')}
       />
     );
   }
@@ -426,12 +431,10 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
     return (
       <BottomSheet visible={visible} onClose={onClose}>
         <Text style={[styles.confirmTitle, { color: colors.text }]}>
-          {lastOne ? 'Sei l’ultimo rimasto' : 'Lasciare il gruppo?'}
+          {lastOne ? t.menuGruppo.ultimoTitolo : t.menuGruppo.lasciaTitolo}
         </Text>
         <Text style={[styles.confirmBody, { color: colors.textDim }]}>
-          {lastOne
-            ? 'Uscendo, il gruppo verrà eliminato per intero: chat, link, posti e categorie. Non si può annullare.'
-            : 'Non vedrai più chat, link e posti di questo gruppo. Per rientrare ti servirà un nuovo link di invito.'}
+          {lastOne ? t.menuGruppo.ultimoTesto : t.menuGruppo.lasciaTesto}
         </Text>
         <View style={styles.confirmActions}>
           <Pressable
@@ -439,7 +442,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
             disabled={leaving}
             style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}
           >
-            <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
+            <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
           <Pressable
             onPress={runLeave}
@@ -449,7 +452,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
             {leaving ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={{ color: '#fff', fontWeight: '700' }}>{lastOne ? 'Esci ed elimina' : 'Lascia'}</Text>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{lastOne ? t.menuGruppo.ultimoAzione : t.menuGruppo.lasciaAzione}</Text>
             )}
           </Pressable>
         </View>
@@ -478,28 +481,30 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
         </View>
       </View>
 
-      <Text style={[styles.sectionLabel, { color: colors.textDim }]}>DESCRIZIONE</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textDim }]}>{t.infoGruppo.descrizione}</Text>
       <Pressable onPress={() => setEditingInfo(true)} style={[styles.infoBlock, { backgroundColor: colors.surface2 }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.description, { color: group.description ? colors.text : colors.textFaint }]}>
-            {group.description || 'Aggiungi una descrizione: a cosa serve questo gruppo.'}
+            {group.description || t.infoGruppo.descrizioneVuota}
           </Text>
           {group.description && group.infoUpdatedAt ? (
             <Text style={[styles.infoMeta, { color: colors.textFaint }]}>
-              Aggiornata da {group.infoUpdatedBy ? (roster[group.infoUpdatedBy] ?? 'qualcuno') : 'qualcuno'} ·{' '}
-              {lastSeenLabel(group.infoUpdatedAt)}
+              {t.infoGruppo.aggiornataDa(
+                group.infoUpdatedBy ? (roster[group.infoUpdatedBy] ?? t.infoGruppo.qualcuno) : t.infoGruppo.qualcuno,
+                lastSeenLabel(group.infoUpdatedAt),
+              )}
             </Text>
           ) : null}
         </View>
         <EditIcon size={15} color={colors.textDim} />
       </Pressable>
 
-      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>QUANDO E DOVE</Text>
+      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.quandoEDove}</Text>
       <View style={[styles.membersBlock, { backgroundColor: colors.surface2 }]}>
         <Pressable onPress={() => setEditingInfo(true)} style={styles.infoRow}>
           <CalendarIcon size={17} color={date ? colors.textDim : colors.textFaint} />
           <Text style={[styles.infoRowText, { color: date ? colors.text : colors.textFaint, fontWeight: date ? '700' : '500' }]}>
-            {date ?? 'Aggiungi le date'}
+            {date ?? t.infoGruppo.aggiungiDate}
           </Text>
           {conto ? (
             <View style={[styles.countdown, { backgroundColor: colors.amber + '2E' }]}>
@@ -515,17 +520,17 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
         >
           <MapIcon size={17} color={meta ? colors.teal : colors.textFaint} strokeWidth={1.9} />
           <Text style={[styles.infoRowText, { color: meta ? colors.teal : colors.textFaint, fontWeight: meta ? '700' : '500' }]}>
-            {meta ? meta.name : 'Scegli la meta'}
+            {meta ? meta.name : t.infoGruppo.scegliMeta}
           </Text>
           <ChevronIcon size={15} color={colors.textFaint} />
         </Pressable>
       </View>
 
-      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>COSE DA SAPERE</Text>
+      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.coseDaSapere}</Text>
       <View style={[styles.membersBlock, { backgroundColor: colors.surface2 }]}>
         {facts.length === 0 && !factDraft ? (
           <Text style={[styles.factsEmpty, { color: colors.textFaint }]}>
-            Niente per ora. Qui stanno le informazioni che servono a tutti: hotel, volo, parola d’ordine del wi-fi.
+            {t.infoGruppo.bachecaVuota}
           </Text>
         ) : null}
         {facts.map((f, i) =>
@@ -567,18 +572,14 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
             style={[styles.addFact, facts.length > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
           >
             <PlusIcon size={14} color={colors.lilac} />
-            <Text style={{ color: colors.lilac, fontSize: 13.5, fontWeight: '800' }}>Aggiungi una riga</Text>
+            <Text style={{ color: colors.lilac, fontSize: 13.5, fontWeight: '800' }}>{t.infoGruppo.aggiungiRiga}</Text>
           </Pressable>
         )}
       </View>
 
-      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>LINK DI INVITO</Text>
+      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.linkInvito}</Text>
       <Text style={[styles.inviteNote, { color: colors.textFaint }]}>
-        {inviteToken === undefined
-          ? 'Un attimo…'
-          : inviteToken
-            ? 'Chiunque abbia il link può entrare nel gruppo. Disattivalo se finisce dove non doveva.'
-            : 'Nessun link attivo: al momento non può entrare nessuno. Creane uno per invitare qualcuno.'}
+        {inviteToken === undefined ? t.comune.unAttimo : inviteToken ? t.infoGruppo.invitoAttivo : t.infoGruppo.invitoSpento}
       </Text>
       <Pressable
         onPress={shareLink}
@@ -587,21 +588,21 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       >
         <ShareIcon size={15} color={colors.inkOnAmber} />
         <Text style={{ color: colors.inkOnAmber, fontWeight: '700', fontSize: 13 }}>
-          {inviteToken ? 'Condividi il link' : 'Crea e condividi il link'}
+          {inviteToken ? t.infoGruppo.condividiLink : t.infoGruppo.creaLink}
         </Text>
       </Pressable>
       {inviteToken ? (
         <View style={styles.inviteActions}>
           <Pressable onPress={regenerate} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
-            <Text style={{ color: colors.textDim, fontSize: 12.5, fontWeight: '600' }}>Genera nuovo</Text>
+            <Text style={{ color: colors.textDim, fontSize: 12.5, fontWeight: '600' }}>{t.infoGruppo.generaNuovo}</Text>
           </Pressable>
           <Pressable onPress={revoke} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
-            <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '600' }}>Disattiva</Text>
+            <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '600' }}>{t.infoGruppo.disattiva}</Text>
           </Pressable>
         </View>
       ) : null}
 
-      <Text style={[styles.sectionLabel, styles.membersLabel, { color: colors.textDim }]}>MEMBRI — {members.length}</Text>
+      <Text style={[styles.sectionLabel, styles.membersLabel, { color: colors.textDim }]}>{t.infoGruppo.membriN(members.length)}</Text>
       <View style={[styles.membersBlock, { backgroundColor: colors.surface2 }]}>
         {members.map(([userId, name], i) => {
           const isMe = userId === session?.user.id;
@@ -613,11 +614,11 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
               <View style={{ flex: 1 }}>
                 <Text style={[styles.memberName, { color: colors.text }]}>
                   {name}
-                  {isMe ? ' (tu)' : ''}
+                  {isMe ? t.infoGruppo.tu : ''}
                 </Text>
                 {!isMe ? (
                   <Text style={[styles.memberSeen, { color: colors.textFaint }]}>
-                    Ultimo accesso: {lastSeenLabel(lastReads[userId])}
+                    {t.infoGruppo.ultimoAccesso(lastSeenLabel(lastReads[userId]))}
                   </Text>
                 ) : null}
               </View>
@@ -633,7 +634,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
         <View style={[styles.leaveIcon, { backgroundColor: colors.danger + '26' }]}>
           <LogoutIcon size={15} color={colors.danger} strokeWidth={2} />
         </View>
-        <Text style={{ color: colors.danger, fontSize: 14.5, fontWeight: '600' }}>Lascia il gruppo</Text>
+        <Text style={{ color: colors.danger, fontSize: 14.5, fontWeight: '600' }}>{t.menuGruppo.lascia}</Text>
       </Pressable>
     </BottomSheet>
   );

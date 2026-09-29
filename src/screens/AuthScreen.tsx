@@ -10,6 +10,9 @@ import { Logo } from '@/components/Logo';
 import { PRIVACY_URL, TERMINI_URL } from '@/lib/legal';
 import { supabase } from '@/lib/supabase';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { GoogleButton, Separatore } from '@/components/GoogleButton';
+import { accediConGoogle, googleAttivo } from '@/lib/api/googleAuth';
+import { useT, useLingua, messaggioAuth } from '@/i18n';
 
 type Mode = 'login' | 'signup' | 'forgot';
 
@@ -18,6 +21,8 @@ const MIN_PASSWORD = 8;
 
 export function AuthScreen() {
   const { colors } = useTheme();
+  const t = useT();
+  const { lingua } = useLingua();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +33,8 @@ export function AuthScreen() {
   /** L'indirizzo a cui è appena partito il link per la nuova password: da
    * lì la schermata diventa "Controlla la posta". */
   const [sentTo, setSentTo] = useState<string | null>(null);
+  /** L'accesso con Google è in corso: il suo tasto gira, gli altri no. */
+  const [conGoogle, setConGoogle] = useState(false);
 
   const switchMode = (next: Mode) => {
     setMode(next);
@@ -43,7 +50,7 @@ export function AuthScreen() {
     setInfo('');
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
-      setError('Inserisci un indirizzo email valido.');
+      setError(t.accesso.emailNonValida);
       return;
     }
 
@@ -54,7 +61,7 @@ export function AuthScreen() {
       });
       setLoading(false);
       if (err) {
-        setError(err.message);
+        setError(messaggioAuth(err));
         return;
       }
       setSentTo(cleanEmail);
@@ -62,24 +69,31 @@ export function AuthScreen() {
     }
 
     if (!password) {
-      setError('Inserisci la password.');
+      setError(t.accesso.passwordMancante);
       return;
     }
 
     if (mode === 'signup') {
       if (password.length < MIN_PASSWORD) {
-        setError('La password deve avere almeno 8 caratteri.');
+        setError(t.accesso.passwordCorta(MIN_PASSWORD));
         return;
       }
       if (password !== confirmPassword) {
-        setError('Le due password non coincidono.');
+        setError(t.accesso.passwordDiverse);
         return;
       }
       setLoading(true);
-      const { error: err } = await supabase.auth.signUp({ email: cleanEmail, password });
+      // La lingua viaggia con la registrazione: l'email di conferma parte
+      // subito dopo, e il suo modello la legge dai dati dell'utente per
+      // scegliere fra italiano e inglese (supabase/email/).
+      const { error: err } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: { data: { lang: lingua } },
+      });
       setLoading(false);
       if (err) {
-        setError(err.message);
+        setError(messaggioAuth(err));
         return;
       }
       // Non uso switchMode qui: azzererebbe anche il messaggio di successo
@@ -87,14 +101,28 @@ export function AuthScreen() {
       setMode('login');
       setPassword('');
       setConfirmPassword('');
-      setInfo('Account creato! Controlla la tua email per confermarlo, poi accedi qui sotto.');
+      setInfo(t.accesso.accountCreato);
       return;
     }
 
     setLoading(true);
     const { error: err } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
     setLoading(false);
-    if (err) setError(err.message);
+    if (err) setError(messaggioAuth(err));
+  };
+
+  /** Da qui in poi comanda authStore: a sessione aperta l'app cambia
+   * schermata da sola, e questa smette di esistere. */
+  const google = async () => {
+    if (conGoogle) return;
+    setError('');
+    setInfo('');
+    setConGoogle(true);
+    const esito = await accediConGoogle();
+    setConGoogle(false);
+    if (esito.esito === 'errore') {
+      setError(esito.messaggio === t.accesso.senzaServiziGoogle ? esito.messaggio : t.accesso.erroreGoogle);
+    }
   };
 
   const busy = loading ? <ActivityIndicator size="small" color={colors.inkOnAmber} /> : null;
@@ -118,30 +146,30 @@ export function AuthScreen() {
         <View style={[styles.bigIcon, { backgroundColor: colors.surface }]}>
           <MailIcon size={34} color={colors.amber} />
         </View>
-        <Text style={[styles.title, { color: colors.text }]}>Controlla la posta</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t.recupero.postaTitolo}</Text>
         <Text style={[styles.subtitle, { color: colors.textDim }]}>
-          Abbiamo mandato un link a{'\n'}
-          <Text style={{ color: colors.text, fontWeight: '700' }}>{sentTo}</Text>.{'\n'}Aprilo dal telefono per scegliere una
-          nuova password.
+          {t.recupero.postaPrima}{'\n'}
+          <Text style={{ color: colors.text, fontWeight: '700' }}>{sentTo}</Text>.{'\n'}
+          {t.recupero.postaDopo}
         </Text>
         <Pressable onPress={() => switchMode('login')} style={[styles.button, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.buttonText, { color: colors.text }]}>Torna all’accesso</Text>
+          <Text style={[styles.buttonText, { color: colors.text }]}>{t.recupero.tornaAccesso}</Text>
         </Pressable>
         <Pressable onPress={submit} disabled={loading}>
-          <Text style={[styles.link, { color: colors.textDim }]}>{loading ? 'Un attimo…' : 'Non è arrivato? Rimandalo'}</Text>
+          <Text style={[styles.link, { color: colors.textDim }]}>{loading ? t.comune.unAttimo : t.recupero.rimanda}</Text>
         </Pressable>
         {error ? <Text style={[styles.message, { color: colors.danger }]}>{error}</Text> : null}
       </>
     ) : mode === 'forgot' ? (
       // ── Password dimenticata ──
       <>
-        <Text style={[styles.title, { color: colors.text }]}>Password dimenticata</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t.recupero.titolo}</Text>
         <Text style={[styles.subtitle, { color: colors.textDim }]}>
-          Scrivi l’email con cui ti sei registrato: ti mandiamo un link per sceglierne una nuova.
+          {t.recupero.sottotitolo}
         </Text>
         <Field
           icon={<MailIcon size={16} color={colors.textFaint} />}
-          placeholder="Email"
+          placeholder={t.accesso.email}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -152,7 +180,7 @@ export function AuthScreen() {
         />
         {error ? <Text style={[styles.message, { color: colors.danger }]}>{error}</Text> : null}
         <Pressable onPress={submit} disabled={loading} style={[styles.button, { backgroundColor: colors.amber, opacity: loading ? 0.6 : 1 }]}>
-          {busy ?? <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>Mandami il link</Text>}
+          {busy ?? <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>{t.recupero.mandaLink}</Text>}
         </Pressable>
       </>
     ) : (
@@ -165,10 +193,10 @@ export function AuthScreen() {
           <Text style={[styles.wordmark, { color: colors.text, fontSize: mode === 'login' ? 40 : 30 }]}>Insieme</Text>
           {mode === 'login' ? (
             <>
-              <Text style={[styles.tagline, { color: colors.text }]}>Tutto quello che vuoi vivere,{'\n'}in un posto solo.</Text>
+              <Text style={[styles.tagline, { color: colors.text }]}>{t.accesso.slogan}</Text>
               {/* Lo slogan dice il perché, questa riga i due modi di usarla. */}
               <Text style={[styles.taglineSub, { color: colors.textDim }]}>
-                Organizza un viaggio con i tuoi amici,{'\n'}o salva i posti dove vuoi andare.
+                {t.accesso.sloganSub}
               </Text>
             </>
           ) : null}
@@ -180,7 +208,7 @@ export function AuthScreen() {
           {(['login', 'signup'] as const).map((k) => (
             <Pressable key={k} onPress={() => switchMode(k)} style={[styles.segBtn, mode === k && { backgroundColor: colors.amber }]}>
               <Text style={[styles.segText, { color: mode === k ? colors.inkOnAmber : colors.textDim }]}>
-                {k === 'login' ? 'Accedi' : 'Registrati'}
+                {k === 'login' ? t.accesso.accedi : t.accesso.registrati}
               </Text>
             </Pressable>
           ))}
@@ -188,7 +216,7 @@ export function AuthScreen() {
 
         <Field
           icon={<MailIcon size={16} color={colors.textFaint} />}
-          placeholder="Email"
+          placeholder={t.accesso.email}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -197,7 +225,7 @@ export function AuthScreen() {
           returnKeyType="next"
         />
         <PasswordInput
-          placeholder="Password"
+          placeholder={t.accesso.password}
           value={password}
           onChangeText={setPassword}
           returnKeyType={mode === 'signup' ? 'next' : 'done'}
@@ -206,15 +234,15 @@ export function AuthScreen() {
         {mode === 'signup' ? (
           <>
             <PasswordInput
-              placeholder="Conferma password"
+              placeholder={t.accesso.confermaPassword}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               returnKeyType="done"
               onSubmitEditing={submit}
             />
             <View style={styles.reqs}>
-              <Requirement ok={lengthOk} label={`Almeno ${MIN_PASSWORD} caratteri`} />
-              <Requirement ok={matchOk} label="Le due password coincidono" />
+              <Requirement ok={lengthOk} label={t.accesso.almenoCaratteri(MIN_PASSWORD)} />
+              <Requirement ok={matchOk} label={t.accesso.passwordCoincidono} />
             </View>
           </>
         ) : null}
@@ -224,9 +252,20 @@ export function AuthScreen() {
 
         <Pressable onPress={submit} disabled={loading} style={[styles.button, { backgroundColor: colors.amber, opacity: loading ? 0.6 : 1 }]}>
           {busy ?? (
-            <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>{mode === 'login' ? 'Accedi' : 'Crea l’account'}</Text>
+            <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>{mode === 'login' ? t.accesso.accedi : t.accesso.creaAccount}</Text>
           )}
         </Pressable>
+
+        {/* L'altra strada, dopo la propria: chi ha già l'abitudine di
+            entrare con Google lo trova, ma la prima cosa che si vede
+            resta il modo di casa. Sulla registrazione dice comunque
+            «Accedi con Google» perché lì i due gesti sono lo stesso. */}
+        {googleAttivo ? (
+          <>
+            <Separatore />
+            <GoogleButton onPress={google} busy={conGoogle} />
+          </>
+        ) : null}
 
         {/* L'accettazione è un fatto, non una casella da spuntare: si
             dichiara al momento in cui si crea l'account. I due nomi
@@ -235,27 +274,27 @@ export function AuthScreen() {
             portano da nessuna parte. */}
         {mode === 'signup' ? (
           <Text style={[styles.legale, { color: colors.textFaint }]}>
-            Creando un account accetti le{' '}
+            {t.accesso.legale1}
             {TERMINI_URL ? (
               <Text style={{ color: colors.teal }} onPress={() => Linking.openURL(TERMINI_URL)}>
-                condizioni d&apos;uso
+                {t.accesso.legaleCondizioni}
               </Text>
             ) : (
-              <Text>condizioni d&apos;uso</Text>
-            )}{' '}
-            e l&apos;
+              <Text>{t.accesso.legaleCondizioni}</Text>
+            )}
+            {t.accesso.legale2}
             {PRIVACY_URL ? (
               <Text style={{ color: colors.teal }} onPress={() => Linking.openURL(PRIVACY_URL)}>
-                informativa sulla privacy
+                {t.accesso.legalePrivacy}
               </Text>
             ) : (
-              <Text>informativa sulla privacy</Text>
+              <Text>{t.accesso.legalePrivacy}</Text>
             )}
-            .
+            {t.accesso.legale3}
           </Text>
         ) : (
           <Pressable onPress={() => switchMode('forgot')}>
-            <Text style={[styles.link, { color: colors.textDim }]}>Password dimenticata?</Text>
+            <Text style={[styles.link, { color: colors.textDim }]}>{t.accesso.dimenticata}</Text>
           </Pressable>
         )}
       </>

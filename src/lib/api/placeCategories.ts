@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dizionario } from '@/i18n';
 
 export interface RawPlaceCategory {
   id: string;
@@ -39,7 +40,7 @@ export async function createCategory(groupId: string, name: string, color: strin
     .insert({ group_id: groupId, name, color })
     .select(SELECT_COLUMNS)
     .single();
-  if (error || !data) throw error ?? new Error('Creazione categoria non riuscita.');
+  if (error || !data) throw error ?? new Error(dizionario().errori.creaCategoria);
   return toRaw(data);
 }
 

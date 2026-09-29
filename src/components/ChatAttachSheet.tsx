@@ -7,6 +7,7 @@ import { useTheme, RADIUS } from '@/theme/theme';
 import { ImageIcon, PlayIcon, FileIcon, MapIcon, LinkIcon, LocateIcon, BackIcon, SearchIcon, PollIcon } from '@/components/Icon';
 import type { RawPin } from '@/lib/api/pins';
 import type { RawLink } from '@/lib/api/links';
+import { useT } from '@/i18n';
 
 interface ChatAttachSheetProps {
   visible: boolean;
@@ -65,6 +66,7 @@ export function ChatAttachSheet({
   onPoll,
 }: ChatAttachSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [step, setStep] = useState<Step>('grid');
   const [query, setQuery] = useState('');
   const [locating, setLocating] = useState(false);
@@ -112,13 +114,13 @@ export function ChatAttachSheet({
           <Pressable onPress={() => setStep('grid')} hitSlop={10}>
             <BackIcon size={20} color={colors.textDim} />
           </Pressable>
-          <Text style={[styles.title, { color: colors.text }]}>{isPlaces ? 'Manda un posto' : 'Manda un link'}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{isPlaces ? t.allega.mandaPosto : t.allega.mandaLink}</Text>
         </View>
         <View style={[styles.search, { backgroundColor: colors.surface2 }]}>
           <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder={isPlaces ? 'Cerca fra i posti del gruppo' : 'Cerca fra i link del gruppo'}
+            placeholder={isPlaces ? t.allega.cercaPosti : t.allega.cercaLink}
             placeholderTextColor={colors.textFaint}
             value={query}
             onChangeText={setQuery}
@@ -127,11 +129,7 @@ export function ChatAttachSheet({
         </View>
         {empty ? (
           <Text style={[styles.empty, { color: colors.textDim }]}>
-            {term
-              ? 'Nessun risultato.'
-              : isPlaces
-                ? 'Il gruppo non ha ancora posti salvati: aggiungili dalla sezione Mappa.'
-                : 'Il gruppo non ha ancora link salvati: aggiungili dalla sezione Link.'}
+            {term ? t.allega.nessunRisultato : isPlaces ? t.allega.nessunPosto : t.allega.nessunLink}
           </Text>
         ) : (
           <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
@@ -176,17 +174,17 @@ export function ChatAttachSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={[styles.title, { color: colors.text, marginBottom: 12 }]}>Manda nella chat</Text>
+      <Text style={[styles.title, { color: colors.text, marginBottom: 12 }]}>{t.allega.titolo}</Text>
       <View style={styles.grid}>
-        <Tile icon={<ImageIcon size={21} color={colors.textDim} />} label="Foto" onPress={() => run(onPhoto)} />
-        <Tile icon={<PlayIcon size={19} color={colors.textDim} />} label="Video" onPress={() => run(onVideo)} />
-        <Tile icon={<FileIcon size={21} color={colors.textDim} />} label="Documento" onPress={() => run(onDocument)} />
-        <Tile icon={<MapIcon size={21} color={colors.teal} />} label="Un posto" highlight tint={colors.teal} onPress={() => setStep('places')} />
-        <Tile icon={<LinkIcon size={21} color={colors.amber} />} label="Un link" highlight onPress={() => setStep('links')} />
-        <Tile icon={<PollIcon size={21} color={colors.lilac} />} label="Sondaggio" highlight tint={colors.lilac} onPress={() => run(onPoll)} />
+        <Tile icon={<ImageIcon size={21} color={colors.textDim} />} label={t.allega.foto} onPress={() => run(onPhoto)} />
+        <Tile icon={<PlayIcon size={19} color={colors.textDim} />} label={t.allega.video} onPress={() => run(onVideo)} />
+        <Tile icon={<FileIcon size={21} color={colors.textDim} />} label={t.allega.documento} onPress={() => run(onDocument)} />
+        <Tile icon={<MapIcon size={21} color={colors.teal} />} label={t.allega.unPosto} highlight tint={colors.teal} onPress={() => setStep('places')} />
+        <Tile icon={<LinkIcon size={21} color={colors.amber} />} label={t.allega.unLink} highlight onPress={() => setStep('links')} />
+        <Tile icon={<PollIcon size={21} color={colors.lilac} />} label={t.allega.sondaggio} highlight tint={colors.lilac} onPress={() => run(onPoll)} />
         <Tile
           icon={<LocateIcon size={21} color={colors.textDim} />}
-          label="Dove sono"
+          label={t.allega.doveSono}
           busy={locating}
           onPress={async () => {
             setLocating(true);
@@ -200,7 +198,7 @@ export function ChatAttachSheet({
       </View>
       {recentPins.length > 0 ? (
         <>
-          <Text style={[styles.label, { color: colors.textFaint }]}>DAI POSTI DEL GRUPPO</Text>
+          <Text style={[styles.label, { color: colors.textFaint }]}>{t.allega.daiPosti}</Text>
           <View style={[styles.list, { backgroundColor: colors.surface2 }]}>
             {recentPins.slice(0, 3).map((p, i) => (
               <PinChoice key={p.id} pin={p} first={i === 0} />

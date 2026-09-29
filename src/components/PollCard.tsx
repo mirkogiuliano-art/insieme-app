@@ -4,6 +4,7 @@ import { useTheme, FONT_ROUNDED } from '@/theme/theme';
 import { PollIcon, CheckIcon } from '@/components/Icon';
 import { initials, inkOn } from '@/lib/utils';
 import type { RawPoll, RawVote } from '@/lib/api/polls';
+import { useT } from '@/i18n';
 
 interface PollCardProps {
   poll: RawPoll;
@@ -31,6 +32,7 @@ interface PollCardProps {
  */
 export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMenu }: PollCardProps) {
   const { colors } = useTheme();
+  const t = useT();
   const mine = votes.filter((v) => v.userId === myId).map((v) => v.optionIndex);
   const voted = mine.length > 0;
   const showResults = voted || poll.closed;
@@ -58,17 +60,13 @@ export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMe
           <PollIcon size={13} color={colors.lilac} />
         </View>
         <Text style={[styles.eyebrow, { color: colors.lilac }]}>
-          {poll.closed ? 'SONDAGGIO CHIUSO' : 'SONDAGGIO'}
+          {poll.closed ? t.sondaggio.eyebrowChiuso : t.sondaggio.eyebrow}
         </Text>
       </View>
 
       <Text style={[styles.question, { color: colors.text }]}>{poll.question}</Text>
       <Text style={[styles.hint, { color: colors.textFaint }]}>
-        {poll.closed
-          ? 'Non si vota più'
-          : poll.multi
-            ? 'Puoi scegliere più risposte'
-            : 'Scegli una risposta · puoi cambiarla'}
+        {poll.closed ? t.sondaggio.nonSiVota : poll.multi ? t.sondaggio.piuRisposte : t.sondaggio.unaRisposta}
       </Text>
 
       <View style={styles.options}>
@@ -143,16 +141,12 @@ export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMe
 
       <Pressable onPress={onOpenVoters} style={styles.foot} hitSlop={6}>
         <Text style={[styles.footText, { color: colors.textFaint }]}>
-          {poll.votersCount === 0
-            ? 'Nessuno ha ancora votato'
-            : `${poll.votersCount} ${poll.votersCount === 1 ? 'ha votato' : 'hanno votato'}${
-                membri > poll.votersCount ? ` su ${membri}` : ''
-              }`}
+          {poll.votersCount === 0 ? t.sondaggio.nessunVoto : t.sondaggio.votanti(poll.votersCount, membri)}
         </Text>
         {showResults ? (
-          <Text style={[styles.footLink, { color: colors.lilac }]}>{poll.secret ? 'Dettagli' : 'Vedi chi'}</Text>
+          <Text style={[styles.footLink, { color: colors.lilac }]}>{poll.secret ? t.sondaggio.dettagli : t.sondaggio.vediChi}</Text>
         ) : (
-          <Text style={[styles.footLink, { color: colors.lilac }]}>Tocca per votare</Text>
+          <Text style={[styles.footLink, { color: colors.lilac }]}>{t.sondaggio.toccaPerVotare}</Text>
         )}
       </Pressable>
     </Pressable>

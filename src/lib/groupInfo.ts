@@ -5,24 +5,17 @@
  * "mancano 24 giorni". Non c'è un calendario a comparsa perché servirebbe
  * un pacchetto nativo in più, e una data si scrive anche a mano: i campi
  * accettano GG/MM/AAAA e rifiutano quello che non è una data.
+ *
+ * I nomi dei mesi non sono più scritti qui: li dà `Intl` nella lingua in
+ * uso. Le frasi intorno — "mancano N giorni", "giorno 3 di 8" — stanno nel
+ * dizionario, perché ogni lingua le costruisce a modo suo.
  */
 
-const MESI = [
-  'gennaio',
-  'febbraio',
-  'marzo',
-  'aprile',
-  'maggio',
-  'giugno',
-  'luglio',
-  'agosto',
-  'settembre',
-  'ottobre',
-  'novembre',
-  'dicembre',
-];
+import { dizionario, localeAttuale } from '@/i18n';
 
-/** 'AAAA-MM-GG' → '12/04/2027', per i campi di scrittura. */
+/** 'AAAA-MM-GG' → '12/04/2027', per i campi di scrittura. Il formato
+ * giorno/mese/anno resta uguale in tutte le lingue: è quello che i campi
+ * dichiarano nel loro segnaposto. */
 export function isoToInput(iso: string | null | undefined): string {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
@@ -55,6 +48,17 @@ function parti(iso: string): { g: number; m: number; a: number } | null {
   return { a: Number(m[1]), m: Number(m[2]), g: Number(m[3]) };
 }
 
+/** Il nome del mese nella lingua in uso: "aprile", "April". */
+function nomeMese(mese: number): string {
+  return new Date(2000, mese - 1, 1).toLocaleDateString(localeAttuale(), { month: 'long' });
+}
+
+/** Giorno e mese come li scrive la lingua: "12 aprile" in italiano,
+ * "12 April" in inglese — l'inglese britannico tiene lo stesso ordine. */
+function giornoEMese(g: number, m: number): string {
+  return `${g} ${nomeMese(m)}`;
+}
+
 /**
  * Le due date in una riga sola: "12 – 19 aprile 2027" quando il mese è lo
  * stesso, "28 marzo – 4 aprile 2027" quando cambia, "dal 12 aprile 2027"
@@ -64,14 +68,15 @@ export function rangeLabel(startsOn: string | null | undefined, endsOn: string |
   const a = startsOn ? parti(startsOn) : null;
   const b = endsOn ? parti(endsOn) : null;
   if (!a && !b) return null;
-  if (a && !b) return `dal ${a.g} ${MESI[a.m - 1]} ${a.a}`;
-  if (!a && b) return `fino al ${b!.g} ${MESI[b!.m - 1]} ${b!.a}`;
+  const c = dizionario().conto;
+  if (a && !b) return c.dal(`${giornoEMese(a.g, a.m)} ${a.a}`);
+  if (!a && b) return c.finoAl(`${giornoEMese(b!.g, b!.m)} ${b!.a}`);
   if (a!.a === b!.a && a!.m === b!.m) {
-    if (a!.g === b!.g) return `${a!.g} ${MESI[a!.m - 1]} ${a!.a}`;
-    return `${a!.g} – ${b!.g} ${MESI[a!.m - 1]} ${a!.a}`;
+    if (a!.g === b!.g) return `${giornoEMese(a!.g, a!.m)} ${a!.a}`;
+    return `${a!.g} – ${giornoEMese(b!.g, b!.m)} ${a!.a}`;
   }
-  if (a!.a === b!.a) return `${a!.g} ${MESI[a!.m - 1]} – ${b!.g} ${MESI[b!.m - 1]} ${a!.a}`;
-  return `${a!.g} ${MESI[a!.m - 1]} ${a!.a} – ${b!.g} ${MESI[b!.m - 1]} ${b!.a}`;
+  if (a!.a === b!.a) return `${giornoEMese(a!.g, a!.m)} – ${giornoEMese(b!.g, b!.m)} ${a!.a}`;
+  return `${giornoEMese(a!.g, a!.m)} ${a!.a} – ${giornoEMese(b!.g, b!.m)} ${b!.a}`;
 }
 
 function aMezzanotte(iso: string): number | null {
@@ -92,17 +97,18 @@ export function countdownLabel(
   if (!startsOn) return null;
   const inizio = aMezzanotte(startsOn);
   if (inizio == null) return null;
+  const c = dizionario().conto;
   const oggi = new Date(now);
   const oggiMezzanotte = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate()).getTime();
   const giorno = 86400000;
   const mancano = Math.round((inizio - oggiMezzanotte) / giorno);
-  if (mancano > 1) return `mancano ${mancano} giorni`;
-  if (mancano === 1) return 'domani';
-  if (mancano === 0) return 'si parte oggi';
+  if (mancano > 1) return c.mancano(mancano);
+  if (mancano === 1) return c.domani;
+  if (mancano === 0) return c.oggi;
 
   const fine = endsOn ? aMezzanotte(endsOn) : inizio;
   if (fine == null || oggiMezzanotte > fine) return null;
   const numero = Math.round((oggiMezzanotte - inizio) / giorno) + 1;
   const totale = Math.round((fine - inizio) / giorno) + 1;
-  return totale > 1 ? `giorno ${numero} di ${totale}` : 'è oggi';
+  return totale > 1 ? c.giornoDi(numero, totale) : c.eOggi;
 }

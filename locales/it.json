@@ -1,0 +1,6 @@
+{
+  "NSLocationWhenInUseUsageDescription": "Insieme usa la tua posizione per centrare la mappa e aiutarti a salvare i posti vicino a te.",
+  "NSCameraUsageDescription": "Insieme usa la fotocamera per scattare foto e video da condividere in chat.",
+  "NSPhotoLibraryUsageDescription": "Insieme accede alle tue foto per condividerle in chat.",
+  "NSMicrophoneUsageDescription": "Insieme usa il microfono per registrare i messaggi vocali in chat."
+}

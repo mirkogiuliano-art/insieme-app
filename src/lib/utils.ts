@@ -20,6 +20,8 @@ export function hashStr(s: string): number {
   return h;
 }
 
+import { dizionario, localeAttuale } from '@/i18n';
+
 export function timeLabel(ts: number): string {
   const d = new Date(ts);
   return (
@@ -30,7 +32,7 @@ export function timeLabel(ts: number): string {
 }
 
 export function dateLabel(ts: number): string {
-  return new Date(ts).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+  return new Date(ts).toLocaleDateString(localeAttuale(), { day: '2-digit', month: 'short' });
 }
 
 const USER_COLORS = ['#2F9C86', '#8C7CE0', '#D9932E', '#5FA8DE', '#3E9950'];
@@ -251,7 +253,7 @@ export function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error('La richiesta ha impiegato troppo tempo.')), ms),
+      setTimeout(() => reject(new Error(dizionario().errori.tempoScaduto)), ms),
     ),
   ]);
 }
@@ -338,9 +340,11 @@ export function distanceMeters(a: { lat: number; lng: number }, b: { lat: number
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-/** "350 m", "1,2 km", "38 km": come si dice a voce. */
+/** "350 m", "1,2 km", "38 km": come si dice a voce. Il separatore dei
+ * decimali lo decide la lingua — virgola in italiano, punto in inglese. */
 export function distanceLabel(meters: number): string {
   if (meters < 950) return `${Math.max(10, Math.round(meters / 10) * 10)} m`;
   const km = meters / 1000;
-  return km < 10 ? `${km.toFixed(1).replace('.', ',')} km` : `${Math.round(km)} km`;
+  if (km >= 10) return `${Math.round(km)} km`;
+  return `${km.toLocaleString(localeAttuale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
 }

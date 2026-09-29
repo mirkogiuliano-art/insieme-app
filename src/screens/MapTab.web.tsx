@@ -51,6 +51,7 @@ import {
   subscribeToCategories,
   type RawPlaceCategory,
 } from '@/lib/api/placeCategories';
+import { useT, dizionario } from '@/i18n';
 
 /**
  * Versione WEB della sezione mappa.
@@ -71,24 +72,28 @@ interface MapTabProps {
   onFocusHandled?: () => void;
 }
 
-const FALLBACK_CATEGORY: RawPlaceCategory = { id: '', name: 'Altro', color: '#75828C' };
+/** La categoria di un posto che non ne ha più una: il nome segue la
+ * lingua, quindi si calcola al momento e non una volta sola. */
+const categoriaSenzaNome = (): RawPlaceCategory => ({ id: '', name: dizionario().segnaposto.altro, color: '#75828C' });
 
 
 /** In che ordine si vedono i posti nell'elenco. "Più vicini" compare solo
  * quando si conosce la propria posizione. Preferenza di chi guarda. */
 type PlacesSort = 'recent' | 'near' | 'name' | 'person';
 const SORT_KEY = 'placesSort';
-const SORT_LABELS: Record<PlacesSort, string> = {
-  recent: 'Più recenti',
-  near: 'Più vicini',
-  name: 'Nome (A–Z)',
-  person: 'Chi l’ha aggiunto',
-};
+const SORT_ORDER: PlacesSort[] = ['recent', 'near', 'name', 'person'];
 
 type Point = { lat: number; lng: number };
 
 export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabProps) {
   const { colors } = useTheme();
+  const t = useT();
+  const SORT_LABELS: Record<PlacesSort, string> = {
+    recent: t.mappa.ordineRecente,
+    near: t.mappa.ordineVicino,
+    name: t.mappa.ordineNome,
+    person: t.mappa.ordinePersona,
+  };
   const tabBarSpace = useTabBarSpace();
   const { session } = useAuth();
   const toast = useToast();
@@ -120,8 +125,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
 
   const [manageCat, setManageCat] = useState<RawPlaceCategory | null>(null);
 
-  const catFor = (id: string | null) => categories.find((c) => c.id === id) ?? FALLBACK_CATEGORY;
-  const authorOf = (p: RawPin) => roster[p.userId] ?? 'Utente';
+  const catFor = (id: string | null) => categories.find((c) => c.id === id) ?? categoriaSenzaNome();
+  const authorOf = (p: RawPin) => roster[p.userId] ?? t.segnaposto.utente;
   const distanceOf = (p: RawPin) => (myPos ? distanceLabel(distanceMeters(myPos, p)) : null);
 
   /** Un solo caricamento per tutta la schermata: se una qualsiasi delle
@@ -196,7 +201,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         setLocationGranted(granted);
       }
       if (!granted) {
-        toast.show('Serve il permesso di posizione per sapere dove sei.');
+        toast.show(t.mappa.permessoPosizione, 'hint');
         return null;
       }
       const pos = await Location.getCurrentPositionAsync({});
@@ -204,7 +209,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       setMyPos(here);
       return here;
     } catch {
-      toast.show('Non sono riuscito a leggere la tua posizione.');
+      toast.show(t.mappa.errorePosizione, 'error');
       return null;
     }
   };
@@ -224,13 +229,13 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         categoryId,
         mapsUrl: c.mapsUrl ?? (c.placeId ? googleMapsPlaceUrl(name, c.placeId) : null),
       }), WRITE_TIMEOUT);
-      toast.show('Posto salvato');
+      toast.show(t.mappa.postoSalvato);
       // Senza la scheda Google (un punto qualsiasi, la propria posizione) la
       // si cerca subito, in sottofondo, così "Portami lì" poi è immediato.
       if (!creato.mapsUrl) void linkPinToGooglePlace(creato.id);
       return true;
     } catch {
-      toast.show('Non sono riuscito a salvare il posto, riprova.');
+      toast.show(t.mappa.erroreSalva, 'error');
       return false;
     }
   };
@@ -240,16 +245,16 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
     try {
       await deletePin(id);
     } catch {
-      toast.show('Non sono riuscito a eliminare il posto.');
+      toast.show(t.mappa.erroreElimina, 'error');
     }
   };
 
   const movePlace = async (pin: RawPin, categoryId: string) => {
     try {
       await withTimeout(movePin(pin.id, categoryId), WRITE_TIMEOUT);
-      toast.show(`Spostato in "${catFor(categoryId).name}"`);
+      toast.show(t.mappa.spostatoIn(catFor(categoryId).name));
     } catch {
-      toast.show('Non sono riuscito a spostare il posto.');
+      toast.show(t.mappa.erroreSposta, 'error');
     }
   };
 
@@ -261,10 +266,10 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
     try {
       const sent = await withTimeout(sendMessage(groupId, session.user.id, text), WRITE_TIMEOUT);
       avvisaDelMessaggio(sent.id);
-      toast.show('Mandato in chat');
+      toast.show(t.mappa.mandato);
       return true;
     } catch {
-      toast.show('Non sono riuscito a mandarlo in chat, riprova.');
+      toast.show(t.mappa.erroreChat, 'error');
       return false;
     }
   };
@@ -276,7 +281,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
     try {
       await withTimeout(createPlaceLink(groupId, session.user.id, pinId, linkId), WRITE_TIMEOUT);
     } catch {
-      toast.show('Non sono riuscito a collegare il link.');
+      toast.show(t.mappa.erroreCollega, 'error');
     }
   };
 
@@ -286,7 +291,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
     try {
       await deletePlaceLink(pl.id);
     } catch {
-      toast.show('Non sono riuscito a scollegare il link.');
+      toast.show(t.mappa.erroreScollega, 'error');
     }
   };
 
@@ -297,7 +302,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       if (color && color !== manageCat.color) await recolorCategory(manageCat.id, color);
       setManageCat(null);
     } catch {
-      toast.show('Non sono riuscito a salvare la categoria.');
+      toast.show(t.mappa.erroreCategoria, 'error');
     }
   };
 
@@ -308,7 +313,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       if (filter === manageCat.id) setFilter('all');
       setManageCat(null);
     } catch (err) {
-      toast.show((err as { message?: string })?.message || 'Non sono riuscito a eliminare la categoria.');
+      toast.show((err as { message?: string })?.message || t.mappa.erroreEliminaCategoria, 'error');
     }
   };
 
@@ -379,7 +384,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
           <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder={pins.length > 0 ? `Cerca fra ${pins.length} posti` : 'Cerca'}
+            placeholder={pins.length > 0 ? t.mappa.cercaFra(pins.length) : t.mappa.cerca}
             placeholderTextColor={colors.textFaint}
             value={query}
             onChangeText={setQuery}
@@ -394,7 +399,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         </View>
         <Pressable onPress={() => openAdd(null)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
           <PlusIcon size={13} color={colors.inkOnAmber} />
-          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>Aggiungi</Text>
+          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.mappa.aggiungi}</Text>
         </Pressable>
       </View>
 
@@ -406,7 +411,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
             onPress={() => setSortOpen(true)}
           />
           <View style={[styles.chipDivider, { backgroundColor: colors.border }]} />
-          <FilterChip label="Tutti" active={filter === 'all'} onPress={() => setFilter('all')} />
+          <FilterChip label={t.mappa.tutti} active={filter === 'all'} onPress={() => setFilter('all')} />
           {categories.map((c) => (
             <FilterChip
               key={c.id}
@@ -420,7 +425,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         </ScrollView>
       </View>
 
-      {loadError ? <LoadError what="i posti" onRetry={loadAll} /> : null}
+      {loadError ? <LoadError what={t.erroreCaricamento.posti} onRetry={loadAll} /> : null}
 
       {sorted.length === 0 ? (
         <View style={styles.empty}>
@@ -430,13 +435,13 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
               {term ? (
                 <>
                   <SearchIcon size={34} color={colors.textFaint} strokeWidth={1.6} />
-                  <Text style={[styles.emptyText, { color: colors.textFaint }]}>Nessun posto corrisponde a «{query.trim()}».</Text>
+                  <Text style={[styles.emptyText, { color: colors.textFaint }]}>{t.mappa.nessunoConTesto(query.trim())}</Text>
                 </>
               ) : (
                 <>
                   <MapIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
                   <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-                    Nessun posto salvato qui. Tocca «Aggiungi» per cercarne uno per nome.
+                    {t.mappa.vuotoWeb}
                   </Text>
                 </>
               )}
@@ -522,7 +527,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       />
 
       <BottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>Ordina per</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>{t.mappa.ordinaPer}</Text>
         {sortOptions.map((k, i) => (
           <Pressable
             key={k}
@@ -538,7 +543,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       <CategorySheet
         category={manageCat}
         itemCount={manageCat ? pins.filter((x) => x.categoryId === manageCat.id).length : 0}
-        itemLabel="posti"
+        itemLabel={t.categoria.posti}
         fallbackName={categories.find((x) => x.id !== manageCat?.id)?.name ?? ''}
         canDelete={!!manageCat && categories.length > 1}
         onSave={saveRename}

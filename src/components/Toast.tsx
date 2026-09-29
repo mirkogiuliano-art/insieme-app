@@ -3,31 +3,29 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/theme/theme';
 import { CheckIcon, CloseIcon } from '@/components/Icon';
 
+/** Com'è andata: una conferma, un guasto, o un promemoria. */
+export type Tone = 'ok' | 'error' | 'hint';
+
 interface ToastContextValue {
-  show: (msg: string) => void;
+  show: (msg: string, tone?: Tone) => void;
 }
 
 const ToastContext = createContext<ToastContextValue>({ show: () => {} });
 
-type Tone = 'ok' | 'error' | 'hint';
-
-/** Il tono si legge dal messaggio stesso: le chiamate restano `show('…')`
- * dappertutto, e i testi dell'app seguono già poche formule fisse. */
-function toneOf(msg: string): Tone {
-  if (/non (sono )?riuscit|non sembra/i.test(msg)) return 'error';
-  if (/^(serve|tocca|è già)/i.test(msg)) return 'hint';
-  return 'ok';
-}
-
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const { colors } = useTheme();
   const [msg, setMsg] = useState('');
+  // Il tono lo dice chi chiama. Prima si indovinava dalle parole del
+  // messaggio ("non sono riuscito…" = guasto): con due lingue quella
+  // lettura sarebbe muta in inglese, e ogni errore sembrerebbe un successo.
+  const [tone, setTone] = useState<Tone>('ok');
   const opacity = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const show = useCallback(
-    (m: string) => {
+    (m: string, t: Tone = 'ok') => {
       setMsg(m);
+      setTone(t);
       Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => {
@@ -37,7 +35,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [opacity],
   );
 
-  const tone = toneOf(msg);
   const tint = tone === 'error' ? colors.danger : tone === 'ok' ? colors.teal : colors.amber;
   const translateY = opacity.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
 

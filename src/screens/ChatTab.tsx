@@ -62,6 +62,7 @@ import type { Group } from '@/types';
 import { listCategories as listPlaceCategories, type RawPlaceCategory } from '@/lib/api/placeCategories';
 import { listLinks, createLink, type RawLink } from '@/lib/api/links';
 import { listCategories as listLinkCategories, type RawLinkCategory } from '@/lib/api/linkCategories';
+import { useT, dizionario, localeAttuale } from '@/i18n';
 
 interface ChatTabProps {
   groupId: string;
@@ -86,10 +87,10 @@ function dayLabel(ts: number): string {
   const ieri = new Date();
   ieri.setDate(oggi.getDate() - 1);
   const stesso = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (stesso(d, oggi)) return 'Oggi';
-  if (stesso(d, ieri)) return 'Ieri';
+  if (stesso(d, oggi)) return dizionario().date.oggi;
+  if (stesso(d, ieri)) return dizionario().date.ieri;
   const sameYear = d.getFullYear() === oggi.getFullYear();
-  return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) });
+  return d.toLocaleDateString(localeAttuale(), { weekday: 'long', day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) });
 }
 
 function sameDay(a: number, b: number): boolean {
@@ -120,6 +121,7 @@ function highlightSegments(text: string, term: string): { text: string; match: b
 
 export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
   const { colors } = useTheme();
+  const t = useT();
   const tabBarSpace = useTabBarSpace();
   const { session } = useAuth();
   const toast = useToast();
@@ -391,12 +393,12 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
   };
 
   const typingLabel = useMemo(() => {
-    const names = Object.keys(typingUsers).map((uid) => roster[uid] ?? 'Qualcuno');
+    const names = Object.keys(typingUsers).map((uid) => roster[uid] ?? t.segnaposto.qualcuno);
     if (names.length === 0) return null;
-    if (names.length === 1) return `${names[0]} sta scrivendo…`;
-    if (names.length === 2) return `${names[0]} e ${names[1]} stanno scrivendo…`;
-    return `${names.length} persone stanno scrivendo…`;
-  }, [typingUsers, roster]);
+    if (names.length === 1) return t.chat.staScrivendo(names[0]);
+    if (names.length === 2) return t.chat.stannoScrivendoDue(names[0], names[1]);
+    return t.chat.stannoScrivendoTanti(names.length);
+  }, [typingUsers, roster, t]);
 
   const reactionsByMessage = useMemo(() => {
     const map: Record<string, { emoji: string; count: number; mine: boolean }[]> = {};
@@ -434,7 +436,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       avvisaDelMessaggio(sent.id);
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      toast.show('Messaggio non inviato, riprova.');
+      toast.show(t.chat.erroreInvio, 'error');
     }
   };
 
@@ -452,12 +454,12 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       avvisaDelMessaggio(sent.id);
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      toast.show('Messaggio non inviato, riprova.');
+      toast.show(t.chat.erroreInvio, 'error');
     }
   };
 
   const placeCategoryFor = (pin: RawPin) =>
-    placeCategories.find((c) => c.id === pin.categoryId) ?? { name: 'Altro', color: '#75828C' };
+    placeCategories.find((c) => c.id === pin.categoryId) ?? { name: t.segnaposto.altro, color: '#75828C' };
 
   const sendPlace = (pin: RawPin) => sendText(placeMessageText(pin.name, mapsUrlForPlace(pin)));
 
@@ -469,7 +471,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       setNewPollOpen(false);
       return null;
     } catch (err) {
-      return (err as { message?: string })?.message || 'Non sono riuscito a creare il sondaggio, riprova.';
+      return (err as { message?: string })?.message || t.chat.erroreSondaggio;
     }
   };
 
@@ -486,7 +488,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       await withTimeout(votePoll(poll.id, scelte), WRITE_TIMEOUT);
     } catch (err) {
       setVotes(prima);
-      toast.show((err as { message?: string })?.message || 'Non sono riuscito a registrare il voto.');
+      toast.show((err as { message?: string })?.message || t.chat.erroreVoto, 'error');
     }
   };
 
@@ -495,7 +497,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       await withTimeout(closePoll(poll.id), WRITE_TIMEOUT);
       setVotersFor(null);
     } catch (err) {
-      toast.show((err as { message?: string })?.message || 'Non sono riuscito a chiudere il sondaggio.');
+      toast.show((err as { message?: string })?.message || t.chat.erroreChiusura, 'error');
     }
   };
 
@@ -511,7 +513,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
         setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [sent, ...prev]));
         avvisaDelMessaggio(sent.id);
       } catch {
-        toast.show('Messaggio non inviato, riprova.');
+        toast.show(t.chat.erroreInvio, 'error');
       }
       return;
     }
@@ -522,15 +524,15 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        toast.show('Serve il permesso di posizione per mandare dove sei.');
+        toast.show(t.chat.permessoPosizione, 'hint');
         return;
       }
       const pos = await Location.getCurrentPositionAsync({});
       setAttachMenuOpen(false);
       const { latitude: lat, longitude: lng } = pos.coords;
-      await sendText(placeMessageText('La mia posizione', `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`));
+      await sendText(placeMessageText(t.chat.miaPosizione, `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`));
     } catch {
-      toast.show('Non sono riuscito a leggere la tua posizione.');
+      toast.show(t.chat.errorePosizione, 'error');
     }
   };
 
@@ -542,7 +544,12 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       return {
         url: m.attachmentUrl,
         kind: m.attachmentType,
-        title: m.attachmentType === 'file' ? m.attachmentName || 'Documento' : m.attachmentType === 'video' ? 'Video' : 'Foto',
+        title:
+          m.attachmentType === 'file'
+            ? m.attachmentName || t.segnaposto.documento
+            : m.attachmentType === 'video'
+              ? t.segnaposto.video
+              : t.segnaposto.foto,
       };
     }
     const url = m.text && !parsePlaceMessage(m.text) ? firstUrl(m.text) : null;
@@ -556,7 +563,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     if (!what || !session) return;
     const url = what.kind === 'web' ? normalizeUrl(what.url) : what.url;
     if (links.some((l) => l.url === url)) {
-      toast.show('È già nella sezione Link.');
+      toast.show(t.chat.giaNeiLink, 'hint');
       return;
     }
     try {
@@ -571,9 +578,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
             what.kind === 'file'
               ? fileLabelFor(what.title)
               : what.kind === 'image'
-                ? 'Foto'
+                ? t.segnaposto.foto
                 : what.kind === 'video'
-                  ? 'Video'
+                  ? t.segnaposto.video
                   : maps
                     ? 'Google Maps'
                     : info.label,
@@ -583,9 +590,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
         WRITE_TIMEOUT,
       );
       setLinks((prev) => [created, ...prev]);
-      toast.show('Salvato nella sezione Link');
+      toast.show(t.chat.salvatoNeiLink);
     } catch {
-      toast.show('Non sono riuscito a salvarlo nei link.');
+      toast.show(t.chat.erroreSalvataggio, 'error');
     }
   };
 
@@ -605,9 +612,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     setReactSheetFor(null);
     try {
       await reportMessage(id, '');
-      toast.show('Segnalazione inviata. La guarderemo al più presto.');
+      toast.show(t.chat.segnalazioneInviata);
     } catch {
-      toast.show('Non sono riuscito a inviare la segnalazione.');
+      toast.show(t.chat.erroreSegnalazione, 'error');
     }
   };
 
@@ -616,14 +623,14 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
   const blocca = async () => {
     if (!messaggioSelezionato) return;
     const autore = messaggioSelezionato.userId;
-    const nome = roster[autore] ?? 'questa persona';
+    const nome = roster[autore] ?? t.segnaposto.questaPersona;
     setReactSheetFor(null);
     try {
       await blockUser(autore);
       setBloccati((prev) => (prev.includes(autore) ? prev : [...prev, autore]));
-      toast.show(`Non vedrai più i messaggi di ${nome}.`);
+      toast.show(t.chat.bloccato(nome));
     } catch {
-      toast.show('Non sono riuscito a bloccare questa persona.');
+      toast.show(t.chat.erroreBlocco, 'error');
     }
   };
 
@@ -631,7 +638,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     if (!session || uploading) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      toast.show('Serve il permesso per accedere alle foto.');
+      toast.show(t.chat.permessoFoto, 'hint');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: [mediaType], quality: 0.7 });
@@ -654,7 +661,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       avvisaDelMessaggio(sent.id);
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      toast.show("Invio dell'allegato non riuscito, riprova.");
+      toast.show(t.chat.erroreAllegato, 'error');
     } finally {
       setUploading(false);
     }
@@ -702,7 +709,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       avvisaDelMessaggio(sent.id);
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      toast.show("Invio del documento non riuscito, riprova.");
+      toast.show(t.chat.erroreDocumento, 'error');
     } finally {
       setUploading(false);
     }
@@ -740,14 +747,14 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       avvisaDelMessaggio(sent.id);
       } catch {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
-        toast.show('Invio del vocale non riuscito, riprova.');
+        toast.show(t.chat.erroreVocale, 'error');
       } finally {
         setUploading(false);
       }
     } else {
       const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) {
-        toast.show('Serve il permesso per usare il microfono.');
+        toast.show(t.chat.permessoMicrofono, 'hint');
         return;
       }
       await recorder.prepareToRecordAsync();
@@ -761,7 +768,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     try {
       await toggleReaction(messageId, groupId, session.user.id, emoji, mine);
     } catch {
-      toast.show('Non sono riuscito a salvare la reazione.');
+      toast.show(t.chat.erroreReazione, 'error');
     }
   };
 
@@ -802,7 +809,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
 
   const renderItem = ({ item, index }: { item: RawMessage; index: number }) => {
     const own = session ? item.userId === session.user.id : false;
-    const displayName = roster[item.userId] ?? 'Utente';
+    const displayName = roster[item.userId] ?? t.segnaposto.utente;
     const chips = reactionsByMessage[item.id] ?? [];
     const quoted = item.replyToId ? messages.find((m) => m.id === item.replyToId) : null;
 
@@ -895,10 +902,10 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
                 {item.replyToId ? (
                   <View style={[styles.quoteBox, { borderLeftColor: own ? '#6B5730' : colors.teal, backgroundColor: own ? '#C98A22' : colors.surface2 }]}>
                     <Text style={[styles.quoteAuthor, { color: own ? '#3D2E10' : colors.teal }]} numberOfLines={1}>
-                      {quoted ? (roster[quoted.userId] ?? 'Utente') : ''}
+                      {quoted ? (roster[quoted.userId] ?? t.segnaposto.utente) : ''}
                     </Text>
                     <Text style={[styles.quoteText, { color: own ? '#4A3A18' : colors.textDim }]} numberOfLines={2}>
-                      {quoted ? (parsePlaceMessage(quoted.text)?.name ?? quoted.text ?? 'Allegato') : 'Messaggio non disponibile'}
+                      {quoted ? (parsePlaceMessage(quoted.text)?.name ?? quoted.text ?? t.segnaposto.allegato) : t.chat.messaggioSparito}
                     </Text>
                   </View>
                 ) : null}
@@ -910,7 +917,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
                 {item.attachmentUrl && item.attachmentType === 'video' ? (
                   <Pressable onPress={() => Linking.openURL(item.attachmentUrl!)} onLongPress={openMenu} style={styles.videoCard}>
                     <PlayIcon size={30} color="#fff" />
-                    <Text style={styles.videoCardLabel}>Video</Text>
+                    <Text style={styles.videoCardLabel}>{t.segnaposto.video}</Text>
                   </Pressable>
                 ) : null}
                 {item.attachmentUrl && item.attachmentType === 'audio' ? (
@@ -919,7 +926,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
                 {item.attachmentUrl && item.attachmentType === 'file' ? (
                   <FileAttachmentBubble
                     url={item.attachmentUrl}
-                    name={item.attachmentName || 'Documento'}
+                    name={item.attachmentName || t.segnaposto.documento}
                     size={item.attachmentSize ?? null}
                     own={own}
                   />
@@ -993,7 +1000,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
           <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder={mode === 'chat' ? 'Cerca nei messaggi' : 'Cerca nell’archivio'}
+            placeholder={mode === 'chat' ? t.chat.cerca : t.chat.cercaArchivio}
             placeholderTextColor={colors.textFaint}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -1002,7 +1009,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
           />
           {searching ? (
             <Text style={[styles.searchCounter, { color: colors.textFaint }]}>
-              {matches.length === 0 ? 0 : currentMatchIndex + 1} di {matches.length}
+              {t.chat.risultatoDi(matches.length === 0 ? 0 : currentMatchIndex + 1, matches.length)}
             </Text>
           ) : null}
           {searchQuery ? (
@@ -1017,7 +1024,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
               onPress={goToOlderMatch}
               disabled={matches.length === 0}
               style={[styles.viewBtn, { backgroundColor: colors.surface, opacity: matches.length === 0 ? 0.4 : 1 }]}
-              accessibilityLabel="Risultato precedente"
+              accessibilityLabel={t.chat.precedente}
             >
               <View style={{ transform: [{ rotate: '-90deg' }] }}>
                 <ChevronIcon size={16} color={colors.textDim} />
@@ -1027,7 +1034,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
               onPress={goToNewerMatch}
               disabled={matches.length === 0}
               style={[styles.viewBtn, { backgroundColor: colors.surface, opacity: matches.length === 0 ? 0.4 : 1 }]}
-              accessibilityLabel="Risultato successivo"
+              accessibilityLabel={t.chat.successivo}
             >
               <View style={{ transform: [{ rotate: '90deg' }] }}>
                 <ChevronIcon size={16} color={colors.textDim} />
@@ -1041,7 +1048,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
               setMode((m) => (m === 'chat' ? 'archive' : 'chat'));
             }}
             style={[styles.viewBtn, { backgroundColor: mode === 'archive' ? colors.amber : colors.surface }]}
-            accessibilityLabel={mode === 'chat' ? 'Apri l’archivio' : 'Torna alla chat'}
+            accessibilityLabel={mode === 'chat' ? t.chat.apriArchivio : t.chat.tornaChat}
           >
             {mode === 'chat' ? <GridIcon size={17} color={colors.textDim} /> : <ChatIcon size={17} color={colors.inkOnAmber} />}
           </Pressable>
@@ -1067,7 +1074,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
         </Pressable>
       ) : null}
 
-      {loadError ? <LoadError what="i messaggi" onRetry={loadAll} /> : null}
+      {loadError ? <LoadError what={t.erroreCaricamento.messaggi} onRetry={loadAll} /> : null}
 
       {mode === 'archive' ? (
         <ChatArchive
@@ -1090,7 +1097,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
                 <>
                   <ChatIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
                   <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-                    Nessun messaggio ancora. Scrivi il primo per iniziare la conversazione.
+                    {t.chat.vuoto}
                   </Text>
                 </>
               )}
@@ -1126,10 +1133,10 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
               <View style={[styles.replyBarStripe, { backgroundColor: colors.teal }]} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.replyBarAuthor, { color: colors.teal }]} numberOfLines={1}>
-                  {roster[replyingTo.userId] ?? 'Utente'}
+                  {roster[replyingTo.userId] ?? t.segnaposto.utente}
                 </Text>
                 <Text style={[styles.replyBarText, { color: colors.textDim }]} numberOfLines={1}>
-                  {parsePlaceMessage(replyingTo.text)?.name ?? replyingTo.text ?? 'Allegato'}
+                  {parsePlaceMessage(replyingTo.text)?.name ?? replyingTo.text ?? t.segnaposto.allegato}
                 </Text>
               </View>
               <Pressable onPress={() => setReplyingTo(null)} hitSlop={8} style={{ padding: 4 }}>
@@ -1148,7 +1155,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
             <View style={[styles.inputBar, { backgroundColor: colors.surface }]}>
               <View style={styles.recordingRow}>
                 <View style={styles.recordingDot} />
-                <Text style={{ fontSize: 14, color: colors.text }}>Registrazione… {formatSeconds(recordingSeconds)}</Text>
+                <Text style={{ fontSize: 14, color: colors.text }}>{t.chat.registrazione(formatSeconds(recordingSeconds))}</Text>
               </View>
               <Pressable onPress={toggleRecording} style={[styles.sendBtn, { backgroundColor: colors.amber }]}>
                 <StopIcon size={17} color={colors.inkOnAmber} />
@@ -1163,13 +1170,13 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
                 }}
                 disabled={uploading}
                 style={[styles.attachBtn, { backgroundColor: colors.surface2, opacity: uploading ? 0.5 : 1 }]}
-                accessibilityLabel="Manda foto, documenti, posti o link"
+                accessibilityLabel={t.chat.allega}
               >
                 {uploading ? <ActivityIndicator size="small" color={colors.textDim} /> : <PlusIcon size={17} color={colors.textDim} />}
               </Pressable>
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="Scrivi un messaggio"
+                placeholder={t.chat.scrivi}
                 placeholderTextColor={colors.textFaint}
                 value={draft}
                 onChangeText={handleDraftChange}
@@ -1210,7 +1217,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
 
       <MessageActionsSheet
         message={selezionato}
-        authorName={selezionato ? (roster[selezionato.userId] ?? 'questa persona') : ''}
+        authorName={selezionato ? (roster[selezionato.userId] ?? t.segnaposto.questaPersona) : ''}
         isMine={!!selezionato && selezionato.userId === session?.user.id}
         myReactions={selezionato ? (reactionsByMessage[selezionato.id] ?? []).filter((c) => c.mine).map((c) => c.emoji) : []}
         saveable={salvabile ? { title: salvabile.title } : null}
@@ -1220,14 +1227,14 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
           if (!selezionato || !session) return;
           const mine = reactionsByMessage[selezionato.id]?.find((e) => e.emoji === emoji)?.mine ?? false;
           toggleReaction(selezionato.id, groupId, session.user.id, emoji, mine).catch(() =>
-            toast.show('Non sono riuscito a salvare la reazione.'),
+            toast.show(t.chat.erroreReazione, 'error'),
           );
         }}
         onReply={() => selezionato && setReplyingTo(selezionato)}
         onSaveToLinks={(categoryId) => selezionato && saveToLinks(selezionato, categoryId)}
         onReport={segnala}
         onBlock={blocca}
-        onCopied={() => toast.show('Testo copiato')}
+        onCopied={() => toast.show(t.chat.testoCopiato)}
       />
 
       <ChatAttachSheet

@@ -9,6 +9,7 @@ import { LinkThumbMini, LinkFallbackThumb, useLinkPreview } from '@/components/L
 import { openPinInMaps } from '@/lib/api/places';
 import type { RawPin } from '@/lib/api/pins';
 import type { RawLink } from '@/lib/api/links';
+import { useT } from '@/i18n';
 
 interface PlaceSheetProps {
   /** `null` tiene il foglio chiuso. */
@@ -83,6 +84,7 @@ export function PlaceSheet({
   distance,
 }: PlaceSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -111,13 +113,13 @@ export function PlaceSheet({
     <BottomSheet visible onClose={close}>
       {picking ? (
         <>
-          <Text style={[styles.title, { color: colors.text }]}>Collega un link</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t.posto.collegaLink}</Text>
           <Text style={[styles.sub, { color: colors.textDim }]}>a &quot;{pin.name}&quot;</Text>
           <View style={[styles.searchRow, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
             <SearchIcon size={15} color={colors.textFaint} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Cerca tra i link salvati"
+              placeholder={t.posto.cercaLink}
               placeholderTextColor={colors.textFaint}
               value={query}
               onChangeText={setQuery}
@@ -125,11 +127,7 @@ export function PlaceSheet({
           </View>
           {attachable.length === 0 ? (
             <Text style={[styles.emptyPicker, { color: colors.textFaint }]}>
-              {allLinks.length === 0
-                ? 'Non ci sono ancora link salvati nel gruppo.'
-                : term
-                  ? 'Nessun link corrisponde alla ricerca.'
-                  : 'Tutti i link del gruppo sono già collegati a questo posto.'}
+              {allLinks.length === 0 ? t.posto.nessunLinkSalvato : term ? t.posto.nessunLinkTrovato : t.posto.tuttiCollegati}
             </Text>
           ) : (
             attachable.map((l) => (
@@ -154,23 +152,21 @@ export function PlaceSheet({
             ))
           )}
           <Pressable onPress={() => setPicking(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2, marginTop: 14 }]}>
-            <Text style={{ color: colors.textDim, fontWeight: '600' }}>Indietro</Text>
+            <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.indietro}</Text>
           </Pressable>
         </>
       ) : confirmDelete ? (
         <>
-          <Text style={[styles.title, { color: colors.text }]}>Eliminare &quot;{pin.name}&quot;?</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t.posto.eliminare(pin.name)}</Text>
           <Text style={[styles.sub, { color: colors.textDim }]}>
-            {linked.length > 0
-              ? `Il posto sparisce dalla mappa per tutti. I ${linked.length} link collegati restano nella sezione Link, perdono solo il collegamento.`
-              : 'Il posto sparisce dalla mappa per tutti nel gruppo.'}
+            {linked.length > 0 ? t.posto.eliminaConLink(linked.length) : t.posto.eliminaSemplice}
           </Text>
           <View style={styles.actions}>
             <Pressable onPress={() => setConfirmDelete(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
-              <Text style={{ color: colors.textDim, fontWeight: '600' }}>Annulla</Text>
+              <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
             </Pressable>
             <Pressable onPress={onDelete} style={[styles.btnPrimary, { backgroundColor: colors.danger }]}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Elimina</Text>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{t.comune.elimina}</Text>
             </Pressable>
           </View>
         </>
@@ -181,28 +177,28 @@ export function PlaceSheet({
             <View style={{ flex: 1 }}>
               <Text style={[styles.catLabel, { color: categoryColor }]}>{categoryName.toUpperCase()}</Text>
               <Text style={[styles.heroName, { color: colors.text }]}>{pin.name}</Text>
-              {distance ? <Text style={[styles.heroSub, { color: colors.textDim }]}>{distance} da te</Text> : null}
+              {distance ? <Text style={[styles.heroSub, { color: colors.textDim }]}>{t.mappa.daTe(distance)}</Text> : null}
             </View>
           </View>
 
           <View style={styles.heroActions}>
             {onShowOnMap ? (
               <Pressable onPress={onShowOnMap} style={[styles.heroBtn, { backgroundColor: colors.surface2 }]}>
-                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 13.5 }}>Sulla mappa</Text>
+                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 13.5 }}>{t.posto.sullaMappa}</Text>
               </Pressable>
             ) : null}
             <Pressable onPress={() => void openPinInMaps(pin)} style={[styles.heroBtn, { flex: 1.4, backgroundColor: colors.amber }]}>
-              <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13.5 }}>Portami lì</Text>
+              <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13.5 }}>{t.posto.portamiLi}</Text>
             </Pressable>
           </View>
 
           <View style={styles.sectionRow}>
-            <Text style={[styles.sectionLabel, { color: colors.textFaint }]}>LINK COLLEGATI</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textFaint }]}>{t.posto.linkCollegati}</Text>
             {linked.length > 0 ? <Text style={[styles.sectionLabel, { color: colors.textFaint }]}>{linked.length}</Text> : null}
           </View>
           {linked.length === 0 ? (
             <Text style={[styles.emptyLinked, { color: colors.textFaint }]}>
-              Nessun link collegato. Aggancia qui il video, la foto o la recensione di questo posto.
+              {t.posto.nessunCollegato}
             </Text>
           ) : (
             linked.map((l, i) => (
@@ -212,16 +208,16 @@ export function PlaceSheet({
 
           <Pressable onPress={() => setPicking(true)} style={[styles.attachRow, { borderColor: colors.border }]}>
             <PlusIcon size={13} color={colors.textDim} />
-            <Text style={{ color: colors.textDim, fontWeight: '700', fontSize: 13 }}>Collega un link</Text>
+            <Text style={{ color: colors.textDim, fontWeight: '700', fontSize: 13 }}>{t.posto.collegaLink}</Text>
           </Pressable>
 
           <Text style={[styles.footer, { color: colors.textFaint }]}>
-            Aggiunto da <Text style={{ color: colors.textDim, fontWeight: '700' }}>{authorName}</Text> · {dateLabel(pin.ts)}
+            {t.posto.aggiuntoDa} <Text style={{ color: colors.textDim, fontWeight: '700' }}>{authorName}</Text> · {dateLabel(pin.ts)}
           </Text>
 
           {onDelete ? (
             <Pressable onPress={() => setConfirmDelete(true)} style={styles.deleteBtn}>
-              <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '600' }}>Elimina posto</Text>
+              <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '600' }}>{t.posto.eliminaPosto}</Text>
             </Pressable>
           ) : null}
         </>

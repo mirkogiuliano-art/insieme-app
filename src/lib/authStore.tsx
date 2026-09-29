@@ -3,6 +3,8 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { getMyProfile } from '@/lib/api/profiles';
 import { registraDispositivo, dimenticaDispositivo } from '@/lib/api/push';
+import { esciDaGoogle } from '@/lib/api/googleAuth';
+import { useLingua } from '@/i18n';
 import type { Profile } from '@/types';
 
 interface AuthStoreValue {
@@ -32,6 +34,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
+  const { lingua, pronta: linguaPronta } = useLingua();
+
+  // Supabase tiene la lingua dell'utente fra i suoi dati, perché i modelli
+  // delle email la leggono da lì (supabase/email/). Si allinea a quella
+  // dell'app ogni volta che le due non coincidono: al primo accesso di chi
+  // è entrato con Google (che non passa dal modulo di registrazione), per
+  // gli account nati prima che la lingua esistesse, e quando la si cambia
+  // nelle impostazioni. Così anche il link della nuova password — che
+  // parte quando non si è dentro — arriva nella lingua giusta.
+  // Si aspetta che la scelta salvata sul telefono sia stata letta: prima,
+  // la lingua è quella del sistema e potrebbe cambiare un attimo dopo, e
+  // due aggiornamenti di fila possono arrivare nell'ordine sbagliato.
+  const linguaSalvata = session?.user.user_metadata?.lang;
+  useEffect(() => {
+    if (!session || !linguaPronta || linguaSalvata === lingua) return;
+    supabase.auth.updateUser({ data: { lang: lingua } }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user.id, linguaSalvata, lingua, linguaPronta]);
 
   const loadProfile = async () => {
     const p = await getMyProfile();
@@ -69,6 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // rifiutata (non si è più nessuno) e questo telefono resterebbe
     // agganciato a un account che qui non è più in uso.
     await dimenticaDispositivo();
+    // Anche dal selettore di Google: altrimenti al prossimo «Accedi con
+    // Google» il telefono rientrerebbe da solo con l'ultimo account usato.
+    await esciDaGoogle();
     await supabase.auth.signOut();
   };
 

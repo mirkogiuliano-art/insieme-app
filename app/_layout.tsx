@@ -12,6 +12,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useFonts, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
 import { configuraNotifiche } from '@/lib/api/push';
 import { ThemeProvider, useTheme } from '@/theme/theme';
+import { LinguaProvider } from '@/i18n';
 import { AuthProvider } from '@/lib/authStore';
 import { AppStoreProvider } from '@/lib/appStore';
 import { ToastProvider } from '@/components/Toast';
@@ -103,22 +104,27 @@ export default function RootLayout() {
         <KeyboardProvider>
           <SafeAreaProvider>
             <ThemeProvider>
-              <AuthProvider>
-                <AppStoreProvider>
-                  <ToastProvider>
-                    <ThemedStatusBar />
-                    <ShareIntentRouter />
-                    {Platform.OS !== 'web' ? <AvvisiRouter /> : null}
-                    <Stack screenOptions={{ headerShown: false }}>
-                      <Stack.Screen name="index" />
-                      <Stack.Screen name="group/[id]" />
-                      <Stack.Screen name="reset-password" />
-                      <Stack.Screen name="invite/[token]" />
-                      <Stack.Screen name="share" options={{ presentation: 'modal' }} />
-                    </Stack>
-                  </ToastProvider>
-                </AppStoreProvider>
-              </AuthProvider>
+              {/* La lingua sta accanto al tema e prima di tutto il resto:
+                  qualunque schermata può averne bisogno per il primo
+                  disegno, compresa quella di accesso. */}
+              <LinguaProvider>
+                <AuthProvider>
+                  <AppStoreProvider>
+                    <ToastProvider>
+                      <ThemedStatusBar />
+                      <ShareIntentRouter />
+                      {Platform.OS !== 'web' ? <AvvisiRouter /> : null}
+                      <Stack screenOptions={{ headerShown: false }}>
+                        <Stack.Screen name="index" />
+                        <Stack.Screen name="group/[id]" />
+                        <Stack.Screen name="reset-password" />
+                        <Stack.Screen name="invite/[token]" />
+                        <Stack.Screen name="share" options={{ presentation: 'modal' }} />
+                      </Stack>
+                    </ToastProvider>
+                  </AppStoreProvider>
+                </AuthProvider>
+              </LinguaProvider>
             </ThemeProvider>
           </SafeAreaProvider>
         </KeyboardProvider>

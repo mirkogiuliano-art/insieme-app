@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { genGroupCode } from '@/lib/utils';
 import { GROUP_PALETTE, type Group } from '@/types';
+import { dizionario } from '@/i18n';
 
 interface GroupRow {
   id: string;
@@ -73,7 +74,7 @@ export async function createGroupWithMembership(name: string, chosenColor?: stri
     // 23505 = unique_violation: il codice esiste già, si riprova con uno nuovo.
     if (error && (error as { code?: string }).code !== '23505') throw error;
   }
-  throw new Error('Impossibile generare un codice gruppo univoco, riprova.');
+  throw new Error(dizionario().errori.codiceGruppo);
 }
 
 /** Cambia il colore della scheda del gruppo, per tutti. Passa da una

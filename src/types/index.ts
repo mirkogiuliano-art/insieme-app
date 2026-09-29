@@ -4,6 +4,12 @@ export type ThemeName = 'light' | 'dark';
 /** La scelta della persona: un tema fisso, oppure quello del telefono. */
 export type ThemePreference = ThemeName | 'system';
 
+/** Le lingue in cui l'app sa parlare. Il codice è quello ISO, lo stesso che
+ * usano il telefono e `Intl`. */
+export type LanguageName = 'it' | 'en';
+/** Come per il tema: una lingua fissa, oppure quella del telefono. */
+export type LanguagePreference = LanguageName | 'system';
+
 export interface Profile {
   id: string; // = auth.users.id
   displayName: string | null;

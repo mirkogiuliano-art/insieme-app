@@ -8,6 +8,7 @@ import { SearchIcon, LocateIcon, MapIcon, BackIcon, CloseIcon, ChainIcon } from 
 import { normalizeUrl, parseGoogleMapsUrl, distanceMeters, distanceLabel } from '@/lib/utils';
 import { searchPlaces, type FoundPlace } from '@/lib/api/places';
 import type { RawPlaceCategory } from '@/lib/api/placeCategories';
+import { useT } from '@/i18n';
 
 /** Un posto pronto per essere salvato, da qualunque strada arrivi. */
 export interface PlaceCandidate {
@@ -56,6 +57,7 @@ export function AddPlaceSheet({
   onSave,
 }: AddPlaceSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [step, setStep] = useState<Step>('search');
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState<SearchState>({ status: 'idle' });
@@ -149,9 +151,7 @@ export function AddPlaceSheet({
     const info = parseGoogleMapsUrl(url);
     if (!info) {
       setPasteError(
-        /goo\.gl/.test(url)
-          ? 'I link brevi di Maps (maps.app.goo.gl) non dicono dove si trova il posto. Cercalo per nome qui sopra: è più veloce.'
-          : 'Da questo link non riesco a leggere la posizione. Prova a cercare il posto per nome.',
+        /goo\.gl/.test(url) ? t.nuovoPosto.linkBreve : t.nuovoPosto.linkIllegibile,
       );
       return;
     }
@@ -184,14 +184,14 @@ export function AddPlaceSheet({
               <BackIcon size={20} color={colors.textDim} />
             </Pressable>
           ) : null}
-          <Text style={[styles.title, { color: colors.text }]}>Nuovo posto</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t.nuovoPosto.titolo}</Text>
         </View>
         <Text style={[styles.where, { color: colors.textDim }]} numberOfLines={2}>
           {address || `${candidate.lat.toFixed(4)}, ${candidate.lng.toFixed(4)}`}
         </Text>
         <TextInput
           style={[styles.input, { backgroundColor: colors.surface2, borderWidth: nameError ? 1.5 : 0, borderColor: colors.danger, color: colors.text }]}
-          placeholder="Nome del posto"
+          placeholder={t.nuovoPosto.nome}
           placeholderTextColor={colors.textFaint}
           value={name}
           onChangeText={(t) => {
@@ -200,8 +200,8 @@ export function AddPlaceSheet({
           }}
           maxLength={60}
         />
-        {nameError ? <Text style={[styles.error, { color: colors.danger }]}>Dai un nome al posto prima di salvare.</Text> : null}
-        <Text style={[styles.label, { color: colors.textFaint }]}>CATEGORIA</Text>
+        {nameError ? <Text style={[styles.error, { color: colors.danger }]}>{t.nuovoPosto.serveNome}</Text> : null}
+        <Text style={[styles.label, { color: colors.textFaint }]}>{t.nuovoPosto.categoria}</Text>
         <View style={styles.cats}>
           {categories.map((c) => {
             const on = categoryId === c.id;
@@ -226,7 +226,7 @@ export function AddPlaceSheet({
             <ActivityIndicator size="small" color={colors.inkOnAmber} />
           ) : (
             <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14 }}>
-              Salva{cat ? ` in «${cat.name}»` : ' posto'}
+              {cat ? t.nuovoPosto.salvaIn(cat.name) : t.nuovoPosto.salvaPosto}
             </Text>
           )}
         </Pressable>
@@ -238,12 +238,12 @@ export function AddPlaceSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={[styles.title, { color: colors.text, marginBottom: 12 }]}>Aggiungi un posto</Text>
+      <Text style={[styles.title, { color: colors.text, marginBottom: 12 }]}>{t.nuovoPosto.titoloRicerca}</Text>
       <View style={[styles.searchBox, { backgroundColor: colors.surface2 }]}>
         <SearchIcon size={16} color={colors.textFaint} />
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Cerca per nome: un museo, un ristorante, un indirizzo…"
+          placeholder={t.nuovoPosto.cerca}
           placeholderTextColor={colors.textFaint}
           value={query}
           onChangeText={setQuery}
@@ -262,9 +262,9 @@ export function AddPlaceSheet({
           <ActivityIndicator size="small" color={colors.textDim} />
         </View>
       ) : search.status === 'error' ? (
-        <Text style={[styles.searchNoteText, { color: colors.textDim }]}>La ricerca non è riuscita. Controlla la connessione e riprova.</Text>
+        <Text style={[styles.searchNoteText, { color: colors.textDim }]}>{t.nuovoPosto.ricercaFallita}</Text>
       ) : search.status === 'done' && search.results.length === 0 ? (
-        <Text style={[styles.searchNoteText, { color: colors.textDim }]}>Nessun posto trovato con questo nome.</Text>
+        <Text style={[styles.searchNoteText, { color: colors.textDim }]}>{t.nuovoPosto.nessunRisultato}</Text>
       ) : search.status === 'done' ? (
         <View style={[styles.results, { backgroundColor: colors.surface2 }]}>
           {search.results.map((r, i) => (
@@ -290,16 +290,16 @@ export function AddPlaceSheet({
         </View>
       ) : null}
 
-      <Text style={[styles.label, { color: colors.textFaint }]}>OPPURE</Text>
+      <Text style={[styles.label, { color: colors.textFaint }]}>{t.nuovoPosto.oppure}</Text>
       <View style={styles.ways}>
         <Pressable onPress={pickMyPosition} disabled={locating} style={[styles.way, { backgroundColor: colors.surface2, opacity: locating ? 0.6 : 1 }]}>
           {locating ? <ActivityIndicator size="small" color={colors.textDim} /> : <LocateIcon size={20} color={colors.textDim} />}
-          <Text style={[styles.wayText, { color: colors.textDim }]}>Dove sono</Text>
+          <Text style={[styles.wayText, { color: colors.textDim }]}>{t.nuovoPosto.doveSono}</Text>
         </Pressable>
         {onPickOnMap ? (
           <Pressable onPress={onPickOnMap} style={[styles.way, { backgroundColor: colors.surface2 }]}>
             <MapIcon size={20} color={colors.textDim} />
-            <Text style={[styles.wayText, { color: colors.textDim }]}>Tocca la mappa</Text>
+            <Text style={[styles.wayText, { color: colors.textDim }]}>{t.nuovoPosto.toccaMappa}</Text>
           </Pressable>
         ) : null}
         <Pressable
@@ -307,7 +307,7 @@ export function AddPlaceSheet({
           style={[styles.way, { backgroundColor: pasting ? colors.amber + '26' : colors.surface2 }]}
         >
           <ChainIcon size={20} color={colors.textDim} />
-          <Text style={[styles.wayText, { color: colors.textDim }]}>Link di Maps</Text>
+          <Text style={[styles.wayText, { color: colors.textDim }]}>{t.nuovoPosto.linkMaps}</Text>
         </Pressable>
       </View>
 
@@ -316,7 +316,7 @@ export function AddPlaceSheet({
           <View style={styles.pasteRow}>
             <TextInput
               style={[styles.input, { flex: 1, marginBottom: 0, backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
-              placeholder="Incolla il link del posto da Google Maps"
+              placeholder={t.nuovoPosto.incollaMaps}
               placeholderTextColor={colors.textFaint}
               value={pasted}
               onChangeText={(t) => {
@@ -332,7 +332,7 @@ export function AddPlaceSheet({
               disabled={!pasted.trim()}
               style={[styles.pasteBtn, { backgroundColor: colors.amber, opacity: pasted.trim() ? 1 : 0.45 }]}
             >
-              <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>Usa</Text>
+              <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.nuovoPosto.usa}</Text>
             </Pressable>
           </View>
           {pasteError ? <Text style={[styles.error, { color: colors.textDim, marginTop: 6 }]}>{pasteError}</Text> : null}

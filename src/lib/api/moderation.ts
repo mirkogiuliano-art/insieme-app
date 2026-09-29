@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dizionario } from '@/i18n';
 
 /**
  * Segnalare un messaggio e bloccare una persona.
@@ -39,7 +40,7 @@ export async function listBlockedWithNames(): Promise<{ id: string; name: string
   }
   // Chi non condivide più nessun gruppo con me non è leggibile, ed è
   // giusto così: resta bloccato lo stesso, solo senza nome.
-  return ids.map((id) => ({ id, name: nomi[id] ?? 'Utente' }));
+  return ids.map((id) => ({ id, name: nomi[id] ?? dizionario().segnaposto.utente }));
 }
 
 export async function blockUser(userId: string): Promise<void> {

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dizionario } from '@/i18n';
 
 export interface RawPin {
   id: string;
@@ -74,7 +75,7 @@ export async function createPin(groupId: string, userId: string, pin: NewPin): P
     })
     .select(SELECT_COLUMNS)
     .single();
-  if (error || !data) throw error ?? new Error('Salvataggio del posto non riuscito.');
+  if (error || !data) throw error ?? new Error(dizionario().errori.salvaPosto);
   return toRaw(data);
 }
 

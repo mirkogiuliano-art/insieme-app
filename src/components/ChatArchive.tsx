@@ -9,17 +9,16 @@ import { firstUrl, platformInfo, fileKindFor, formatSeconds } from '@/lib/utils'
 import { parsePlaceMessage } from '@/lib/chatPlace';
 import { getLinkPreview } from '@/lib/api/linkPreviews';
 import type { RawMessage } from '@/lib/api/messages';
+import { useT, dizionario } from '@/i18n';
 
 export type ArchiveKind = 'media' | 'link' | 'doc' | 'voice' | 'poll';
 
-const FILTERS: { key: ArchiveKind | 'all'; label: string }[] = [
-  { key: 'all', label: 'Tutto' },
-  { key: 'media', label: 'Foto e video' },
-  { key: 'link', label: 'Link' },
-  { key: 'doc', label: 'Documenti' },
-  { key: 'voice', label: 'Vocali' },
-  { key: 'poll', label: 'Sondaggi' },
-];
+const FILTRI: (ArchiveKind | 'all')[] = ['all', 'media', 'link', 'doc', 'voice', 'poll'];
+
+function etichettaFiltro(k: ArchiveKind | 'all'): string {
+  const a = dizionario().archivio;
+  return k === 'all' ? a.tutto : k === 'media' ? a.media : k === 'link' ? a.link : k === 'doc' ? a.documenti : k === 'voice' ? a.vocali : a.sondaggi;
+}
 
 /** Che cosa c'è da archiviare in un messaggio, se c'è qualcosa. I posti
  * mandati in chat non contano come link: stanno già nella sezione Mappa. */
@@ -56,6 +55,7 @@ function LinkTileImage({ url }: { url: string }) {
 
 function Tile({ message, onPress }: { message: RawMessage; onPress: () => void }) {
   const { colors } = useTheme();
+  const t = useT();
   const kind = archiveKindOf(message)!;
   const url = message.text ? firstUrl(message.text) : null;
   return (
@@ -72,21 +72,21 @@ function Tile({ message, onPress }: { message: RawMessage; onPress: () => void }
         <View style={[StyleSheet.absoluteFill, styles.center, { padding: 8, gap: 6 }]}>
           <PollIcon size={22} color={colors.lilac} />
           <Text style={[styles.tileText, { color: colors.textDim }]} numberOfLines={3}>
-            {message.text || 'Sondaggio'}
+            {message.text || dizionario().archivio.sondaggio}
           </Text>
         </View>
       ) : kind === 'doc' ? (
         <View style={[StyleSheet.absoluteFill, styles.center, { padding: 8, gap: 5 }]}>
           <FileIcon size={24} color={fileBadgeColor(fileKindFor(message.attachmentName ?? ''), colors)} strokeWidth={1.7} />
           <Text style={[styles.tileText, { color: colors.textDim }]} numberOfLines={2}>
-            {message.attachmentName || 'Documento'}
+            {message.attachmentName || dizionario().segnaposto.documento}
           </Text>
         </View>
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.center, { gap: 5 }]}>
           <MicIcon size={22} color={colors.lilac} />
           <Text style={[styles.tileText, { color: colors.textDim }]}>
-            {message.attachmentDurationSeconds != null ? formatSeconds(message.attachmentDurationSeconds) : 'Vocale'}
+            {message.attachmentDurationSeconds != null ? formatSeconds(message.attachmentDurationSeconds) : dizionario().archivio.vocale}
           </Text>
         </View>
       )}
@@ -121,6 +121,7 @@ export function ChatArchive({
   onOpen: (messageId: string) => void;
 }) {
   const { colors } = useTheme();
+  const t = useT();
   const [filter, setFilter] = useState<ArchiveKind | 'all'>('all');
   const term = query.trim().toLowerCase();
 
@@ -151,17 +152,15 @@ export function ChatArchive({
     <View style={{ flex: 1 }}>
       <View style={styles.filters}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
-          {FILTERS.map((f) => (
-            <FilterChip key={f.key} label={f.label} active={filter === f.key} onPress={() => setFilter(f.key)} />
+          {FILTRI.map((k) => (
+            <FilterChip key={k} label={etichettaFiltro(k)} active={filter === k} onPress={() => setFilter(k)} />
           ))}
         </ScrollView>
       </View>
       {items.length === 0 ? (
         <View style={styles.empty}>
           <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-            {term
-              ? `Niente nell'archivio corrisponde a «${query.trim()}».`
-              : 'Qui compaiono foto, video, link, documenti e vocali mandati in chat. Per ora non c’è niente.'}
+            {term ? t.archivio.nessunoConTesto(query.trim()) : t.archivio.vuoto}
           </Text>
         </View>
       ) : (

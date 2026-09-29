@@ -14,6 +14,7 @@ import { BrokenLinkIcon } from '@/components/Icon';
 import { redeemInvite } from '@/lib/api/invites';
 import { withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { useT } from '@/i18n';
 
 /**
  * Schermata di atterraggio di un link d'invito — l'unico modo per entrare
@@ -26,6 +27,7 @@ import { ScreenGlow } from '@/components/ScreenGlow';
  */
 export default function InviteScreen() {
   const { colors } = useTheme();
+  const t = useT();
   const router = useRouter();
   const { token } = useLocalSearchParams<{ token: string }>();
   const inviteToken = String(token ?? '');
@@ -71,7 +73,7 @@ export default function InviteScreen() {
       })
       .catch((err) => {
         setPendingInviteToken(null);
-        setError((err as { message?: string })?.message || 'Invito non valido o revocato.');
+        setError((err as { message?: string })?.message || t.invito.nonValido);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authReady, session, profile?.displayName, inviteToken]);
@@ -83,19 +85,19 @@ export default function InviteScreen() {
     const { others } = joined;
     const who =
       others.length === 0
-        ? 'Per ora ci sei solo tu: invita qualcuno da Info gruppo.'
+        ? t.invito.soloTu
         : others.length === 1
-          ? `${others[0]} ti aspetta.`
+          ? t.invito.tiAspetta(others[0])
           : others.length === 2
-            ? `${others[0]} e ${others[1]} ti aspettano.`
-            : `${others[0]}, ${others[1]} e altri ${others.length - 2} ti aspettano.`;
+            ? t.invito.tiAspettanoDue(others[0], others[1])
+            : t.invito.tiAspettanoTanti(others[0], others[1], others.length - 2);
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
         <ScreenGlow />
         <View style={styles.center}>
           <View style={styles.column}>
-            <Text style={[styles.title, { color: colors.text }]}>Sei dentro!</Text>
-            <Text style={[styles.sub, { color: colors.textDim }]}>Benvenuto nel gruppo</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t.invito.dentro}</Text>
+            <Text style={[styles.sub, { color: colors.textDim }]}>{t.invito.benvenuto}</Text>
             {/* La scheda del gruppo com'è nella home. */}
             <View style={[styles.card, { backgroundColor: tint }]}>
               <View style={styles.cardBlob} />
@@ -110,7 +112,7 @@ export default function InviteScreen() {
               onPress={() => router.replace(`/group/${joined.group.id}`)}
               style={[styles.btn, { backgroundColor: colors.amber }]}
             >
-              <Text style={[styles.btnText, { color: colors.inkOnAmber }]}>Apri il gruppo</Text>
+              <Text style={[styles.btnText, { color: colors.inkOnAmber }]}>{t.invito.apriGruppo}</Text>
             </Pressable>
           </View>
         </View>
@@ -127,19 +129,18 @@ export default function InviteScreen() {
             <View style={[styles.bigIcon, { backgroundColor: colors.surface }]}>
               <BrokenLinkIcon size={32} color={colors.danger} />
             </View>
-            <Text style={[styles.title, { color: colors.text }]}>Questo invito non vale più</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t.invito.scadutoTitolo}</Text>
             <Text style={[styles.sub, { color: colors.textDim }]}>
-              Chi te l’ha mandato l’ha disattivato, o ne ha creato uno nuovo. Chiedigli di rimandartelo: lo trova in Info
-              gruppo.
+              {t.invito.scadutoTesto}
             </Text>
             <Pressable
               onPress={() => router.replace({ pathname: '/', params: { nuovo: 'invito' } })}
               style={[styles.btn, { backgroundColor: colors.surface }]}
             >
-              <Text style={[styles.btnText, { color: colors.text }]}>Incolla un altro invito</Text>
+              <Text style={[styles.btnText, { color: colors.text }]}>{t.invito.incollaAltro}</Text>
             </Pressable>
             <Pressable onPress={() => router.replace('/')}>
-              <Text style={[styles.link, { color: colors.textDim }]}>Torna ai tuoi gruppi</Text>
+              <Text style={[styles.link, { color: colors.textDim }]}>{t.invito.tornaAiGruppi}</Text>
             </Pressable>
           </View>
         </View>
@@ -152,7 +153,7 @@ export default function InviteScreen() {
       <ScreenGlow />
       <View style={styles.center}>
         <ActivityIndicator color={colors.amber} />
-        <Text style={[styles.sub, { color: colors.textDim }]}>Sto aprendo l&apos;invito…</Text>
+        <Text style={[styles.sub, { color: colors.textDim }]}>{t.invito.apertura}</Text>
       </View>
     </SafeAreaView>
   );

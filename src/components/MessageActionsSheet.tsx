@@ -7,6 +7,7 @@ import { ReplyIcon, FlagIcon, BanIcon, BackIcon, LinkIcon, CopyIcon } from '@/co
 import type { RawMessage } from '@/lib/api/messages';
 import { parsePlaceMessage } from '@/lib/chatPlace';
 import type { RawLinkCategory } from '@/lib/api/linkCategories';
+import { useT } from '@/i18n';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
@@ -50,6 +51,7 @@ export function MessageActionsSheet({
   onCopied,
 }: MessageActionsSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [step, setStep] = useState<'menu' | 'save'>('menu');
 
   useEffect(() => {
@@ -74,12 +76,12 @@ export function MessageActionsSheet({
   const preview =
     (place ? `${place.note ? place.note + ' · ' : ''}📍 ${place.name}` : message.text?.trim()) ||
     (message.attachmentType === 'image'
-      ? 'Foto'
+      ? t.segnaposto.foto
       : message.attachmentType === 'video'
-        ? 'Video'
+        ? t.segnaposto.video
         : message.attachmentType === 'audio'
-          ? 'Messaggio vocale'
-          : message.attachmentName || 'Documento');
+          ? t.menuMessaggio.vocale
+          : message.attachmentName || t.segnaposto.documento);
 
   if (step === 'save') {
     return (
@@ -88,10 +90,10 @@ export function MessageActionsSheet({
           <Pressable onPress={() => setStep('menu')} hitSlop={10}>
             <BackIcon size={20} color={colors.textDim} />
           </Pressable>
-          <Text style={[styles.stepTitle, { color: colors.text }]}>Salva nei link</Text>
+          <Text style={[styles.stepTitle, { color: colors.text }]}>{t.menuMessaggio.salvaNeiLink}</Text>
         </View>
         <Text style={[styles.stepSub, { color: colors.textDim }]} numberOfLines={2}>
-          «{saveable?.title}» — in quale categoria?
+          {t.menuMessaggio.qualeCategoria(saveable?.title ?? '')}
         </Text>
         {linkCategories.map((c) => (
           <Pressable key={c.id} onPress={() => run(() => onSaveToLinks(c.id))} style={[styles.item, { borderTopColor: colors.border }]}>
@@ -106,7 +108,7 @@ export function MessageActionsSheet({
   return (
     <BottomSheet visible onClose={onClose}>
       <View style={[styles.quote, { backgroundColor: colors.surface2, borderLeftColor: colors.teal }]}>
-        <Text style={[styles.quoteAuthor, { color: colors.teal }]}>{isMine ? 'Tu' : authorName}</Text>
+        <Text style={[styles.quoteAuthor, { color: colors.teal }]}>{isMine ? t.segnaposto.tu : authorName}</Text>
         <Text style={[styles.quoteText, { color: colors.text }]} numberOfLines={2}>
           {preview}
         </Text>
@@ -127,18 +129,18 @@ export function MessageActionsSheet({
         })}
       </View>
 
-      <Item icon={<ReplyIcon size={17} color={colors.textDim} />} label="Rispondi" onPress={() => run(onReply)} />
+      <Item icon={<ReplyIcon size={17} color={colors.textDim} />} label={t.menuMessaggio.rispondi} onPress={() => run(onReply)} />
       {saveable && linkCategories.length > 0 ? (
         <Item
           icon={<LinkIcon size={18} color={colors.amber} strokeWidth={2} />}
-          label="Salva nei link"
+          label={t.menuMessaggio.salvaNeiLink}
           onPress={() => (linkCategories.length === 1 ? run(() => onSaveToLinks(linkCategories[0].id)) : setStep('save'))}
         />
       ) : null}
       {message.text?.trim() ? (
         <Item
           icon={<CopyIcon size={17} color={colors.textDim} />}
-          label="Copia il testo"
+          label={t.menuMessaggio.copia}
           onPress={() =>
             run(() => {
               Clipboard.setStringAsync(message.text ?? '').then(onCopied).catch(() => {});
@@ -150,8 +152,8 @@ export function MessageActionsSheet({
           vuol dire niente. */}
       {!isMine ? (
         <>
-          <Item icon={<FlagIcon size={17} color={colors.textDim} />} label="Segnala messaggio" onPress={() => run(onReport)} />
-          <Item icon={<BanIcon size={17} color={colors.danger} />} label={`Blocca ${authorName}`} danger onPress={() => run(onBlock)} />
+          <Item icon={<FlagIcon size={17} color={colors.textDim} />} label={t.menuMessaggio.segnala} onPress={() => run(onReport)} />
+          <Item icon={<BanIcon size={17} color={colors.danger} />} label={t.menuMessaggio.blocca(authorName)} danger onPress={() => run(onBlock)} />
         </>
       ) : null}
     </BottomSheet>

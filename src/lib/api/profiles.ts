@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
+import { dizionario } from '@/i18n';
 
 export async function getMyProfile(): Promise<Profile | null> {
   const { data: auth } = await supabase.auth.getUser();
@@ -15,7 +16,7 @@ export async function getMyProfile(): Promise<Profile | null> {
 
 export async function updateDisplayName(name: string): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('Non autenticato.');
+  if (!auth.user) throw new Error(dizionario().errori.nonAutenticato);
   const { error } = await supabase
     .from('profiles')
     .update({ display_name: name.trim().slice(0, 24) })

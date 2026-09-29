@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { supabase } from '@/lib/supabase';
+import { dizionario } from '@/i18n';
 
 /**
  * Notifiche.
@@ -65,7 +66,7 @@ export async function registraDispositivo(): Promise<void> {
     // Android 8 in poi non viene mostrato affatto.
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('messaggi', {
-        name: 'Messaggi',
+        name: dizionario().avvisi.canaleMessaggi,
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#E9A23B',

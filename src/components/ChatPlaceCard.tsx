@@ -5,6 +5,7 @@ import { SendIcon } from '@/components/Icon';
 import { PlaceTile } from '@/components/MapPin';
 import { openPinInMaps } from '@/lib/api/places';
 import type { RawPin } from '@/lib/api/pins';
+import { useT } from '@/i18n';
 
 /**
  * Un posto mandato in chat, disegnato come la sua scheda: riquadro della
@@ -28,6 +29,7 @@ export function ChatPlaceCard({
   onMenu?: () => void;
 }) {
   const { colors } = useTheme();
+  const t = useT();
   const tint = category?.color ?? colors.textFaint;
   const go = () => (pin ? void openPinInMaps(pin) : void Linking.openURL(url));
   return (
@@ -36,7 +38,7 @@ export function ChatPlaceCard({
         <PlaceTile color={tint} categoryName={category?.name ?? ''} size={40} />
         <View style={{ flex: 1 }}>
           <Text style={[styles.cat, { color: tint }]} numberOfLines={1}>
-            {(category?.name ?? 'Posizione').toUpperCase()}
+            {(category?.name ?? t.postoInChat.posizione).toUpperCase()}
           </Text>
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
             {name}
@@ -45,7 +47,7 @@ export function ChatPlaceCard({
       </Pressable>
       <Pressable onPress={go} onLongPress={onMenu} style={[styles.btn, { backgroundColor: colors.amber }]}>
         <SendIcon size={14} color={colors.inkOnAmber} />
-        <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 12.5 }}>Portami lì</Text>
+        <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 12.5 }}>{t.postoInChat.portamiLi}</Text>
       </Pressable>
     </View>
   );

@@ -8,6 +8,17 @@ import { useAuth } from '@/lib/authStore';
 import { updateDisplayName } from '@/lib/api/profiles';
 import { initials } from '@/lib/utils';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { useT } from '@/i18n';
+
+/** Il nome che Google ha passato alla registrazione, se c'è, ridotto al
+ * nome di battesimo e alla lunghezza che il campo accetta. */
+function nomeDaGoogle(meta: Record<string, unknown> | undefined): string {
+  const pieno = [meta?.given_name, meta?.full_name, meta?.name].find(
+    (v): v is string => typeof v === 'string' && v.trim().length > 0,
+  );
+  if (!pieno) return '';
+  return pieno.trim().split(/\s+/)[0].slice(0, 24);
+}
 
 /**
  * Il nome, al primo ingresso. Le iniziali grandi si formano mentre si
@@ -16,8 +27,12 @@ import { ScreenGlow } from '@/components/ScreenGlow';
  */
 export function NameOnboarding() {
   const { colors } = useTheme();
+  const t = useT();
   const { session, refreshProfile, signOut } = useAuth();
-  const [value, setValue] = useState('');
+  // Chi entra con Google ha già detto a Google come si chiama: il campo
+  // parte da lì. Solo il nome di battesimo, perché è quello che si usa fra
+  // amici, e lo si può comunque cambiare prima di continuare.
+  const [value, setValue] = useState(() => nomeDaGoogle(session?.user.user_metadata));
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
@@ -36,15 +51,15 @@ export function NameOnboarding() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
         <View style={styles.inner}>
           <View style={styles.column}>
-            <Text style={[styles.title, { color: colors.text }]}>Come ti chiami?</Text>
-            <Text style={[styles.subtitle, { color: colors.textDim }]}>È il nome che vedono gli altri nei gruppi.</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t.primoNome.titolo}</Text>
+            <Text style={[styles.subtitle, { color: colors.textDim }]}>{t.primoNome.sottotitolo}</Text>
             <View style={[styles.avatar, { backgroundColor: ready ? colors.amber : colors.surface }]}>
               <Text style={[styles.avatarText, { color: ready ? colors.inkOnAmber : colors.textFaint }]}>
                 {ready ? initials(value) : '?'}
               </Text>
             </View>
             <Field
-              placeholder="Il tuo nome"
+              placeholder={t.primoNome.campo}
               value={value}
               onChangeText={setValue}
               maxLength={24}
@@ -61,12 +76,12 @@ export function NameOnboarding() {
               {saving ? (
                 <ActivityIndicator size="small" color={colors.inkOnAmber} />
               ) : (
-                <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>Continua</Text>
+                <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>{t.primoNome.continua}</Text>
               )}
             </Pressable>
-            <Text style={[styles.account, { color: colors.textFaint }]}>Accesso come {session?.user.email}</Text>
+            <Text style={[styles.account, { color: colors.textFaint }]}>{t.primoNome.accessoCome(session?.user.email ?? '')}</Text>
             <Pressable onPress={signOut}>
-              <Text style={[styles.link, { color: colors.textDim }]}>Non sei tu? Esci</Text>
+              <Text style={[styles.link, { color: colors.textDim }]}>{t.primoNome.nonSeiTu}</Text>
             </Pressable>
           </View>
         </View>

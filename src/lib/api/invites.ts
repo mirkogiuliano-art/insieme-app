@@ -1,6 +1,7 @@
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
 import type { Group } from '@/types';
+import { dizionario } from '@/i18n';
 
 /**
  * Inviti ai gruppi — vedi supabase/migrations/20260902100000_invite_only.sql.
@@ -56,7 +57,7 @@ export async function getInviteToken(groupId: string): Promise<string | null> {
  * vecchio. Le due cose sono la stessa operazione lato database. */
 export async function rotateInvite(groupId: string): Promise<string> {
   const { data, error } = await supabase.rpc('rotate_invite', { p_group_id: groupId });
-  if (error || !data) throw error ?? new Error('Non sono riuscito a creare il link di invito.');
+  if (error || !data) throw error ?? new Error(dizionario().errori.creaInvito);
   return data as string;
 }
 
@@ -71,6 +72,6 @@ export async function revokeInvite(groupId: string): Promise<void> {
 export async function redeemInvite(token: string): Promise<Group> {
   const { data, error } = await supabase.rpc('redeem_invite', { p_token: token });
   if (error) throw error;
-  if (!data) throw new Error('Invito non valido o revocato.');
+  if (!data) throw new Error(dizionario().errori.invitoNonValido);
   return toGroup(data as GroupRow);
 }

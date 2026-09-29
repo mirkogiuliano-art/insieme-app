@@ -1,5 +1,5 @@
 import '@/lib/polyfills';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { createClient } from '@supabase/supabase-js';
 import { largeSecureStore } from '@/lib/secureStorage';
 
@@ -17,7 +17,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: largeSecureStore,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    // Sul web l'accesso con Google torna indietro con i gettoni
+    // nell'indirizzo, e qui è il client a doverli raccogliere. Su telefono
+    // resta spento: là Google non passa dal browser (vedi
+    // src/lib/api/googleAuth.ts), e il link della nuova password lo apre a
+    // mano la sua schermata.
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
 

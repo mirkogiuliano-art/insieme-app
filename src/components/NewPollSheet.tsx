@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Scroll
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
 import { PollIcon, CloseIcon, PlusIcon } from '@/components/Icon';
+import { useT } from '@/i18n';
 
 /** Quanto ne accetta il database (vedi 20260923090000_sondaggi.sql). */
 const MIN_OPZIONI = 2;
@@ -24,6 +25,7 @@ interface NewPollSheetProps {
  */
 export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState<string[]>(['', '']);
   const [multi, setMulti] = useState(false);
@@ -92,14 +94,14 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
         <View style={[styles.badge, { backgroundColor: colors.lilac + '2E' }]}>
           <PollIcon size={17} color={colors.lilac} />
         </View>
-        <Text style={[styles.title, { color: colors.text }]}>Nuovo sondaggio</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t.sondaggio.nuovo}</Text>
       </View>
 
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.body}>
-        <Text style={[styles.label, { color: colors.textFaint }]}>DOMANDA</Text>
+        <Text style={[styles.label, { color: colors.textFaint }]}>{t.sondaggio.domanda}</Text>
         <TextInput
           style={[styles.question, { backgroundColor: colors.surface2, color: colors.text }]}
-          placeholder="Es. Dove ceniamo sabato sera?"
+          placeholder={t.sondaggio.esempioDomanda}
           placeholderTextColor={colors.textFaint}
           value={question}
           onChangeText={(t) => {
@@ -109,13 +111,13 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
           maxLength={200}
         />
 
-        <Text style={[styles.label, { color: colors.textFaint }]}>RISPOSTE</Text>
+        <Text style={[styles.label, { color: colors.textFaint }]}>{t.sondaggio.risposte}</Text>
         <View style={{ gap: 6 }}>
           {options.map((o, i) => (
             <View key={i} style={[styles.optionRow, { backgroundColor: colors.surface2 }]}>
               <TextInput
                 style={[styles.optionInput, { color: colors.text }]}
-                placeholder={`Risposta ${i + 1}`}
+                placeholder={t.sondaggio.esempioRisposta(i + 1)}
                 placeholderTextColor={colors.textFaint}
                 value={o}
                 onChangeText={(t) => scrivi(i, t)}
@@ -125,7 +127,7 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
                 <Pressable
                   hitSlop={8}
                   onPress={() => setOptions((prev) => prev.filter((_, k) => k !== i))}
-                  accessibilityLabel={`Togli la risposta ${i + 1}`}
+                  accessibilityLabel={t.sondaggio.togliRisposta(i + 1)}
                 >
                   <CloseIcon size={15} color={colors.textFaint} />
                 </Pressable>
@@ -135,20 +137,20 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
           {options.length < MAX_OPZIONI ? (
             <Pressable onPress={() => setOptions((prev) => [...prev, ''])} style={styles.addRow}>
               <PlusIcon size={14} color={colors.lilac} />
-              <Text style={{ color: colors.lilac, fontSize: 13.5, fontWeight: '800' }}>Aggiungi una risposta</Text>
+              <Text style={{ color: colors.lilac, fontSize: 13.5, fontWeight: '800' }}>{t.sondaggio.aggiungiRisposta}</Text>
             </Pressable>
           ) : null}
         </View>
 
         <View style={styles.switches}>
           <Interruttore
-            label="Più risposte"
+            label={t.sondaggio.multi}
             sub="Ognuno può sceglierne più di una"
             value={multi}
             onChange={setMulti}
           />
           <Interruttore
-            label="Voto segreto"
+            label={t.sondaggio.segreto}
             sub="Si vedono i numeri, non chi ha votato cosa"
             value={secret}
             onChange={setSecret}
@@ -166,7 +168,7 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
         {busy ? (
           <ActivityIndicator size="small" color={colors.inkOnAmber} />
         ) : (
-          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14.5 }}>Manda il sondaggio</Text>
+          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14.5 }}>{t.sondaggio.manda}</Text>
         )}
       </Pressable>
     </BottomSheet>

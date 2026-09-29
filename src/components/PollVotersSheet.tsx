@@ -4,6 +4,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, FONT_ROUNDED } from '@/theme/theme';
 import { initials, inkOn } from '@/lib/utils';
 import type { RawPoll, RawVote } from '@/lib/api/polls';
+import { useT } from '@/i18n';
 
 interface PollVotersSheetProps {
   /** `null` tiene il foglio chiuso. */
@@ -24,6 +25,7 @@ interface PollVotersSheetProps {
  */
 export function PollVotersSheet({ poll, votes, myId, roster, onClose, onCloseePoll }: PollVotersSheetProps) {
   const { colors } = useTheme();
+  const t = useT();
   const [closing, setClosing] = useState(false);
 
   if (!poll) return <BottomSheet visible={false} onClose={onClose}>{null}</BottomSheet>;
@@ -34,13 +36,12 @@ export function PollVotersSheet({ poll, votes, myId, roster, onClose, onCloseePo
   return (
     <BottomSheet visible onClose={onClose}>
       <Text style={[styles.eyebrow, { color: colors.lilac }]}>
-        {poll.secret ? 'RISULTATI · VOTO SEGRETO' : 'CHI HA VOTATO'}
+        {poll.secret ? t.sondaggio.risultatiSegreti : t.sondaggio.chiHaVotato}
       </Text>
       <Text style={[styles.question, { color: colors.text }]}>{poll.question}</Text>
       <Text style={[styles.sub, { color: colors.textFaint }]}>
-        {`${poll.votersCount} ${poll.votersCount === 1 ? 'persona ha votato' : 'persone hanno votato'}`}
-        {membri > 0 ? ` su ${membri}` : ''}
-        {poll.closed ? ' · chiuso' : ''}
+        {t.sondaggio.personeVotanti(poll.votersCount, membri)}
+        {poll.closed ? t.sondaggio.suffissoChiuso : ''}
       </Text>
 
       <ScrollView style={styles.body}>
@@ -58,13 +59,13 @@ export function PollVotersSheet({ poll, votes, myId, roster, onClose, onCloseePo
                 </View>
                 {poll.secret ? (
                   <Text style={[styles.empty, { color: colors.textFaint }]}>
-                    {chi.length > 0 ? 'Hai votato questa' : 'I nomi restano nascosti'}
+                    {chi.length > 0 ? t.sondaggio.haiVotatoQuesta : t.sondaggio.nomiNascosti}
                   </Text>
                 ) : chi.length === 0 ? (
-                  <Text style={[styles.empty, { color: colors.textFaint }]}>Nessuno</Text>
+                  <Text style={[styles.empty, { color: colors.textFaint }]}>{t.sondaggio.nessuno}</Text>
                 ) : (
                   chi.map((v) => {
-                    const nome = v.userId === myId ? 'Tu' : (roster[v.userId] ?? 'Qualcuno');
+                    const nome = v.userId === myId ? t.segnaposto.tu : (roster[v.userId] ?? t.segnaposto.qualcuno);
                     return (
                       <View key={v.userId} style={styles.person}>
                         <View style={[styles.avatar, { backgroundColor: colors.lilac }]}>
@@ -98,11 +99,11 @@ export function PollVotersSheet({ poll, votes, myId, roster, onClose, onCloseePo
             {closing ? (
               <ActivityIndicator size="small" color={colors.textDim} />
             ) : (
-              <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>Chiudi il sondaggio</Text>
+              <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>{t.sondaggio.chiudi}</Text>
             )}
           </Pressable>
           <Text style={[styles.note, { color: colors.textFaint }]}>
-            Dopo non si vota più, e restano i risultati.
+            {t.sondaggio.notaChiusura}
           </Text>
         </>
       ) : null}

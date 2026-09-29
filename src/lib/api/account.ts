@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dizionario } from '@/i18n';
 
 /**
  * Cancella il proprio account e tutto quello che ne dipende.
@@ -16,5 +17,5 @@ import { supabase } from '@/lib/supabase';
 export async function deleteMyAccount(): Promise<void> {
   const { data, error } = await supabase.functions.invoke('delete-account');
   if (error) throw error;
-  if (!data?.eliminato) throw new Error('La cancellazione non è andata a buon fine.');
+  if (!data?.eliminato) throw new Error(dizionario().errori.cancellazione);
 }

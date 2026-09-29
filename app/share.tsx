@@ -30,6 +30,7 @@ import { sendMessage } from '@/lib/api/messages';
 import { uploadGroupMedia, type AttachmentKind } from '@/lib/api/mediaUpload';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { LinkFallbackThumb } from '@/components/LinkCard';
+import { useT } from '@/i18n';
 
 type Section = 'links' | 'chat';
 
@@ -43,6 +44,7 @@ type Section = 'links' | 'chat';
  */
 export default function ShareScreen() {
   const { colors } = useTheme();
+  const t = useT();
   const { session } = useAuth();
   const { myGroups, ready: groupsReady } = useAppStore();
   const { shareIntent, hasShareIntent, resetShareIntent } = useShareIntentContext();
@@ -132,14 +134,14 @@ export default function ShareScreen() {
         }
       } else {
         const catId = categoryId || categories[0]?.id;
-        if (!catId) throw new Error('Nessuna categoria disponibile.');
+        if (!catId) throw new Error(t.condividi.nessunaCategoria);
 
         if (uploadedUrl) {
           await withTimeout(createLink(groupId, session.user.id, {
             url: uploadedUrl,
-            title: title.trim() || (kind === 'video' ? 'Video' : 'Foto'),
+            title: title.trim() || (kind === 'video' ? t.segnaposto.video : t.segnaposto.foto),
             platform: kind,
-            label: kind === 'video' ? 'Video' : 'Foto',
+            label: kind === 'video' ? t.segnaposto.video : t.segnaposto.foto,
             thumb: kind === 'image' ? uploadedUrl : null,
             categoryId: catId,
           }), WRITE_TIMEOUT);
@@ -161,7 +163,7 @@ export default function ShareScreen() {
             const pin = await withTimeout(createPin(groupId, session.user.id, {
               lat: mapsPlace.lat,
               lng: mapsPlace.lng,
-              name: mapsPlace.name || title.trim() || 'Posto da Google Maps',
+              name: mapsPlace.name || title.trim() || t.link.postoDaMaps,
               categoryId: placeCategories[0].id,
               // Il link condiviso apre già la scheda del luogo su Maps.
               mapsUrl: normalized,
@@ -172,10 +174,10 @@ export default function ShareScreen() {
       }
 
       resetShareIntent();
-      toast.show('Salvato in Insieme');
+      toast.show(t.condividi.salvato);
       router.replace(`/group/${groupId}`);
     } catch {
-      toast.show('Non sono riuscito a salvare, riprova.');
+      toast.show(t.condividi.errore, 'error');
     } finally {
       setSaving(false);
     }
@@ -185,20 +187,20 @@ export default function ShareScreen() {
   if (!session) {
     return (
       <Message
-        title="Accedi per salvare"
-        body="Entra nel tuo account Insieme, poi ricondividi il contenuto."
+        title={t.condividi.accedi}
+        body={t.condividi.accediTesto}
         onClose={close}
       />
     );
   }
   if (!hasShareIntent && !file && !sharedUrl && !sharedText) {
-    return <Message title="Niente da salvare" body="Non è arrivato nessun contenuto condiviso." onClose={close} />;
+    return <Message title={t.condividi.nienteTitolo} body={t.condividi.nienteTesto} onClose={close} />;
   }
   if (groupsReady && myGroups.length === 0) {
     return (
       <Message
-        title="Nessun gruppo"
-        body="Crea o entra in un gruppo, poi ricondividi il contenuto."
+        title={t.condividi.nessunGruppo}
+        body={t.condividi.nessunGruppoTesto}
         onClose={close}
       />
     );
@@ -231,23 +233,23 @@ export default function ShareScreen() {
           )}
           <View style={{ flex: 1 }}>
             <Text style={[styles.previewTitle, { color: colors.text }]} numberOfLines={2}>
-              {file ? file.fileName || 'File condiviso' : page?.title || mapsPlace?.name || sharedUrl || sharedText}
+              {file ? file.fileName || t.condividi.fileCondiviso : page?.title || mapsPlace?.name || sharedUrl || sharedText}
             </Text>
             <Text style={[styles.previewSub, { color: colors.textFaint }]} numberOfLines={1}>
               {file
                 ? isImage
-                  ? 'Foto'
-                  : 'Video'
+                  ? t.segnaposto.foto
+                  : t.segnaposto.video
                 : mapsPlace
                   ? 'Google Maps'
                   : sharedUrl
                     ? platformInfo(normalizeUrl(sharedUrl)).label
-                    : 'Testo'}
+                    : t.condividi.testo}
             </Text>
           </View>
         </View>
 
-        <Text style={[styles.label, { color: colors.textFaint }]}>IN QUALE GRUPPO</Text>
+        <Text style={[styles.label, { color: colors.textFaint }]}>{t.condividi.inQualeGruppo}</Text>
         {/* I gruppi come piccole schede del loro colore, come nella home. */}
         <View style={styles.groups}>
           {myGroups.map((g) => {
@@ -267,7 +269,7 @@ export default function ShareScreen() {
           })}
         </View>
 
-        <Text style={[styles.label, { color: colors.textFaint }]}>DOVE</Text>
+        <Text style={[styles.label, { color: colors.textFaint }]}>{t.condividi.dove}</Text>
         <View style={[styles.seg, { backgroundColor: colors.surface }]}>
           {(['links', 'chat'] as const).map((k) => (
             <Pressable key={k} onPress={() => setSection(k)} style={[styles.segBtn, section === k && { backgroundColor: colors.amber }]}>
@@ -277,7 +279,7 @@ export default function ShareScreen() {
                 <ChatIcon size={15} color={section === k ? colors.inkOnAmber : colors.textDim} />
               )}
               <Text style={[styles.segText, { color: section === k ? colors.inkOnAmber : colors.textDim }]}>
-                {k === 'links' ? 'Link e video' : 'Chat'}
+                {k === 'links' ? t.condividi.linkEVideo : t.condividi.chat}
               </Text>
             </Pressable>
           ))}
@@ -285,7 +287,7 @@ export default function ShareScreen() {
 
         {section === 'links' ? (
           <>
-            <Text style={[styles.label, { color: colors.textFaint }]}>CATEGORIA</Text>
+            <Text style={[styles.label, { color: colors.textFaint }]}>{t.condividi.categoria}</Text>
             <View style={styles.chipRow}>
               {categories.map((c) => (
                 <FilterChip key={c.id} label={c.name} dotColor={c.color} active={categoryId === c.id} onPress={() => setCategoryId(c.id)} />
@@ -295,11 +297,11 @@ export default function ShareScreen() {
         ) : null}
 
         <Text style={[styles.label, { color: colors.textFaint }]}>
-          {section === 'chat' ? (file ? 'DIDASCALIA (FACOLTATIVA)' : 'MESSAGGIO') : 'TITOLO (FACOLTATIVO)'}
+          {section === 'chat' ? (file ? t.condividi.didascalia : t.condividi.messaggio) : t.condividi.titoloFacoltativo}
         </Text>
         <TextInput
           style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-          placeholder={section === 'chat' ? 'Aggiungi due righe…' : 'Come vuoi chiamarlo'}
+          placeholder={section === 'chat' ? t.condividi.scriviDidascalia : t.condividi.comeChiamarlo}
           placeholderTextColor={colors.textFaint}
           value={title}
           onChangeText={setTitle}
@@ -336,7 +338,7 @@ export default function ShareScreen() {
             <ActivityIndicator size="small" color={colors.inkOnAmber} />
           ) : (
             <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 15 }}>
-              {section === 'chat' ? 'Manda nella chat' : chosenCategory ? `Salva in «${chosenCategory.name}»` : 'Salva'}
+              {section === 'chat' ? t.condividi.mandaInChat : chosenCategory ? t.condividi.salvaIn(chosenCategory.name) : t.condividi.salva}
             </Text>
           )}
         </Pressable>
@@ -348,9 +350,10 @@ export default function ShareScreen() {
 
 function Header({ onClose }: { onClose: () => void }) {
   const { colors } = useTheme();
+  const t = useT();
   return (
     <View style={styles.header}>
-      <Text style={[styles.headerTitle, { color: colors.text }]}>Salva in Insieme</Text>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>{t.condividi.titolo}</Text>
       <Pressable onPress={onClose} hitSlop={10} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
         <CloseIcon size={15} color={colors.textDim} />
       </Pressable>
@@ -360,6 +363,7 @@ function Header({ onClose }: { onClose: () => void }) {
 
 function Message({ title, body, onClose }: { title: string; body: string; onClose: () => void }) {
   const { colors } = useTheme();
+  const t = useT();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'bottom']}>
       <ScreenGlow />
@@ -371,7 +375,7 @@ function Message({ title, body, onClose }: { title: string; body: string; onClos
         <Text style={{ fontSize: 21, fontWeight: '800', color: colors.text, marginBottom: 6, letterSpacing: -0.3 }}>{title}</Text>
         <Text style={{ fontSize: 13.5, color: colors.textDim, textAlign: 'center', lineHeight: 20 }}>{body}</Text>
         <Pressable onPress={onClose} style={[styles.saveBtn, { backgroundColor: colors.surface, alignSelf: 'stretch', marginTop: 18 }]}>
-          <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>Chiudi</Text>
+          <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>{t.condividi.chiudi}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

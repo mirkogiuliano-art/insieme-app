@@ -7,6 +7,10 @@
     "icon": "./assets/icon.png",
     "scheme": "insieme",
     "userInterfaceStyle": "automatic",
+    "locales": {
+      "it": "./locales/it.json",
+      "en": "./locales/en.json"
+    },
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
@@ -88,7 +92,14 @@
           ]
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-localization",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.927578671591-05g0tvo6bva3jcqae9vkdl8r6ov27kms"
+        }
+      ]
     ],
     "extra": {
       "router": {},

@@ -31,6 +31,7 @@ import { initials, inkOn, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
 import { fitFontSize, LETTER_SPACING_EM } from '@/lib/fitText';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { useT, dizionario } from '@/i18n';
 
 /** Quante facce stanno sulla scheda prima di riassumere il resto in "+N". */
 const AVATARS_SHOWN = 3;
@@ -38,22 +39,20 @@ const AVATARS_SHOWN = 3;
 /** In che ordine si vedono i gruppi. Preferenza di chi guarda. */
 type GroupsSort = 'recent' | 'name' | 'created';
 const SORT_KEY = 'groupsSort';
-const SORT_LABELS: Record<GroupsSort, string> = {
-  recent: 'Attività recente',
-  name: 'Nome (A–Z)',
-  created: 'Creati di recente',
-};
+const SORT_ORDER: GroupsSort[] = ['recent', 'name', 'created'];
 
-/** "attivo 2 min fa", "attivo ieri": per il menu del gruppo. */
+/** "attivo 2 min fa", "attivo ieri": per il menu del gruppo. Non è un
+ * componente e non può usare un hook, quindi legge la lingua da `dizionario()`. */
 function activityLabel(ts: number | null | undefined): string | null {
   if (!ts) return null;
+  const a = dizionario().attivita;
   const min = Math.floor((Date.now() - ts) / 60000);
-  if (min < 1) return 'attivo ora';
-  if (min < 60) return `attivo ${min} min fa`;
+  if (min < 1) return a.ora;
+  if (min < 60) return a.minuti(min);
   const ore = Math.floor(min / 60);
-  if (ore < 24) return `attivo ${ore} ${ore === 1 ? 'ora' : 'ore'} fa`;
+  if (ore < 24) return a.ore(ore);
   const giorni = Math.floor(ore / 24);
-  return giorni === 1 ? 'attivo ieri' : `attivo ${giorni} giorni fa`;
+  return giorni === 1 ? a.ieri : a.giorni(giorni);
 }
 
 /** Limiti del nome del gruppo. Sopra `MAX` un nome di tre lettere
@@ -94,6 +93,12 @@ function NomeGruppo({ name, color }: { name: string; color: string }) {
 
 export function GroupsLanding() {
   const { colors } = useTheme();
+  const t = useT();
+  const SORT_LABELS: Record<GroupsSort, string> = {
+    recent: t.home.ordineRecente,
+    name: t.home.ordineNome,
+    created: t.home.ordineCreazione,
+  };
   const router = useRouter();
   const toast = useToast();
   const { profile } = useAuth();
@@ -129,7 +134,7 @@ export function GroupsLanding() {
 
   useEffect(() => {
     storage.get<GroupsSort>(SORT_KEY).then((v) => {
-      if (v && v in SORT_LABELS) setSort(v);
+      if (v && SORT_ORDER.includes(v)) setSort(v);
     });
   }, []);
 
@@ -160,7 +165,7 @@ export function GroupsLanding() {
       setInviteOpen(meta);
       return null;
     } catch (err) {
-      return (err as { message?: string })?.message || 'Non sono riuscito a creare il gruppo, riprova.';
+      return (err as { message?: string })?.message || t.home.erroreCrea;
     }
   };
 
@@ -169,7 +174,7 @@ export function GroupsLanding() {
       await withTimeout(setGroupColor(g.id, color), WRITE_TIMEOUT);
       await refreshGroups();
     } catch {
-      toast.show('Non sono riuscito a cambiare il colore.');
+      toast.show(t.home.erroreColore, 'error');
     }
   };
 
@@ -178,7 +183,7 @@ export function GroupsLanding() {
       await updateLastRead(g.id);
       await reloadPreviews();
     } catch {
-      toast.show('Non sono riuscito a segnare come letto.');
+      toast.show(t.home.erroreLetto, 'error');
     }
   };
 
@@ -192,7 +197,7 @@ export function GroupsLanding() {
       await leaveGroup(g.id);
       await reloadPreviews();
     } catch {
-      toast.show('Non sono riuscito a farti uscire dal gruppo, riprova.');
+      toast.show(t.home.erroreUscita, 'error');
     }
   };
 
@@ -220,9 +225,9 @@ export function GroupsLanding() {
     setSharing(true);
     try {
       const token = await withTimeout(getInviteToken(g.id).then((t) => t ?? rotateInvite(g.id)), WRITE_TIMEOUT);
-      await Share.share({ message: `Entra nel gruppo "${g.name}" su Insieme:\n${inviteUrl(token)}` });
+      await Share.share({ message: t.home.invitoTesto(g.name, inviteUrl(token)) });
     } catch {
-      toast.show('Non sono riuscito a preparare il link di invito.');
+      toast.show(t.home.erroreInvito, 'error');
     } finally {
       setSharing(false);
     }
@@ -236,8 +241,8 @@ export function GroupsLanding() {
       <ScreenGlow />
       <View style={styles.header}>
         <View>
-          <Text style={[styles.eyebrow, { color: colors.textFaint }]}>INSIEME</Text>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>I tuoi gruppi</Text>
+          <Text style={[styles.eyebrow, { color: colors.textFaint }]}>{t.home.eyebrow}</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t.home.titolo}</Text>
         </View>
         <View style={styles.headerRight}>
           <Pressable onPress={() => setSettingsAt('settings')} style={[styles.iconBtn, { backgroundColor: colors.surface }]}>
@@ -257,7 +262,7 @@ export function GroupsLanding() {
           <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder={myGroups.length > 0 ? `Cerca fra ${myGroups.length} ${myGroups.length === 1 ? 'gruppo' : 'gruppi'}` : 'Cerca'}
+            placeholder={myGroups.length > 0 ? t.home.cercaFra(myGroups.length) : t.home.cerca}
             placeholderTextColor={colors.textFaint}
             value={query}
             onChangeText={setQuery}
@@ -272,7 +277,7 @@ export function GroupsLanding() {
         </View>
         <Pressable onPress={() => setCreateOpen(true)} style={[styles.newBtn, { backgroundColor: colors.amber }]}>
           <PlusIcon size={13} color={colors.inkOnAmber} />
-          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>Nuovo</Text>
+          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.home.nuovo}</Text>
         </Pressable>
       </View>
       {myGroups.length > 1 ? (
@@ -280,9 +285,9 @@ export function GroupsLanding() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 24 }}>
             <FilterChip label={SORT_LABELS[sort]} icon={<SortIcon size={12} color={colors.textDim} />} onPress={() => setSortOpen(true)} />
             <View style={[styles.chipDivider, { backgroundColor: colors.border }]} />
-            <FilterChip label="Tutti" active={!onlyNew} onPress={() => setOnlyNew(false)} />
+            <FilterChip label={t.home.tutti} active={!onlyNew} onPress={() => setOnlyNew(false)} />
             <FilterChip
-              label={newCount > 0 ? `Con novità · ${newCount}` : 'Con novità'}
+              label={newCount > 0 ? t.home.conNovitaN(newCount) : t.home.conNovita}
               dotColor={colors.amber}
               active={onlyNew}
               onPress={() => setOnlyNew(true)}
@@ -291,13 +296,13 @@ export function GroupsLanding() {
         </View>
       ) : null}
 
-      {loadError ? <LoadError what="i tuoi gruppi" onRetry={refreshGroups} /> : null}
+      {loadError ? <LoadError what={t.erroreCaricamento.gruppi} onRetry={refreshGroups} /> : null}
 
       <ScrollView contentContainerStyle={styles.list}>
         {myGroups.length > 0 && shownGroups.length === 0 ? (
           <View style={styles.empty}>
             <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-              {term ? `Nessun gruppo si chiama «${query.trim()}».` : 'Nessun gruppo con messaggi nuovi. Sei in pari.'}
+              {term ? t.home.nessunoCon(query.trim()) : t.home.tuttiLetti}
             </Text>
           </View>
         ) : null}
@@ -305,7 +310,7 @@ export function GroupsLanding() {
           <View style={styles.empty}>
             <UsersIcon size={38} color={colors.textFaint} />
             <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-              Non fai ancora parte di nessun gruppo. Tocca «Nuovo» per crearne uno, o per entrare con un invito.
+              {t.home.vuoto}
             </Text>
           </View>
         ) : (
@@ -354,7 +359,7 @@ export function GroupsLanding() {
                 {preview && preview.unread > 0 ? (
                   <View style={[styles.unread, { backgroundColor: ink }]}>
                     <Text style={[styles.unreadText, { color: tint }]}>
-                      {preview.unread > 99 ? '99+ nuovi' : `${preview.unread} ${preview.unread === 1 ? 'nuovo' : 'nuovi'}`}
+                      {t.home.nuoviN(preview.unread)}
                     </Text>
                   </View>
                 ) : null}
@@ -368,7 +373,7 @@ export function GroupsLanding() {
                   }}
                   hitSlop={10}
                   style={styles.cardMore}
-                  accessibilityLabel={`Menu di ${g.name}`}
+                  accessibilityLabel={t.home.menuDi(g.name)}
                 >
                   <MoreIcon size={18} color={ink} />
                 </Pressable>
@@ -415,8 +420,8 @@ export function GroupsLanding() {
       ) : null}
 
       <BottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
-        <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 8 }]}>Ordina per</Text>
-        {(Object.keys(SORT_LABELS) as GroupsSort[]).map((k, i) => (
+        <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 8 }]}>{t.home.ordinaPer}</Text>
+        {SORT_ORDER.map((k, i) => (
           <Pressable
             key={k}
             onPress={() => chooseSort(k)}
@@ -432,10 +437,9 @@ export function GroupsLanding() {
       <BottomSheet visible={!!inviteOpen} onClose={() => setInviteOpen(null)}>
         {inviteOpen ? (
           <>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>Gruppo creato</Text>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>{t.home.creatoTitolo}</Text>
             <Text style={[styles.sheetSub, { color: colors.textDim }]}>
-              Per far entrare qualcuno in &quot;{inviteOpen.name}&quot; mandagli il link di invito: è
-              l&apos;unico modo per accedere al gruppo. Puoi disattivarlo quando vuoi da Info gruppo.
+              {t.home.creatoTesto(inviteOpen.name)}
             </Text>
             <View style={styles.sheetActions}>
               <Pressable
@@ -444,7 +448,7 @@ export function GroupsLanding() {
                 style={[styles.btnSecondary, { backgroundColor: colors.surface2, opacity: sharing ? 0.6 : 1 }]}
               >
                 <Text style={{ color: colors.textDim, fontWeight: '600' }}>
-                  {sharing ? 'Un attimo…' : 'Condividi invito'}
+                  {sharing ? t.comune.unAttimo : t.home.condividiInvito}
                 </Text>
               </Pressable>
               <Pressable
@@ -455,7 +459,7 @@ export function GroupsLanding() {
                 }}
                 style={[styles.btnPrimary, { backgroundColor: colors.amber }]}
               >
-                <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>Vai al gruppo</Text>
+                <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>{t.home.vaiAlGruppo}</Text>
               </Pressable>
             </View>
           </>

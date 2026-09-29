@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { AttachmentKind } from '@/lib/api/mediaUpload';
+import { dizionario } from '@/i18n';
 
 interface MessageRow {
   id: string;
@@ -109,7 +110,7 @@ export async function sendMessage(
     })
     .select(SELECT_COLUMNS)
     .single();
-  if (error || !data) throw error ?? new Error('Invio del messaggio non riuscito.');
+  if (error || !data) throw error ?? new Error(dizionario().errori.inviaMessaggio);
   return toRaw(data);
 }
 

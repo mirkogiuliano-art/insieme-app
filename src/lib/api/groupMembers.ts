@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dizionario } from '@/i18n';
 
 // L'iscrizione diretta non esiste più: si entra solo riscattando un invito
 // (redeemInvite in src/lib/api/invites.ts). Lato database l'inserimento in
@@ -45,7 +46,7 @@ export async function listRoster(code: string): Promise<Record<string, string>> 
     .in('id', userIds);
 
   const roster: Record<string, string> = {};
-  for (const id of userIds) roster[id] = 'Utente';
+  for (const id of userIds) roster[id] = dizionario().segnaposto.utente;
   if (!profilesError && profiles) {
     for (const p of profiles) {
       if (p.display_name) roster[p.id] = p.display_name;
@@ -125,7 +126,7 @@ export function subscribeToRoster(
       async (payload) => {
         const userId = (payload.new as { user_id: string }).user_id;
         const { data } = await supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle();
-        onJoin(userId, data?.display_name || 'Utente');
+        onJoin(userId, data?.display_name || dizionario().segnaposto.utente);
       },
     )
     .subscribe();

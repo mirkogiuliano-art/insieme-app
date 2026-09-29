@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { LinkPlatform } from '@/types';
+import { dizionario } from '@/i18n';
 
 export interface RawLink {
   id: string;
@@ -83,7 +84,7 @@ export async function createLink(groupId: string, userId: string, link: NewLink)
     })
     .select(SELECT_COLUMNS)
     .single();
-  if (error || !data) throw error ?? new Error('Salvataggio del link non riuscito.');
+  if (error || !data) throw error ?? new Error(dizionario().errori.salvaLink);
   return toRaw(data);
 }
 

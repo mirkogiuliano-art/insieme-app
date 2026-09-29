@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { CloudOffIcon, RetryIcon } from '@/components/Icon';
+import { useT } from '@/i18n';
 
 interface LoadErrorProps {
   /** Cosa non si è riuscito a caricare, in due parole: "i messaggi",
@@ -20,20 +21,21 @@ interface LoadErrorProps {
  */
 export function LoadError({ what, onRetry }: LoadErrorProps) {
   const { colors } = useTheme();
+  const t = useT();
   return (
     <View style={[styles.box, { backgroundColor: colors.surface }]}>
       <View style={[styles.icon, { backgroundColor: colors.danger + '1F' }]}>
         <CloudOffIcon size={20} color={colors.danger} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.title, { color: colors.text }]}>Non sono riuscito a caricare {what}</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t.erroreCaricamento.titolo(what)}</Text>
         <Text style={[styles.sub, { color: colors.textDim }]}>
-          Probabilmente è la connessione. I dati non sono andati persi.
+          {t.erroreCaricamento.sottotitolo}
         </Text>
       </View>
       <Pressable onPress={onRetry} style={[styles.btn, { backgroundColor: colors.amber }]}>
         <RetryIcon size={13} color={colors.inkOnAmber} strokeWidth={2.4} />
-        <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 12.5 }}>Riprova</Text>
+        <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 12.5 }}>{t.comune.riprova}</Text>
       </Pressable>
     </View>
   );
