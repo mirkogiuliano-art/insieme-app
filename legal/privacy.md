@@ -2,13 +2,16 @@
 title: Informativa sulla privacy — Insieme
 ---
 
+**Italiano** · [English](en/privacy.html)
+
 # Informativa sulla privacy di Insieme
 
-**Ultimo aggiornamento: 17 settembre 2026**
+**Ultimo aggiornamento: 29 settembre 2026**
 
-> ⚠️ **Da completare prima di pubblicare.** Ovunque compaia `[...]` va messo un
-> dato vero. Senza, questo documento non è valido: il titolare del trattamento
-> deve essere identificabile e raggiungibile.
+> ⚠️ **Da completare.** Mancano tre dati del titolare: nome e cognome,
+> indirizzo ed email di contatto (dove compare `[...]`). Senza, questo
+> documento non è valido: il titolare del trattamento deve essere
+> identificabile e raggiungibile.
 
 Insieme è uno spazio condiviso dove un gruppo di persone tiene insieme i propri
 messaggi, i link e i posti sulla mappa. Questo documento dice quali dati
@@ -27,21 +30,27 @@ esercitare i diritti elencati più avanti.
 | Dato | Quando | Perché | Per quanto |
 | --- | --- | --- | --- |
 | Indirizzo email | alla registrazione | identificare l'account e permetterti di rientrare | finché esiste l'account |
-| Password | alla registrazione | proteggere l'accesso | finché esiste l'account |
+| Password | alla registrazione con email | proteggere l'accesso | finché esiste l'account |
+| Nome, email e immagine del profilo Google | se entri con Google | creare l'account e proporti un nome | finché esiste l'account |
 | Nome visualizzato | al primo avvio | firmare messaggi, link e posti dentro i tuoi gruppi | finché esiste l'account |
+| Lingua dell'app | alla registrazione e quando la cambi | scriverti le email nella tua lingua | finché esiste l'account |
 | Messaggi | quando scrivi | è il servizio stesso | finché esiste il gruppo |
 | Foto, video, messaggi vocali, documenti | quando li alleghi | condividerli con il tuo gruppo | finché esiste il gruppo |
-| Posizione | quando apri la mappa | centrare la mappa dove sei e salvare un posto | non viene conservata |
+| Posizione | quando apri la mappa | centrare la mappa dove sei | non viene conservata |
+| Posizione mandata in chat | se usi «Dove sono» | mostrarla al tuo gruppo | è un messaggio: finché esiste il gruppo |
 | Posti salvati | quando ne segni uno | mostrarli a tutto il gruppo | finché esiste il gruppo |
 | Codice del dispositivo per le notifiche | se accetti le notifiche | recapitarti gli avvisi | finché non esci o le disattivi |
 | Data dell'ultima lettura di una chat | quando apri una chat | spunte di lettura e conteggio dei messaggi non letti | finché sei nel gruppo |
+| Dati tecnici su un errore | quando qualcosa nell'app non funziona | capire e correggere il malfunzionamento | al massimo 90 giorni |
 
 **La password non la conosciamo.** La custodisce Supabase in forma cifrata: non
 è leggibile né da noi né da altri utenti.
 
-**La posizione non viene salvata.** Serve al telefono per centrare la mappa nel
-momento in cui la apri. Quello che resta salvato sono le coordinate dei posti che
-scegli di segnare, che sono un'altra cosa: li decidi tu e li vede il tuo gruppo.
+**La posizione, da sola, non viene salvata.** Serve al telefono per centrare la
+mappa nel momento in cui la apri. Resta salvata solo quando sei tu a mandarla o
+a segnarla: le coordinate dei posti che aggiungi alla mappa, e la posizione che
+mandi in chat con «Dove sono», che diventa un messaggio come gli altri. In
+entrambi i casi la vede il tuo gruppo, e nessun altro.
 
 **Non c'è pubblicità, non c'è profilazione, non vendiamo niente a nessuno.** Non
 usiamo i tuoi dati per costruire un profilo di te e non li cediamo a terzi per
@@ -62,13 +71,44 @@ i documenti delicati.
 ## Dove finiscono i dati
 
 I dati sono conservati su **Supabase**, che li tiene su infrastruttura
-**[regione del progetto Supabase, es. Europa — Francoforte]**. Le notifiche
-passano per i servizi di **Expo** e **Google Firebase**, che ricevono il codice
-del tuo dispositivo e il testo dell'avviso per poterlo recapitare.
+nell'**Unione Europea (Irlanda)**. Le notifiche passano per i servizi di **Expo**
+e **Google Firebase**, che ricevono il codice del tuo dispositivo e il testo
+dell'avviso per poterlo recapitare.
+
+Se **entri con Google**, è Google a verificare chi sei e a comunicarci nome,
+indirizzo email e immagine del profilo. Google sa che hai usato il suo account
+per entrare in Insieme; non riceve niente di quello che fai dentro l'app.
+
+Le **email** di conferma dell'indirizzo e di recupero della password partono da
+una casella **Gmail** (Google), che quindi vede a chi vengono spedite.
 
 Quando qualcuno condivide un link, l'app chiede al sito di quel link il titolo e
 l'immagine di anteprima: in quel momento il nostro server contatta quel sito, che
 vedrà una richiesta proveniente da noi e non da te.
+
+### Quando qualcosa non funziona
+
+Se nell'app si verifica un errore, i suoi dati tecnici vengono mandati a
+**Sentry** (Functional Software, Inc.), un servizio che raccoglie i
+malfunzionamenti delle applicazioni. I dati sono conservati nell'**Unione
+Europea (Francoforte)** e cancellati al più tardi dopo **90 giorni**.
+
+Sentry riceve: la descrizione tecnica dell'errore e il punto del codice in cui è
+avvenuto; la versione dell'app, il modello del telefono e la versione del
+sistema operativo; la lingua dell'app; il **codice identificativo** del tuo
+account; gli ultimi passaggi prima dell'errore (quali schermate erano aperte,
+quali richieste l'app aveva appena fatto ai propri server, senza il loro
+contenuto).
+
+Sentry **non** riceve: il tuo nome, la tua email, il tuo indirizzo IP, i testi
+dei messaggi, le foto e gli altri allegati. Non ci sono registrazioni dello
+schermo.
+
+Serve a una cosa sola: accorgerci dei malfunzionamenti e correggerli, anche
+quando capitano sul telefono di qualcun altro. La base giuridica è il nostro
+**legittimo interesse** a far funzionare il servizio che usi. Questi dati
+restano fino alla loro scadenza anche se cancelli l'account, perché sono
+separati da esso e non servono a identificarti.
 
 ## Quanto restano
 
@@ -78,8 +118,9 @@ contenuto, file compresi. Se cancelli il tuo account, vedi la sezione qui sotto.
 
 ## Cancellare l'account
 
-Puoi cancellare il tuo account **direttamente dall'app**: Impostazioni →
-*Elimina il tuo account*. È immediato e non richiede la nostra approvazione.
+Puoi cancellare il tuo account **direttamente dall'app**: tocca le tue iniziali
+in alto a destra per aprire il *Profilo*, poi *Elimina account*. È immediato e
+non richiede la nostra approvazione.
 
 Spariscono: il tuo profilo, le tue iscrizioni ai gruppi, i tuoi messaggi, i link e
 i posti che hai aggiunto, le tue reazioni e i dispositivi registrati per le
@@ -100,10 +141,13 @@ formato leggibile** per portarli altrove. Scrivi a
 **[indirizzo email di contatto]**.
 
 Se ritieni che i tuoi dati siano trattati in modo scorretto puoi rivolgerti al
-**Garante per la protezione dei dati personali** (www.garanteprivacy.it).
+**Garante per la protezione dei dati personali** (www.garanteprivacy.it), o
+all'autorità di protezione dei dati del paese in cui vivi.
 
 La base giuridica del trattamento è l'**esecuzione del contratto** con te: senza
-questi dati il servizio non può funzionare.
+questi dati il servizio non può funzionare. Fanno eccezione i dati tecnici sugli
+errori, trattati per **legittimo interesse** (vedi *Quando qualcosa non
+funziona*): puoi opporti scrivendo all'indirizzo qui sopra.
 
 ## Minori
 

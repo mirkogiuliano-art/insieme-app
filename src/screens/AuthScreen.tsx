@@ -7,7 +7,7 @@ import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
 import { BackIcon, MailIcon, CheckIcon } from '@/components/Icon';
 import { Field } from '@/components/Field';
 import { Logo } from '@/components/Logo';
-import { PRIVACY_URL, TERMINI_URL } from '@/lib/legal';
+import { useDocumenti } from '@/lib/legal';
 import { supabase } from '@/lib/supabase';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { ScrollConTastiera } from '@/components/ScrollConTastiera';
@@ -24,6 +24,8 @@ export function AuthScreen() {
   const { colors } = useTheme();
   const t = useT();
   const { lingua } = useLingua();
+  // Informativa e condizioni nella lingua in uso.
+  const documenti = useDocumenti();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -276,16 +278,16 @@ export function AuthScreen() {
         {mode === 'signup' ? (
           <Text style={[styles.legale, { color: colors.textFaint }]}>
             {t.accesso.legale1}
-            {TERMINI_URL ? (
-              <Text style={{ color: colors.teal }} onPress={() => Linking.openURL(TERMINI_URL)}>
+            {documenti.termini ? (
+              <Text style={{ color: colors.teal }} onPress={() => Linking.openURL(documenti.termini)}>
                 {t.accesso.legaleCondizioni}
               </Text>
             ) : (
               <Text>{t.accesso.legaleCondizioni}</Text>
             )}
             {t.accesso.legale2}
-            {PRIVACY_URL ? (
-              <Text style={{ color: colors.teal }} onPress={() => Linking.openURL(PRIVACY_URL)}>
+            {documenti.privacy ? (
+              <Text style={{ color: colors.teal }} onPress={() => Linking.openURL(documenti.privacy)}>
                 {t.accesso.legalePrivacy}
               </Text>
             ) : (

@@ -2,12 +2,14 @@
 title: Condizioni d'uso — Insieme
 ---
 
+**Italiano** · [English](en/terms.html)
+
 # Condizioni d'uso di Insieme
 
-**Ultimo aggiornamento: 17 settembre 2026**
+**Ultimo aggiornamento: 29 settembre 2026**
 
-> ⚠️ **Da completare prima di pubblicare.** Ovunque compaia `[...]` va messo un
-> dato vero.
+> ⚠️ **Da completare.** Mancano due dati di chi offre il servizio: nome e
+> cognome, ed email di contatto (dove compare `[...]`).
 
 Usando Insieme accetti queste condizioni. Sono poche e scritte in italiano
 normale, perché tu le legga davvero.
@@ -25,8 +27,9 @@ di dati. Tieni una copia di quello a cui tieni davvero.
 
 ## Il tuo account
 
-Per usare Insieme serve un account con email e password. Sei responsabile di
-quello che succede con il tuo account: tieni la password per te.
+Per usare Insieme serve un account, con email e password oppure con il tuo
+account Google. Sei responsabile di quello che succede con il tuo account:
+tieni la password per te.
 
 Devi avere **almeno 16 anni** per usare Insieme.
 
@@ -59,7 +62,7 @@ preventiva su quello che le persone si scrivono nei loro gruppi privati.
 
 ## Chiudere
 
-Puoi cancellare il tuo account quando vuoi dalle impostazioni dell'app, senza
+Puoi cancellare il tuo account quando vuoi dal *Profilo* nell'app, senza
 chiedere il permesso a nessuno. Cosa sparisce e cosa resta è spiegato
 nell'informativa sulla privacy.
 

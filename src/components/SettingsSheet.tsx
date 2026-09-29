@@ -22,7 +22,7 @@ import { updateDisplayName } from '@/lib/api/profiles';
 import { deleteMyAccount } from '@/lib/api/account';
 import { listBlockedWithNames, unblockUser } from '@/lib/api/moderation';
 import { initials } from '@/lib/utils';
-import { PRIVACY_URL, TERMINI_URL, haiPubblicatoIDocumenti } from '@/lib/legal';
+import { useDocumenti } from '@/lib/legal';
 import { useLingua, LINGUE, NOMI_LINGUA } from '@/i18n';
 import type { ThemePreference, LanguageName } from '@/types';
 import { segnalaErrore } from '@/lib/sentry';
@@ -55,6 +55,8 @@ const APP_VERSION = Constants.expoConfig?.version ?? '';
 export function SettingsSheet({ visible, onClose, startAt = 'settings' }: SettingsSheetProps) {
   const { colors, preference, setPreference } = useTheme();
   const { t, lingua, setPreference: setLingua } = useLingua();
+  // Informativa e condizioni nella lingua in uso.
+  const documenti = useDocumenti();
   const { profile, session, refreshProfile, signOut } = useAuth();
   const [page, setPage] = useState<Page>(startAt);
   const [nameDraft, setNameDraft] = useState(profile?.displayName ?? '');
@@ -275,28 +277,28 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
           />
         </Block>
 
-        {haiPubblicatoIDocumenti ? (
+        {documenti.pubblicati ? (
           <>
             <SectionLabel>{t.profilo.documenti}</SectionLabel>
             <Block>
-              {PRIVACY_URL ? (
+              {documenti.privacy ? (
                 <Row
                   first
                   icon={<ShieldIcon size={15} color={colors.teal} strokeWidth={2} />}
                   tint={colors.teal}
                   label={t.profilo.informativaPrivacy}
                   trailing={external}
-                  onPress={() => Linking.openURL(PRIVACY_URL)}
+                  onPress={() => Linking.openURL(documenti.privacy)}
                 />
               ) : null}
-              {TERMINI_URL ? (
+              {documenti.termini ? (
                 <Row
-                  first={!PRIVACY_URL}
+                  first={!documenti.privacy}
                   icon={<FileIcon size={15} color={colors.lilac} strokeWidth={2} />}
                   tint={colors.lilac}
                   label={t.profilo.condizioni}
                   trailing={external}
-                  onPress={() => Linking.openURL(TERMINI_URL)}
+                  onPress={() => Linking.openURL(documenti.termini)}
                 />
               ) : null}
             </Block>
