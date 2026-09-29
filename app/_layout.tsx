@@ -1,8 +1,8 @@
 import '@/lib/polyfills';
 import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Platform, View, Text, Pressable } from 'react-native';
+import { Stack, router, useNavigationContainerRef, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -18,6 +18,31 @@ import { AppStoreProvider } from '@/lib/appStore';
 import { ToastProvider } from '@/components/Toast';
 import * as Linking from 'expo-linking';
 import { gestisciLink } from '@/lib/linkAccesso';
+import { avviaSentry, avvolgiApp, navigazioneSentry, segnalaErrore, sentryAttivo } from '@/lib/sentry';
+import { dizionario } from '@/i18n';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://8c521f0ab53a3d46a6fe66e45e6fead2@o4512169067085824.ingest.de.sentry.io/4512169074294864',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: true,
+
+  // Enable Logs
+  enableLogs: true,
+
+  // Configure Session Replay
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1,
+  integrations: [Sentry.mobileReplayIntegration(), Sentry.feedbackIntegration()],
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
+
+// Prima di tutto il resto: un errore durante l'avvio va raccolto anche lui.
+avviaSentry();
 
 // Sul web Chrome colora di giallo (o azzurro) i campi riempiti dalla
 // compilazione automatica. Lo sfondo non si può togliere, solo rimandare
@@ -97,7 +122,57 @@ function LinkAccessoRouter() {
   return null;
 }
 
-export default function RootLayout() {
+/**
+ * La rete sotto l'app: quello che si vede quando una schermata si rompe,
+ * al posto di uno schermo bianco o di un'app che si chiude.
+ *
+ * Expo Router la mette **attorno** a questo layout, quindi fuori da tema,
+ * lingua e aree sicure che il layout stesso fornisce: non può usarli. I
+ * testi li prende da `dizionario()`, che funziona anche senza contesto;
+ * i colori sono quelli del tema scuro, il punto di partenza dell'app.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const t = dizionario().rottura;
+  useEffect(() => {
+    // Un errore fermato qui non arriva al gestore globale di Sentry: va
+    // mandato a mano.
+    segnalaErrore(error, 'rottura.schermata');
+  }, [error]);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0E141B', alignItems: 'center', justifyContent: 'center', padding: 28, gap: 12 }}>
+      <Text style={{ color: '#E8EDF2', fontSize: 22, fontWeight: '800', letterSpacing: -0.4, textAlign: 'center' }}>{t.titolo}</Text>
+      <Text style={{ color: '#93A3B2', fontSize: 14, lineHeight: 20, textAlign: 'center', maxWidth: 320 }}>
+        {t.testo}
+        {sentryAttivo ? `\n${t.arrivato}` : ''}
+      </Text>
+      <Pressable
+        onPress={retry}
+        style={{ marginTop: 10, height: 50, alignSelf: 'stretch', borderRadius: 999, backgroundColor: '#E9A23B', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Text style={{ color: '#23190A', fontSize: 15, fontWeight: '800' }}>{t.riprova}</Text>
+      </Pressable>
+      <Pressable
+        onPress={() => {
+          router.replace('/');
+          retry();
+        }}
+        hitSlop={8}
+      >
+        <Text style={{ color: '#93A3B2', fontSize: 13, fontWeight: '700', marginTop: 4 }}>{t.inizio}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function RootLayout() {
+  // Sentry segue le schermate aperte: un errore arriva col percorso che
+  // l'ha preceduto.
+  const navigazione = useNavigationContainerRef();
+  useEffect(() => {
+    if (navigazione) navigazioneSentry.registerNavigationContainer(navigazione);
+  }, [navigazione]);
+
   // Il carattere sta dentro l'app, quindi il caricamento è questione di
   // un attimo: aspettarlo evita che i nomi dei gruppi compaiano col
   // carattere di sistema e cambino forma sotto gli occhi. Se per qualche
@@ -148,3 +223,5 @@ export default function RootLayout() {
     </ShareIntentProvider>
   );
 }
+
+export default Sentry.wrap(avvolgiApp(RootLayout));

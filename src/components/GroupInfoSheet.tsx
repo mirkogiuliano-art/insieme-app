@@ -16,6 +16,7 @@ import { getInviteToken, rotateInvite, revokeInvite, inviteUrl } from '@/lib/api
 import { initials, colorForUser, dateLabel, inkOn } from '@/lib/utils';
 import type { Group } from '@/types';
 import { useT, dizionario } from '@/i18n';
+import { segnalaErrore } from '@/lib/sentry';
 
 interface GroupInfoSheetProps {
   visible: boolean;
@@ -150,6 +151,7 @@ function InfoEditor({
       });
       onSaved();
     } catch (err) {
+      segnalaErrore(err, 'infoGruppo.erroreInfo');
       onError((err as { message?: string })?.message || t.infoGruppo.erroreInfo);
     } finally {
       setBusy(false);
@@ -311,7 +313,8 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       else await addFact(group.id, session.user.id, label, value, facts.length);
       setFactDraft(null);
       setFacts(await listFacts(group.id));
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'infoGruppo.erroreRiga');
       toast.show(t.infoGruppo.erroreRiga, 'error');
     }
   };
@@ -321,7 +324,8 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       await removeFact(id);
       setFactDraft(null);
       setFacts((prev) => prev.filter((f) => f.id !== id));
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'infoGruppo.erroreTogliRiga');
       toast.show(t.infoGruppo.erroreTogliRiga, 'error');
     }
   };
@@ -344,7 +348,8 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       await leaveGroup(group.id);
       onClose();
       onLeaveGroup();
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'home.erroreUscita');
       toast.show(t.home.erroreUscita, 'error');
     } finally {
       setLeaving(false);
@@ -363,7 +368,8 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       const token = inviteToken ?? (await rotateInvite(group.id));
       setInviteToken(token);
       await Share.share({ message: t.home.invitoTesto(group.name, inviteUrl(token)) });
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'infoGruppo.erroreLink');
       toast.show(t.infoGruppo.erroreLink, 'error');
     } finally {
       setBusy(false);
@@ -376,7 +382,8 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
     try {
       setInviteToken(await rotateInvite(group.id));
       toast.show(t.infoGruppo.linkNuovo);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'infoGruppo.erroreLinkNuovo');
       toast.show(t.infoGruppo.erroreLinkNuovo, 'error');
     } finally {
       setBusy(false);
@@ -390,7 +397,8 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       await revokeInvite(group.id);
       setInviteToken(null);
       toast.show(t.infoGruppo.linkDisattivato);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'infoGruppo.erroreDisattiva');
       toast.show(t.infoGruppo.erroreDisattiva, 'error');
     } finally {
       setBusy(false);

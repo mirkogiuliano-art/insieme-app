@@ -58,6 +58,7 @@ import {
   type RawPlaceCategory,
 } from '@/lib/api/placeCategories';
 import { useT, dizionario } from '@/i18n';
+import { segnalaErrore } from '@/lib/sentry';
 
 interface MapTabProps {
   groupId: string;
@@ -161,7 +162,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       setLinks(linkList);
       setPlaceLinks(pl);
       setLoadError(false);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'caricamento.posti');
       setLoadError(true);
     }
   }, [groupId]);
@@ -250,7 +252,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       setMyPos(here);
       return here;
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'mappa.errorePosizione');
       toast.show(t.mappa.errorePosizione, 'error');
       return null;
     }
@@ -327,7 +330,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         mapRef.current?.animateToRegion({ latitude: c.lat, longitude: c.lng, latitudeDelta: 0.02, longitudeDelta: 0.02 });
       }, 300);
       return true;
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'mappa.erroreSalva');
       toast.show(t.mappa.erroreSalva, 'error');
       return false;
     }
@@ -337,7 +341,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
     setOpenPin(null);
     try {
       await deletePin(id);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'mappa.erroreElimina');
       toast.show(t.mappa.erroreElimina, 'error');
     }
   };
@@ -346,7 +351,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
     try {
       await withTimeout(movePin(pin.id, categoryId), WRITE_TIMEOUT);
       toast.show(`Spostato in "${catFor(categoryId).name}"`);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'mappa.erroreSposta');
       toast.show(t.mappa.erroreSposta, 'error');
     }
   };
@@ -361,7 +367,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       avvisaDelMessaggio(sent.id);
       toast.show(t.mappa.mandato);
       return true;
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'mappa.erroreChat');
       toast.show(t.mappa.erroreChat, 'error');
       return false;
     }
@@ -373,7 +380,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
     if (!session) return;
     try {
       await withTimeout(createPlaceLink(groupId, session.user.id, pinId, linkId), WRITE_TIMEOUT);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'mappa.erroreCollega');
       toast.show(t.mappa.erroreCollega, 'error');
     }
   };
@@ -383,7 +391,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
     if (!pl) return;
     try {
       await deletePlaceLink(pl.id);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'mappa.erroreScollega');
       toast.show(t.mappa.erroreScollega, 'error');
     }
   };
@@ -394,7 +403,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       if (name !== manageCat.name) await renameCategory(manageCat.id, name);
       if (color && color !== manageCat.color) await recolorCategory(manageCat.id, color);
       setManageCat(null);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'mappa.erroreCategoria');
       toast.show(t.mappa.erroreCategoria, 'error');
     }
   };
@@ -406,6 +416,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       if (filter === manageCat.id) setFilter('all');
       setManageCat(null);
     } catch (err) {
+      segnalaErrore(err, 'mappa.erroreEliminaCategoria');
       toast.show((err as { message?: string })?.message || t.mappa.erroreEliminaCategoria, 'error');
     }
   };

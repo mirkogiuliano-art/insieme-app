@@ -9,6 +9,14 @@
 import type { Dizionario } from './it';
 
 export const en: Dizionario = {
+  rottura: {
+    titolo: 'Something broke',
+    testo: 'Part of the app stopped working. You can try again, or start over from the home screen.',
+    arrivato: 'The error has reached us: we’ll look into it.',
+    riprova: 'Try again',
+    inizio: 'Back to the start',
+  },
+
   comune: {
     annulla: 'Cancel',
     salva: 'Save',

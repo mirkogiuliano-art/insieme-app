@@ -24,6 +24,7 @@
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { dizionario } from '@/i18n';
+import { segnalaErrore } from '@/lib/sentry';
 
 /** L'id OAuth «Web» di Google Cloud: è quello che Supabase conosce, e il
  * selettore nativo lo usa per farsi dare un token che Supabase accetti.
@@ -80,7 +81,10 @@ async function accediNativo(): Promise<EsitoGoogle> {
     if (!idToken) return { esito: 'errore', messaggio: e.generico };
 
     const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
-    if (error) return { esito: 'errore', messaggio: error.message || e.generico };
+    if (error) {
+      segnalaErrore(error, 'accesso.google');
+      return { esito: 'errore', messaggio: error.message || e.generico };
+    }
     return { esito: 'dentro' };
   } catch (err) {
     if (isErrorWithCode(err)) {
@@ -94,6 +98,7 @@ async function accediNativo(): Promise<EsitoGoogle> {
       // Cloud. A chi usa l'app non serve saperlo; a chi la sta costruendo sì.
       if (__DEV__) console.warn('[accesso Google]', err.code, err.message);
     }
+    segnalaErrore(err, 'accesso.google');
     return { esito: 'errore', messaggio: e.generico };
   }
 }

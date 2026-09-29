@@ -31,8 +31,10 @@ import {
 import { initials } from '@/lib/utils';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
-import { TabBarSpaceContext } from '@/lib/tabBarSpace';
+import { TabBarSpaceContext, TABBAR_SPACE, useBarraAnimata } from '@/lib/tabBarSpace';
+import Animated from 'react-native-reanimated';
 import { useT } from '@/i18n';
+import { segnalaErrore } from '@/lib/sentry';
 
 type TabName = 'chat' | 'links' | 'map';
 
@@ -101,6 +103,7 @@ export default function GroupScreen() {
   // spazio a quello che si sta scrivendo. Il selettore evita di ridisegnare
   // a ogni variazione dell'altezza della tastiera: serve solo il sì/no.
   const keyboardOpen = useKeyboardState((s) => s.isVisible);
+  const barraAnimata = useBarraAnimata();
 
   useEffect(() => {
     if (!localGroup) return;
@@ -121,7 +124,8 @@ export default function GroupScreen() {
       await Share.share({
         message: t.home.invitoTesto(localGroup.name, inviteUrl(token)),
       });
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'home.erroreInvito');
       toast.show(t.home.erroreInvito, 'error');
     } finally {
       setSharing(false);
@@ -234,35 +238,39 @@ export default function GroupScreen() {
       {/* La barra galleggia davvero sopra il contenuto: le liste e la mappa
           le passano sotto fino al bordo dello schermo, e lei resta leggibile
           perché è quasi opaca e staccata da un'ombra. Quanto spazio lasciarle
-          libero in fondo, le sezioni lo leggono da TabBarSpaceContext. */}
-      {!keyboardOpen ? (
-        <View style={[styles.tabbar, { backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.9)' : 'rgba(33,44,56,0.9)' }]}>
-          <TabButton
-            label={t.gruppo.chat}
-            active={tab === 'chat'}
-            onPress={() => setTab('chat')}
-            icon={<ChatIcon size={21} color={tab === 'chat' ? colors.inkOnAmber : colors.textFaint} />}
-            activeBg={colors.amber}
-            activeText={colors.inkOnAmber}
-          />
-          <TabButton
-            label={t.gruppo.link}
-            active={tab === 'links'}
-            onPress={() => setTab('links')}
-            icon={<LinkIcon size={21} color={tab === 'links' ? colors.inkOnAmber : colors.textFaint} />}
-            activeBg={colors.amber}
-            activeText={colors.inkOnAmber}
-          />
-          <TabButton
-            label={t.gruppo.mappa}
-            active={tab === 'map'}
-            onPress={() => setTab('map')}
-            icon={<MapIcon size={21} color={tab === 'map' ? colors.inkOnAmber : colors.textFaint} />}
-            activeBg={colors.amber}
-            activeText={colors.inkOnAmber}
-          />
-        </View>
-      ) : null}
+          libero in fondo, le sezioni lo leggono da TabBarSpaceContext.
+          È sempre presente: con la tastiera si dissolve seguendone il
+          movimento, invece di sparire di colpo (vedi useBarraAnimata), e
+          mentre è nascosta non si tocca. */}
+      <Animated.View
+        pointerEvents={keyboardOpen ? 'none' : 'auto'}
+        style={[styles.tabbar, { backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.9)' : 'rgba(33,44,56,0.9)' }, barraAnimata]}
+      >
+        <TabButton
+          label={t.gruppo.chat}
+          active={tab === 'chat'}
+          onPress={() => setTab('chat')}
+          icon={<ChatIcon size={21} color={tab === 'chat' ? colors.inkOnAmber : colors.textFaint} />}
+          activeBg={colors.amber}
+          activeText={colors.inkOnAmber}
+        />
+        <TabButton
+          label={t.gruppo.link}
+          active={tab === 'links'}
+          onPress={() => setTab('links')}
+          icon={<LinkIcon size={21} color={tab === 'links' ? colors.inkOnAmber : colors.textFaint} />}
+          activeBg={colors.amber}
+          activeText={colors.inkOnAmber}
+        />
+        <TabButton
+          label={t.gruppo.mappa}
+          active={tab === 'map'}
+          onPress={() => setTab('map')}
+          icon={<MapIcon size={21} color={tab === 'map' ? colors.inkOnAmber : colors.textFaint} />}
+          activeBg={colors.amber}
+          activeText={colors.inkOnAmber}
+        />
+      </Animated.View>
       </TabBarSpaceContext.Provider>
       </KeyboardAvoidingView>
 
@@ -351,9 +359,6 @@ function TabButton({
   );
 }
 
-/** Lo spazio che la barra occupa dal fondo: 12 di margine, 58 di barra
- * (6 + 46 + 6) e 10 di respiro fra lei e quello che le sta sopra. */
-const TABBAR_SPACE = 80;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

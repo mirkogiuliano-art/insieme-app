@@ -32,6 +32,7 @@ import { fitFontSize, LETTER_SPACING_EM } from '@/lib/fitText';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { useT, dizionario } from '@/i18n';
+import { segnalaErrore } from '@/lib/sentry';
 
 /** Quante facce stanno sulla scheda prima di riassumere il resto in "+N". */
 const AVATARS_SHOWN = 3;
@@ -165,6 +166,7 @@ export function GroupsLanding() {
       setInviteOpen(meta);
       return null;
     } catch (err) {
+      segnalaErrore(err, 'home.erroreCrea');
       return (err as { message?: string })?.message || t.home.erroreCrea;
     }
   };
@@ -173,7 +175,8 @@ export function GroupsLanding() {
     try {
       await withTimeout(setGroupColor(g.id, color), WRITE_TIMEOUT);
       await refreshGroups();
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'home.erroreColore');
       toast.show(t.home.erroreColore, 'error');
     }
   };
@@ -182,7 +185,8 @@ export function GroupsLanding() {
     try {
       await updateLastRead(g.id);
       await reloadPreviews();
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'home.erroreLetto');
       toast.show(t.home.erroreLetto, 'error');
     }
   };
@@ -196,7 +200,8 @@ export function GroupsLanding() {
     try {
       await leaveGroup(g.id);
       await reloadPreviews();
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'home.erroreUscita');
       toast.show(t.home.erroreUscita, 'error');
     }
   };
@@ -226,7 +231,8 @@ export function GroupsLanding() {
     try {
       const token = await withTimeout(getInviteToken(g.id).then((t) => t ?? rotateInvite(g.id)), WRITE_TIMEOUT);
       await Share.share({ message: t.home.invitoTesto(g.name, inviteUrl(token)) });
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'home.erroreInvito');
       toast.show(t.home.erroreInvito, 'error');
     } finally {
       setSharing(false);

@@ -72,6 +72,7 @@ import { avvisaDelMessaggio } from '@/lib/api/push';
 import { colorForUser } from '@/lib/utils';
 import { CATEGORY_PALETTE } from '@/types';
 import { useT, dizionario } from '@/i18n';
+import { segnalaErrore } from '@/lib/sentry';
 
 interface LinksTabProps {
   groupId: string;
@@ -166,7 +167,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       setPlaceCategories(placeCats);
       setPlaceLinks(pl);
       setLoadError(false);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'caricamento.link');
       setLoadError(true);
     }
   }, [groupId]);
@@ -216,7 +218,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       avvisaDelMessaggio(sent.id);
       toast.show(t.link.mandato);
       return true;
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.erroreChat');
       toast.show(t.link.erroreChat, 'error');
       return false;
     }
@@ -305,7 +308,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         setMapsPrompt({ info: maps, linkId: created.id, url: normalized });
       }
       return true;
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.erroreSalva');
       toast.show(t.link.erroreSalva, 'error');
       return false;
     }
@@ -325,7 +329,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       } else {
         await withTimeout(createPlaceLink(groupId, session.user.id, pinId, linkId), WRITE_TIMEOUT);
       }
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.erroreCollegamento');
       toast.show(t.link.erroreCollegamento, 'error');
     }
   };
@@ -350,7 +355,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         mapsUrl: mapsPrompt.url,
       }), WRITE_TIMEOUT);
       pinId = pin.id;
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.errorePosto');
       toast.show(t.link.errorePosto, 'error');
       setSavingPlace(false);
       return;
@@ -394,7 +400,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         categoryId: catId,
       }), WRITE_TIMEOUT);
       return true;
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.erroreCaricamentoFile');
       toast.show(t.link.erroreCaricamentoFile, 'error');
       return false;
     } finally {
@@ -427,7 +434,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         categoryId: catId,
       }), WRITE_TIMEOUT);
       return true;
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.erroreCaricamentoDoc');
       toast.show(t.link.erroreCaricamentoDoc, 'error');
       return false;
     } finally {
@@ -441,7 +449,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   const toggleFavorite = async (link: RawLink) => {
     try {
       await withTimeout(setFavorite(link.id, !link.isFavorite), WRITE_TIMEOUT);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.errorePreferito');
       toast.show(t.link.errorePreferito, 'error');
     }
   };
@@ -451,7 +460,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       await withTimeout(setLinkCategory(link.id, categoryId), WRITE_TIMEOUT);
       const cat = categories.find((c) => c.id === categoryId);
       toast.show(cat ? t.link.spostatoIn(cat.name) : t.link.spostato);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.erroreSposta');
       toast.show(t.link.erroreSposta, 'error');
     }
   };
@@ -462,7 +472,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       // Se il link era una foto o un video caricati, il file resterebbe
       // nel deposito: la spazzata lo toglie di mezzo.
       sweepGroupMedia(groupId);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.erroreElimina');
       toast.show(t.link.erroreElimina, 'error');
     }
   };
@@ -478,7 +489,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       setFilter(cat.id);
       setNewCatName('');
       setCatModalOpen(false);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.erroreCreaCategoria');
       toast.show(t.link.erroreCreaCategoria, 'error');
     }
   };
@@ -497,7 +509,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       if (name !== manageCat.name) await renameCategory(manageCat.id, name);
       if (color && color !== manageCat.color) await recolorCategory(manageCat.id, color);
       closeManageCat();
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'link.erroreSalvaCategoria');
       toast.show(t.link.erroreSalvaCategoria, 'error');
     }
   };
@@ -509,6 +522,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       if (filter === manageCat.id) setFilter('all');
       closeManageCat();
     } catch (err) {
+      segnalaErrore(err, 'link.erroreEliminaCategoria');
       toast.show((err as { message?: string })?.message || t.link.erroreEliminaCategoria, 'error');
     }
   };

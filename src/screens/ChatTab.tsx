@@ -14,7 +14,8 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAudioRecorder, useAudioPlayer, useAudioPlayerStatus, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio';
-import { useTabBarSpace } from '@/lib/tabBarSpace';
+import { useSpazioBarraAnimato } from '@/lib/tabBarSpace';
+import Animated from 'react-native-reanimated';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { SendIcon, ChatIcon, CloseIcon, PlayIcon, MicIcon, StopIcon, SearchIcon, CheckIcon, ChevronIcon, PlusIcon, GridIcon, MapIcon, CalendarIcon } from '@/components/Icon';
 import { ChatLinkPreview } from '@/components/ChatLinkPreview';
@@ -63,6 +64,7 @@ import { listCategories as listPlaceCategories, type RawPlaceCategory } from '@/
 import { listLinks, createLink, type RawLink } from '@/lib/api/links';
 import { listCategories as listLinkCategories, type RawLinkCategory } from '@/lib/api/linkCategories';
 import { useT, dizionario, localeAttuale } from '@/i18n';
+import { segnalaErrore } from '@/lib/sentry';
 
 interface ChatTabProps {
   groupId: string;
@@ -122,7 +124,7 @@ function highlightSegments(text: string, term: string): { text: string; match: b
 export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
   const { colors } = useTheme();
   const t = useT();
-  const tabBarSpace = useTabBarSpace();
+  const spazioBarra = useSpazioBarraAnimato();
   const { session } = useAuth();
   const toast = useToast();
   const [messages, setMessages] = useState<RawMessage[]>([]);
@@ -308,7 +310,8 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       setVotes(voti);
       setHasMore(msgs.length === PAGE_SIZE);
       setLoadError(false);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'caricamento.messaggi');
       setLoadError(true);
     }
   }, [groupId]);
@@ -434,8 +437,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       const sent = await withTimeout(sendMessage(groupId, session.user.id, text, replyToId), WRITE_TIMEOUT);
       setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
       avvisaDelMessaggio(sent.id);
-    } catch {
+    } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      segnalaErrore(err, 'chat.erroreInvio');
       toast.show(t.chat.erroreInvio, 'error');
     }
   };
@@ -452,8 +456,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       const sent = await withTimeout(sendMessage(groupId, session.user.id, text, replyToId), WRITE_TIMEOUT);
       setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
       avvisaDelMessaggio(sent.id);
-    } catch {
+    } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      segnalaErrore(err, 'chat.erroreInvio');
       toast.show(t.chat.erroreInvio, 'error');
     }
   };
@@ -471,6 +476,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       setNewPollOpen(false);
       return null;
     } catch (err) {
+      segnalaErrore(err, 'chat.erroreSondaggio');
       return (err as { message?: string })?.message || t.chat.erroreSondaggio;
     }
   };
@@ -488,6 +494,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       await withTimeout(votePoll(poll.id, scelte), WRITE_TIMEOUT);
     } catch (err) {
       setVotes(prima);
+      segnalaErrore(err, 'chat.erroreVoto');
       toast.show((err as { message?: string })?.message || t.chat.erroreVoto, 'error');
     }
   };
@@ -497,6 +504,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       await withTimeout(closePoll(poll.id), WRITE_TIMEOUT);
       setVotersFor(null);
     } catch (err) {
+      segnalaErrore(err, 'chat.erroreChiusura');
       toast.show((err as { message?: string })?.message || t.chat.erroreChiusura, 'error');
     }
   };
@@ -512,7 +520,8 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
         const sent = await withTimeout(sendMessage(groupId, session.user.id, null, null, attachment), WRITE_TIMEOUT);
         setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [sent, ...prev]));
         avvisaDelMessaggio(sent.id);
-      } catch {
+      } catch (err) {
+        segnalaErrore(err, 'chat.erroreInvio');
         toast.show(t.chat.erroreInvio, 'error');
       }
       return;
@@ -531,7 +540,8 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       setAttachMenuOpen(false);
       const { latitude: lat, longitude: lng } = pos.coords;
       await sendText(placeMessageText(t.chat.miaPosizione, `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`));
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'chat.errorePosizione');
       toast.show(t.chat.errorePosizione, 'error');
     }
   };
@@ -591,7 +601,8 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       );
       setLinks((prev) => [created, ...prev]);
       toast.show(t.chat.salvatoNeiLink);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'chat.erroreSalvataggio');
       toast.show(t.chat.erroreSalvataggio, 'error');
     }
   };
@@ -613,7 +624,8 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     try {
       await reportMessage(id, '');
       toast.show(t.chat.segnalazioneInviata);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'chat.erroreSegnalazione');
       toast.show(t.chat.erroreSegnalazione, 'error');
     }
   };
@@ -629,7 +641,8 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       await blockUser(autore);
       setBloccati((prev) => (prev.includes(autore) ? prev : [...prev, autore]));
       toast.show(t.chat.bloccato(nome));
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'chat.erroreBlocco');
       toast.show(t.chat.erroreBlocco, 'error');
     }
   };
@@ -659,8 +672,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       const sent = await withTimeout(sendMessage(groupId, session.user.id, null, replyToId, { url, type: kind }), WRITE_TIMEOUT);
       setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
       avvisaDelMessaggio(sent.id);
-    } catch {
+    } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      segnalaErrore(err, 'chat.erroreAllegato');
       toast.show(t.chat.erroreAllegato, 'error');
     } finally {
       setUploading(false);
@@ -707,8 +721,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       );
       setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
       avvisaDelMessaggio(sent.id);
-    } catch {
+    } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      segnalaErrore(err, 'chat.erroreDocumento');
       toast.show(t.chat.erroreDocumento, 'error');
     } finally {
       setUploading(false);
@@ -745,8 +760,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
         const sent = await withTimeout(sendMessage(groupId, session.user.id, null, replyToId, { url, type: 'audio', durationSeconds }), WRITE_TIMEOUT);
         setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
       avvisaDelMessaggio(sent.id);
-      } catch {
+      } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        segnalaErrore(err, 'chat.erroreVocale');
         toast.show(t.chat.erroreVocale, 'error');
       } finally {
         setUploading(false);
@@ -767,7 +783,8 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     if (!session) return;
     try {
       await toggleReaction(messageId, groupId, session.user.id, emoji, mine);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'chat.erroreReazione');
       toast.show(t.chat.erroreReazione, 'error');
     }
   };
@@ -1196,7 +1213,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
         </>
       )}
       {/* Il posto della barra delle sezioni, che galleggia qui sotto. */}
-      <View style={{ height: tabBarSpace }} />
+      <Animated.View style={spazioBarra} />
 
       <NewPollSheet visible={newPollOpen} onClose={() => setNewPollOpen(false)} onCreate={creaSondaggio} />
 
@@ -1226,9 +1243,10 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
         onReact={(emoji) => {
           if (!selezionato || !session) return;
           const mine = reactionsByMessage[selezionato.id]?.find((e) => e.emoji === emoji)?.mine ?? false;
-          toggleReaction(selezionato.id, groupId, session.user.id, emoji, mine).catch(() =>
-            toast.show(t.chat.erroreReazione, 'error'),
-          );
+          toggleReaction(selezionato.id, groupId, session.user.id, emoji, mine).catch((err) => {
+            segnalaErrore(err, 'chat.erroreReazione');
+            toast.show(t.chat.erroreReazione, 'error');
+          });
         }}
         onReply={() => selezionato && setReplyingTo(selezionato)}
         onSaveToLinks={(categoryId) => selezionato && saveToLinks(selezionato, categoryId)}

@@ -99,6 +99,14 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.927578671591-05g0tvo6bva3jcqae9vkdl8r6ov27kms"
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://de.sentry.io/",
+          "organization": "mirko-giuliano",
+          "project": "insieme-app"
+        }
       ]
     ],
     "extra": {

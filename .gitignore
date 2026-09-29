@@ -8,3 +8,5 @@ web-build/
 .env.local
 expo-env.d.ts
 .claude/
+
+.env.local

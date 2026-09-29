@@ -14,6 +14,16 @@
  */
 
 export const it = {
+  /** La schermata che compare quando una parte dell'app si rompe. */
+  rottura: {
+    titolo: 'Qualcosa si è rotto',
+    testo: 'Una parte dell’app ha smesso di funzionare. Puoi riprovare, o ripartire dalla schermata iniziale.',
+    /** Solo quando l'errore è davvero partito verso Sentry. */
+    arrivato: 'L’errore ci è arrivato: lo guardiamo.',
+    riprova: 'Riprova',
+    inizio: 'Torna all’inizio',
+  },
+
   comune: {
     annulla: 'Annulla',
     salva: 'Salva',

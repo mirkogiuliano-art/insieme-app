@@ -5,6 +5,7 @@ import { getMyProfile } from '@/lib/api/profiles';
 import { registraDispositivo, dimenticaDispositivo } from '@/lib/api/push';
 import { esciDaGoogle } from '@/lib/api/googleAuth';
 import { useLingua } from '@/i18n';
+import { utenteSentry, linguaSentry } from '@/lib/sentry';
 import type { Profile } from '@/types';
 
 interface AuthStoreValue {
@@ -46,6 +47,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Si aspetta che la scelta salvata sul telefono sia stata letta: prima,
   // la lingua è quella del sistema e potrebbe cambiare un attimo dopo, e
   // due aggiornamenti di fila possono arrivare nell'ordine sbagliato.
+  // Ogni errore mandato a Sentry porta chi lo ha avuto (solo l'id) e in
+  // che lingua usava l'app.
+  useEffect(() => {
+    utenteSentry(session?.user.id ?? null);
+  }, [session?.user.id]);
+  useEffect(() => {
+    linguaSentry(lingua);
+  }, [lingua]);
+
   const linguaSalvata = session?.user.user_metadata?.lang;
   useEffect(() => {
     if (!session || !linguaPronta || linguaSalvata === lingua) return;

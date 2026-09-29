@@ -5,6 +5,7 @@ import { leaveGroup as apiLeaveGroup } from '@/lib/api/groupMembers';
 import { sweepGroupMedia } from '@/lib/api/mediaUpload';
 import { hashStr } from '@/lib/utils';
 import { GROUP_PALETTE, type Group } from '@/types';
+import { segnalaErrore } from '@/lib/sentry';
 
 interface AppStoreValue {
   ready: boolean;
@@ -48,7 +49,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     try {
       setMyGroups(await listMyGroups());
       setLoadError(false);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'caricamento.gruppi');
       setLoadError(true);
     }
   };

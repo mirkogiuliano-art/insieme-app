@@ -32,6 +32,7 @@ import { ScreenGlow } from '@/components/ScreenGlow';
 import { ScrollConTastiera } from '@/components/ScrollConTastiera';
 import { LinkFallbackThumb } from '@/components/LinkCard';
 import { useT } from '@/i18n';
+import { segnalaErrore } from '@/lib/sentry';
 
 type Section = 'links' | 'chat';
 
@@ -177,7 +178,8 @@ export default function ShareScreen() {
       resetShareIntent();
       toast.show(t.condividi.salvato);
       router.replace(`/group/${groupId}`);
-    } catch {
+    } catch (err) {
+      segnalaErrore(err, 'condividi.errore');
       toast.show(t.condividi.errore, 'error');
     } finally {
       setSaving(false);

@@ -25,6 +25,7 @@ import { initials } from '@/lib/utils';
 import { PRIVACY_URL, TERMINI_URL, haiPubblicatoIDocumenti } from '@/lib/legal';
 import { useLingua, LINGUE, NOMI_LINGUA } from '@/i18n';
 import type { ThemePreference, LanguageName } from '@/types';
+import { segnalaErrore } from '@/lib/sentry';
 
 /**
  * Le pagine del foglio. Le impostazioni vere sono poche (aspetto e persone
@@ -124,6 +125,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
       closeSheet();
       await signOut();
     } catch (err) {
+      segnalaErrore(err, 'eliminaAccount.errore');
       setConfirmError((err as { message?: string })?.message || t.eliminaAccount.errore);
     } finally {
       setBusy(false);
