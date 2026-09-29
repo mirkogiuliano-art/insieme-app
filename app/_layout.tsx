@@ -16,6 +16,8 @@ import { LinguaProvider } from '@/i18n';
 import { AuthProvider } from '@/lib/authStore';
 import { AppStoreProvider } from '@/lib/appStore';
 import { ToastProvider } from '@/components/Toast';
+import * as Linking from 'expo-linking';
+import { gestisciLink } from '@/lib/linkAccesso';
 
 // Sul web Chrome colora di giallo (o azzurro) i campi riempiti dalla
 // compilazione automatica. Lo sfondo non si può togliere, solo rimandare
@@ -82,6 +84,19 @@ function AvvisiRouter() {
   return null;
 }
 
+/** I link dell'accesso che tornano dalla posta (la nuova password):
+ * quello che ha aperto l'app da spenta, e quelli che arrivano mentre è
+ * accesa. Sta qui, sempre montato, perché un link che arriva ad app aperta
+ * parte prima che la schermata che lo usa esista (vedi lib/linkAccesso). */
+function LinkAccessoRouter() {
+  useEffect(() => {
+    Linking.getInitialURL().then(gestisciLink);
+    const sub = Linking.addEventListener('url', ({ url }) => gestisciLink(url));
+    return () => sub.remove();
+  }, []);
+  return null;
+}
+
 export default function RootLayout() {
   // Il carattere sta dentro l'app, quindi il caricamento è questione di
   // un attimo: aspettarlo evita che i nomi dei gruppi compaiano col
@@ -114,6 +129,7 @@ export default function RootLayout() {
                       <ThemedStatusBar />
                       <ShareIntentRouter />
                       {Platform.OS !== 'web' ? <AvvisiRouter /> : null}
+                      {Platform.OS !== 'web' ? <LinkAccessoRouter /> : null}
                       <Stack screenOptions={{ headerShown: false }}>
                         <Stack.Screen name="index" />
                         <Stack.Screen name="group/[id]" />

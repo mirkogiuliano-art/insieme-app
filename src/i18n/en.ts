@@ -195,7 +195,6 @@ export const en: Dizionario = {
 
   lingua: {
     sezione: 'LANGUAGE',
-    automatico: 'Automatic',
   },
 
   date: {

@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/theme/theme';
 import { LockIcon, CheckIcon, BrokenLinkIcon } from '@/components/Icon';
 import { PasswordInput } from '@/components/PasswordInput';
 import { supabase } from '@/lib/supabase';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { ScrollConTastiera } from '@/components/ScrollConTastiera';
+import { useEsitoLink, dimenticaEsitoLink } from '@/lib/linkAccesso';
 import { useT, messaggioAuth } from '@/i18n';
 
 /**
@@ -42,22 +44,21 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
+  // Il link lo legge chi è sempre acceso (LinkAccessoRouter in _layout):
+  // qui si aspetta l'esito. Senza nessun link, vale la sessione che c'è.
+  const esitoLink = useEsitoLink();
   useEffect(() => {
-    (async () => {
-      const url = await Linking.getInitialURL();
-      const parsed = url ? Linking.parse(url) : null;
-      const fragmentParams = parsed?.queryParams as Record<string, string> | undefined;
-      if (fragmentParams?.access_token && fragmentParams?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: fragmentParams.access_token,
-          refresh_token: fragmentParams.refresh_token,
-        });
-      }
-      const { data } = await supabase.auth.getSession();
+    if (esitoLink === 'attesa') return;
+    if (esitoLink === 'dentro' || esitoLink === 'scaduto') {
+      setHasSession(esitoLink === 'dentro');
+      setChecking(false);
+      return;
+    }
+    supabase.auth.getSession().then(({ data }) => {
       setHasSession(!!data.session);
       setChecking(false);
-    })();
-  }, []);
+    });
+  }, [esitoLink]);
 
   const submit = async () => {
     setError('');
@@ -72,6 +73,7 @@ export default function ResetPasswordScreen() {
       setError(messaggioAuth(err));
       return;
     }
+    dimenticaEsitoLink();
     setDone(true);
   };
 
@@ -87,7 +89,10 @@ export default function ResetPasswordScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <ScreenGlow />
-      <View style={styles.inner}>
+      {/* Senza questi due la tastiera copriva il campo della password:
+          su Android edge-to-edge la finestra non si restringe da sola. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
+      <ScrollConTastiera contentContainerStyle={styles.inner}>
         {!hasSession ? (
           <Screen
             icon={<BrokenLinkIcon size={32} color={colors.danger} />}
@@ -133,14 +138,15 @@ export default function ResetPasswordScreen() {
             </Pressable>
           </Screen>
         )}
-      </View>
+      </ScrollConTastiera>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  inner: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  inner: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   column: { width: '100%', maxWidth: 340, alignItems: 'center', gap: 12 },
   bigIcon: { width: 76, height: 76, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   title: { fontSize: 23, fontWeight: '800', letterSpacing: -0.4, textAlign: 'center' },

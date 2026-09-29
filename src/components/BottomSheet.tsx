@@ -1,7 +1,8 @@
 import React from 'react';
-import { Modal, View, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { Modal, View, Pressable, StyleSheet } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useTheme } from '@/theme/theme';
+import { ScrollConTastiera } from '@/components/ScrollConTastiera';
 
 interface BottomSheetProps {
   visible: boolean;
@@ -28,15 +29,13 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
             <View style={[styles.handle, { backgroundColor: colors.border }]} />
             {/* `nestedScrollEnabled`: su Android, dentro una Modal, senza
                 questo la lista può restare "ferma" dopo un tocco su una
-                riga, finché non se ne fa un altro. */}
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-              keyboardDismissMode="on-drag"
-            >
+                riga, finché non se ne fa un altro.
+                Il foglio si alza sopra la tastiera; se è più alto dello
+                spazio che resta, la lista porta in vista il campo in cui
+                si scrive (vedi ScrollConTastiera). */}
+            <ScrollConTastiera showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardDismissMode="on-drag">
               {children}
-            </ScrollView>
+            </ScrollConTastiera>
           </View>
         </KeyboardAvoidingView>
       </View>

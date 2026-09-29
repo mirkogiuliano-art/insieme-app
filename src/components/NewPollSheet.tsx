@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Switch } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Switch } from 'react-native';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
 import { PollIcon, CloseIcon, PlusIcon } from '@/components/Icon';
@@ -97,7 +97,7 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
         <Text style={[styles.title, { color: colors.text }]}>{t.sondaggio.nuovo}</Text>
       </View>
 
-      <ScrollView keyboardShouldPersistTaps="handled" style={styles.body}>
+      <View>
         <Text style={[styles.label, { color: colors.textFaint }]}>{t.sondaggio.domanda}</Text>
         <TextInput
           style={[styles.question, { backgroundColor: colors.surface2, color: colors.text }]}
@@ -158,7 +158,7 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
         </View>
 
         {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
-      </ScrollView>
+      </View>
 
       <Pressable
         onPress={manda}
@@ -179,9 +179,6 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   badge: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: FONT_ROUNDED, fontSize: 21, letterSpacing: -0.3 },
-  // Con dieci risposte e la tastiera aperta il foglio non ci starebbe:
-  // scorre la parte centrale, il pulsante resta in fondo.
-  body: { maxHeight: 420 },
   label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 14, marginBottom: 8 },
   question: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 14, fontSize: 16, fontWeight: '700' },
   optionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: RADIUS.sm, paddingHorizontal: 14, height: 48 },

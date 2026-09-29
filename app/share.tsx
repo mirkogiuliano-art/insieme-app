@@ -5,7 +5,7 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
-  ScrollView,
+ 
   Image,
   ActivityIndicator,
 } from 'react-native';
@@ -29,6 +29,7 @@ import { createPlaceLink } from '@/lib/api/placeLinks';
 import { sendMessage } from '@/lib/api/messages';
 import { uploadGroupMedia, type AttachmentKind } from '@/lib/api/mediaUpload';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { ScrollConTastiera } from '@/components/ScrollConTastiera';
 import { LinkFallbackThumb } from '@/components/LinkCard';
 import { useT } from '@/i18n';
 
@@ -216,7 +217,7 @@ export default function ShareScreen() {
       <Header onClose={close} />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollConTastiera contentContainerStyle={styles.body}>
         {/* Quello che è arrivato, con la faccia che avrà nella pagina Link. */}
         <View style={[styles.preview, { backgroundColor: colors.surface }]}>
           {thumb ? (
@@ -326,7 +327,7 @@ export default function ShareScreen() {
             </Text>
           </Pressable>
         ) : null}
-      </ScrollView>
+      </ScrollConTastiera>
 
       <View style={[styles.footer, { backgroundColor: colors.bg }]}>
         <Pressable

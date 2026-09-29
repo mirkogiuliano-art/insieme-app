@@ -24,7 +24,7 @@ import { listBlockedWithNames, unblockUser } from '@/lib/api/moderation';
 import { initials } from '@/lib/utils';
 import { PRIVACY_URL, TERMINI_URL, haiPubblicatoIDocumenti } from '@/lib/legal';
 import { useLingua, LINGUE, NOMI_LINGUA } from '@/i18n';
-import type { ThemePreference, LanguagePreference } from '@/types';
+import type { ThemePreference, LanguageName } from '@/types';
 
 /**
  * Le pagine del foglio. Le impostazioni vere sono poche (aspetto e persone
@@ -53,7 +53,7 @@ const APP_VERSION = Constants.expoConfig?.version ?? '';
 
 export function SettingsSheet({ visible, onClose, startAt = 'settings' }: SettingsSheetProps) {
   const { colors, preference, setPreference } = useTheme();
-  const { t, preference: lingua, setPreference: setLingua } = useLingua();
+  const { t, lingua, setPreference: setLingua } = useLingua();
   const { profile, session, refreshProfile, signOut } = useAuth();
   const [page, setPage] = useState<Page>(startAt);
   const [nameDraft, setNameDraft] = useState(profile?.displayName ?? '');
@@ -415,12 +415,20 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
   };
 
   /** Come i bottoni del tema, ma senza icona: il nome di una lingua si
-   * riconosce da sé, e una bandiera direbbe il paese, non la lingua. */
-  const LangOpt = ({ value, label }: { value: LanguagePreference; label: string }) => {
+   * riconosce da sé, e una bandiera direbbe il paese, non la lingua.
+   *
+   * Non c'è «Automatico»: finché la persona non tocca niente, l'app segue
+   * il telefono, e qui è acceso il bottone della lingua in uso. Toccarne
+   * un altro è la scelta, e da lì vale quella. Toccare quello già acceso
+   * non fa niente — non è un cambio, e non deve staccare l'app dal
+   * telefono di nascosto. */
+  const LangOpt = ({ value, label }: { value: LanguageName; label: string }) => {
     const active = lingua === value;
     return (
       <Pressable
-        onPress={() => setLingua(value)}
+        onPress={() => {
+          if (!active) setLingua(value);
+        }}
         style={[styles.themeOpt, styles.langOpt, active && { backgroundColor: colors.amber }]}
       >
         <Text
@@ -466,7 +474,6 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
         {LINGUE.map((l) => (
           <LangOpt key={l} value={l} label={NOMI_LINGUA[l]} />
         ))}
-        <LangOpt value="system" label={t.lingua.automatico} />
       </View>
 
       <SectionLabel>{t.impostazioni.privacy}</SectionLabel>

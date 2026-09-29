@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Linking, ActivityIndicator } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { PasswordInput } from '@/components/PasswordInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { Logo } from '@/components/Logo';
 import { PRIVACY_URL, TERMINI_URL } from '@/lib/legal';
 import { supabase } from '@/lib/supabase';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { ScrollConTastiera } from '@/components/ScrollConTastiera';
 import { GoogleButton, Separatore } from '@/components/GoogleButton';
 import { accediConGoogle, googleAttivo } from '@/lib/api/googleAuth';
 import { useT, useLingua, messaggioAuth } from '@/i18n';
@@ -304,14 +305,14 @@ export function AuthScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <ScreenGlow />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
-        <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+        <ScrollConTastiera contentContainerStyle={styles.inner}>
           {mode === 'forgot' ? (
             <Pressable onPress={() => switchMode('login')} style={[styles.backBtn, { backgroundColor: colors.surface }]} hitSlop={10}>
               <BackIcon size={18} color={colors.textDim} />
             </Pressable>
           ) : null}
           <View style={styles.column}>{content}</View>
-        </ScrollView>
+        </ScrollConTastiera>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/authStore';
 import { updateDisplayName } from '@/lib/api/profiles';
 import { initials } from '@/lib/utils';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { ScrollConTastiera } from '@/components/ScrollConTastiera';
 import { useT } from '@/i18n';
 
 /** Il nome che Google ha passato alla registrazione, se c'è, ridotto al
@@ -49,7 +50,7 @@ export function NameOnboarding() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <ScreenGlow />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
-        <View style={styles.inner}>
+        <ScrollConTastiera contentContainerStyle={styles.inner}>
           <View style={styles.column}>
             <Text style={[styles.title, { color: colors.text }]}>{t.primoNome.titolo}</Text>
             <Text style={[styles.subtitle, { color: colors.textDim }]}>{t.primoNome.sottotitolo}</Text>
@@ -84,7 +85,7 @@ export function NameOnboarding() {
               <Text style={[styles.link, { color: colors.textDim }]}>{t.primoNome.nonSeiTu}</Text>
             </Pressable>
           </View>
-        </View>
+        </ScrollConTastiera>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -92,7 +93,9 @@ export function NameOnboarding() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  inner: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  // `flexGrow` e non `flex`: dentro una lista che scorre, il contenuto
+  // riempie lo schermo quando è corto e si allunga quando non ci sta.
+  inner: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   column: { width: '100%', maxWidth: 340, alignItems: 'center', gap: 12 },
   title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.5 },
   subtitle: { fontSize: 13.5, textAlign: 'center', lineHeight: 19, marginTop: -4 },

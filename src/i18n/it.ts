@@ -203,8 +203,6 @@ export const it = {
 
   lingua: {
     sezione: 'LINGUA',
-    /** «Automatico» vale per la lingua come per il tema: segui il telefono. */
-    automatico: 'Automatico',
   },
 
   date: {
