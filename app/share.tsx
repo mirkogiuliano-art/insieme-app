@@ -19,15 +19,15 @@ import { getLinkPreview } from '@/lib/api/linkPreviews';
 import { useAuth } from '@/lib/authStore';
 import { useAppStore, groupColor } from '@/lib/appStore';
 import { useToast } from '@/components/Toast';
-import { CloseIcon, LinkIcon, PlayIcon, ChatIcon, CheckIcon } from '@/components/Icon';
-import { platformInfo, normalizeUrl, parseGoogleMapsUrl, inkOn, withTimeout, WRITE_TIMEOUT, UPLOAD_TIMEOUT } from '@/lib/utils';
+import { CloseIcon, LinkIcon, PlayIcon, ChatIcon, CheckIcon, FileIcon } from '@/components/Icon';
+import { platformInfo, normalizeUrl, parseGoogleMapsUrl, inkOn, fileLabelFor, withTimeout, WRITE_TIMEOUT, UPLOAD_TIMEOUT } from '@/lib/utils';
 import { listCategories, type RawLinkCategory } from '@/lib/api/linkCategories';
 import { listCategories as listPlaceCategories, type RawPlaceCategory } from '@/lib/api/placeCategories';
 import { createLink } from '@/lib/api/links';
 import { createPin } from '@/lib/api/pins';
 import { createPlaceLink } from '@/lib/api/placeLinks';
 import { sendMessage } from '@/lib/api/messages';
-import { uploadGroupMedia, type AttachmentKind } from '@/lib/api/mediaUpload';
+import { uploadGroupMedia, uploadGroupFile, type AttachmentKind } from '@/lib/api/mediaUpload';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { ScrollConTastiera } from '@/components/ScrollConTastiera';
 import { LinkFallbackThumb } from '@/components/LinkCard';
@@ -66,6 +66,9 @@ export default function ShareScreen() {
   const file = shareIntent.files?.[0] ?? null;
   const sharedUrl = shareIntent.webUrl ?? null;
   const sharedText = shareIntent.text ?? null;
+  const isVideo = !!file && !!file.mimeType?.startsWith('video/');
+  /** Un PDF: arriva in chat e fra i link come documento, con il suo nome. */
+  const isDocument = !!file && !file.mimeType?.startsWith('image/') && !isVideo;
   // Un link a un luogo di Google Maps può diventare anche un posto sulla mappa.
   const mapsPlace = useMemo(() => (sharedUrl ? parseGoogleMapsUrl(normalizeUrl(sharedUrl)) : null), [sharedUrl]);
 
@@ -118,17 +121,33 @@ export default function ShareScreen() {
     setSaving(true);
     try {
       // 1. Se è arrivato un file, va prima caricato nello storage del gruppo.
+      //    Un PDF si carica come documento, con il suo nome: è l'unica cosa
+      //    leggibile che avrà in chat e fra i link.
       let uploadedUrl: string | null = null;
       let kind: AttachmentKind = 'image';
+      const docName = file?.fileName || `${t.segnaposto.documento}.pdf`;
       if (file) {
-        kind = file.mimeType?.startsWith('video/') ? 'video' : 'image';
-        uploadedUrl = await withTimeout(uploadGroupMedia(groupId, file.path), UPLOAD_TIMEOUT);
+        kind = isVideo ? 'video' : isDocument ? 'file' : 'image';
+        uploadedUrl = await withTimeout(
+          kind === 'file'
+            ? uploadGroupFile(groupId, { uri: file.path, name: docName, mimeType: file.mimeType })
+            : uploadGroupMedia(groupId, file.path),
+          UPLOAD_TIMEOUT,
+        );
       }
 
       if (section === 'chat') {
         if (uploadedUrl) {
           await withTimeout(
-            sendMessage(groupId, session.user.id, title.trim() || null, null, { url: uploadedUrl, type: kind }),
+            sendMessage(
+              groupId,
+              session.user.id,
+              title.trim() || null,
+              null,
+              kind === 'file'
+                ? { url: uploadedUrl, type: kind, name: docName, size: file?.size ?? undefined }
+                : { url: uploadedUrl, type: kind },
+            ),
             WRITE_TIMEOUT,
           );
         } else {
@@ -138,11 +157,20 @@ export default function ShareScreen() {
         const catId = categoryId || categories[0]?.id;
         if (!catId) throw new Error(t.condividi.nessunaCategoria);
 
-        if (uploadedUrl) {
+        if (uploadedUrl && kind === 'file') {
+          await withTimeout(createLink(groupId, session.user.id, {
+            url: uploadedUrl,
+            title: title.trim() || docName,
+            platform: 'file',
+            label: fileLabelFor(docName),
+            thumb: null,
+            categoryId: catId,
+          }), WRITE_TIMEOUT);
+        } else if (uploadedUrl) {
           await withTimeout(createLink(groupId, session.user.id, {
             url: uploadedUrl,
             title: title.trim() || (kind === 'video' ? t.segnaposto.video : t.segnaposto.foto),
-            platform: kind,
+            platform: kind === 'video' ? 'video' : 'image',
             label: kind === 'video' ? t.segnaposto.video : t.segnaposto.foto,
             thumb: kind === 'image' ? uploadedUrl : null,
             categoryId: catId,
@@ -209,7 +237,7 @@ export default function ShareScreen() {
     );
   }
 
-  const isImage = !!file && !file.mimeType?.startsWith('video/');
+  const isImage = !!file && !isVideo && !isDocument;
   const thumb = file && isImage ? file.path : page?.image ?? (sharedUrl ? platformInfo(normalizeUrl(sharedUrl)).thumb : null);
   const chosenCategory = categories.find((c) => c.id === categoryId);
 
@@ -226,7 +254,9 @@ export default function ShareScreen() {
             <Image source={{ uri: thumb }} style={styles.previewThumb} resizeMode="cover" />
           ) : (
             <View style={[styles.previewThumb, styles.previewFallback, { backgroundColor: colors.surface2 }]}>
-              {file ? (
+              {isDocument ? (
+                <FileIcon size={24} color={colors.coral} />
+              ) : file ? (
                 <PlayIcon size={22} color={colors.textDim} />
               ) : (
                 // La faccia che il link avrà nella pagina Link.
@@ -240,9 +270,11 @@ export default function ShareScreen() {
             </Text>
             <Text style={[styles.previewSub, { color: colors.textFaint }]} numberOfLines={1}>
               {file
-                ? isImage
-                  ? t.segnaposto.foto
-                  : t.segnaposto.video
+                ? isDocument
+                  ? fileLabelFor(file.fileName || '.pdf')
+                  : isImage
+                    ? t.segnaposto.foto
+                    : t.segnaposto.video
                 : mapsPlace
                   ? 'Google Maps'
                   : sharedUrl
