@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme } from '@/theme/theme';
 import { SendIcon } from '@/components/Icon';
 import { PlaceTile } from '@/components/MapPin';
 import { openPinInMaps } from '@/lib/api/places';
+import { testoLeggibile } from '@/lib/utils';
 import type { RawPin } from '@/lib/api/pins';
 import { useT } from '@/i18n';
 
@@ -34,10 +36,10 @@ export function ChatPlaceCard({
   const go = () => (pin ? void openPinInMaps(pin) : void Linking.openURL(url));
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]}>
-      <Pressable onPress={go} onLongPress={onMenu} style={styles.top}>
+      <Pressable accessibilityRole="button" onPress={go} onLongPress={onMenu} style={styles.top}>
         <PlaceTile color={tint} categoryName={category?.name ?? ''} size={40} />
         <View style={{ flex: 1 }}>
-          <Text style={[styles.cat, { color: tint }]} numberOfLines={1}>
+          <Text style={[styles.cat, { color: testoLeggibile(tint, colors.surface) }]} numberOfLines={1}>
             {(category?.name ?? t.postoInChat.posizione).toUpperCase()}
           </Text>
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
@@ -45,9 +47,11 @@ export function ChatPlaceCard({
           </Text>
         </View>
       </Pressable>
-      <Pressable onPress={go} onLongPress={onMenu} style={[styles.btn, { backgroundColor: colors.amber }]}>
-        <SendIcon size={14} color={colors.inkOnAmber} />
-        <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 12.5 }}>{t.postoInChat.portamiLi}</Text>
+      {/* Ambra è il colore dei propri messaggi e dell'azione principale:
+          qui, in ogni posto mandato in chat, gridava quanto un messaggio. */}
+      <Pressable accessibilityRole="button" onPress={go} onLongPress={onMenu} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
+        <SendIcon size={14} color={colors.teal} />
+        <Text style={{ color: colors.text, fontWeight: '800', fontSize: 12.5 }}>{t.postoInChat.portamiLi}</Text>
       </Pressable>
     </View>
   );

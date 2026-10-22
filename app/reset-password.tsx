@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/theme/theme';
@@ -81,7 +82,7 @@ export default function ResetPasswordScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
         <ScreenGlow />
-        <ActivityIndicator color={colors.amber} />
+        <ActivityIndicator color={colors.amberText} />
       </View>
     );
   }
@@ -100,7 +101,7 @@ export default function ResetPasswordScreen() {
             title={t.nuovaPassword.scadutoTitolo}
             text={t.nuovaPassword.scadutoTesto}
           >
-            <Pressable onPress={() => router.replace('/')} style={[styles.button, { backgroundColor: colors.surface }]}>
+            <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={[styles.button, { backgroundColor: colors.surface }]}>
               <Text style={[styles.buttonText, { color: colors.text }]}>{t.nuovaPassword.vaiAccesso}</Text>
             </Pressable>
           </Screen>
@@ -111,12 +112,12 @@ export default function ResetPasswordScreen() {
             title={t.nuovaPassword.fattaTitolo}
             text={t.nuovaPassword.fattaTesto}
           >
-            <Pressable onPress={() => router.replace('/')} style={[styles.button, { backgroundColor: colors.amber }]}>
+            <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={[styles.button, { backgroundColor: colors.amber }]}>
               <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>{t.nuovaPassword.tornaApp}</Text>
             </Pressable>
           </Screen>
         ) : (
-          <Screen icon={<LockIcon size={32} color={colors.amber} />} tone={colors.textDim} title={t.nuovaPassword.titolo} text={t.nuovaPassword.testo}>
+          <Screen icon={<LockIcon size={32} color={colors.amberText} />} tone={colors.textDim} title={t.nuovaPassword.titolo} text={t.nuovaPassword.testo}>
             <PasswordInput
               placeholder={t.nuovaPassword.campo}
               value={password}
@@ -125,7 +126,7 @@ export default function ResetPasswordScreen() {
               returnKeyType="done"
             />
             {error ? <Text style={{ color: colors.danger, fontSize: 12.5, textAlign: 'center' }}>{error}</Text> : null}
-            <Pressable
+            <Pressable accessibilityRole="button"
               onPress={submit}
               disabled={loading}
               style={[styles.button, { backgroundColor: colors.amber, opacity: loading ? 0.6 : 1 }]}

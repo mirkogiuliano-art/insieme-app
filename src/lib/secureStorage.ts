@@ -16,6 +16,14 @@ import * as aesjs from 'aes-js';
  * (chiamarlo comunque fa crashare l'app, non c'è un fallback silenzioso).
  */
 class LargeSecureStore {
+  /** La sessione già letta, in chiaro. Supabase la rilegge prima di ogni
+   * richiesta: entrando in un gruppo ne partono una quindicina, e ognuna
+   * passava dal portachiavi del telefono e dalla decifratura, in coda con
+   * le copie delle sezioni. Sul telefono la sessione la scrivono e la
+   * cancellano solo questi metodi, quindi la copia in memoria è sempre
+   * quella vera. Sul web no: un'altra scheda può cambiarla. */
+  private letture = new Map<string, Promise<string | null>>();
+
   private async encrypt(key: string, value: string): Promise<string> {
     const encryptionKey = crypto.getRandomValues(new Uint8Array(256 / 8));
     const cipher = new aesjs.ModeOfOperation.ctr(encryptionKey, new aesjs.Counter(1));
@@ -37,6 +45,18 @@ class LargeSecureStore {
 
   async getItem(key: string): Promise<string | null> {
     if (Platform.OS === 'web') return AsyncStorage.getItem(key);
+    const giaLetta = this.letture.get(key);
+    if (giaLetta) return giaLetta;
+    const lettura = this.leggi(key);
+    this.letture.set(key, lettura);
+    // Una lettura non riuscita si rifà la volta dopo.
+    lettura.catch(() => {
+      if (this.letture.get(key) === lettura) this.letture.delete(key);
+    });
+    return lettura;
+  }
+
+  private async leggi(key: string): Promise<string | null> {
     const encrypted = await AsyncStorage.getItem(key);
     if (!encrypted) return null;
     return this.decrypt(key, encrypted);
@@ -47,11 +67,13 @@ class LargeSecureStore {
       await AsyncStorage.setItem(key, value);
       return;
     }
+    this.letture.set(key, Promise.resolve(value));
     const encrypted = await this.encrypt(key, value);
     await AsyncStorage.setItem(key, encrypted);
   }
 
   async removeItem(key: string): Promise<void> {
+    this.letture.set(key, Promise.resolve(null));
     await AsyncStorage.removeItem(key);
     if (Platform.OS === 'web') return;
     await SecureStore.deleteItemAsync(key);

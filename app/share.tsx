@@ -3,12 +3,11 @@ import {
   View,
   Text,
   TextInput,
-  Pressable,
   StyleSheet,
- 
   Image,
   ActivityIndicator,
 } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { router } from 'expo-router';
@@ -151,7 +150,9 @@ export default function ShareScreen() {
             WRITE_TIMEOUT,
           );
         } else {
-          await withTimeout(sendMessage(groupId, session.user.id, sharedText || sharedUrl || ''), WRITE_TIMEOUT);
+          // Il server accetta messaggi fino a 4000 caratteri (20261016090000_limiti_lunghezza.sql):
+          // un testo più lungo arrivato da un'altra app si tronca, invece di far fallire l'invio.
+          await withTimeout(sendMessage(groupId, session.user.id, (sharedText || sharedUrl || '').slice(0, 4000)), WRITE_TIMEOUT);
         }
       } else {
         const catId = categoryId || categories[0]?.id;
@@ -291,7 +292,7 @@ export default function ShareScreen() {
             const sel = groupId === g.id;
             const c = groupColor(g);
             return (
-              <Pressable
+              <Pressable accessibilityRole="button"
                 key={g.id}
                 onPress={() => setGroupId(g.id)}
                 style={[styles.groupPick, { backgroundColor: c, opacity: sel ? 1 : 0.5, borderColor: sel ? colors.text : 'transparent' }]}
@@ -307,7 +308,7 @@ export default function ShareScreen() {
         <Text style={[styles.label, { color: colors.textFaint }]}>{t.condividi.dove}</Text>
         <View style={[styles.seg, { backgroundColor: colors.surface }]}>
           {(['links', 'chat'] as const).map((k) => (
-            <Pressable key={k} onPress={() => setSection(k)} style={[styles.segBtn, section === k && { backgroundColor: colors.amber }]}>
+            <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: section === k }} onPress={() => setSection(k)} style={[styles.segBtn, section === k && { backgroundColor: colors.amber }]}>
               {k === 'links' ? (
                 <LinkIcon size={15} color={section === k ? colors.inkOnAmber : colors.textDim} />
               ) : (
@@ -344,7 +345,7 @@ export default function ShareScreen() {
         />
 
         {mapsPlace && section === 'links' ? (
-          <Pressable onPress={() => setAlsoSavePlace((v) => !v)} style={[styles.placeToggle, { backgroundColor: colors.surface }]}>
+          <Pressable accessibilityRole="button" onPress={() => setAlsoSavePlace((v) => !v)} style={[styles.placeToggle, { backgroundColor: colors.surface }]}>
             <View
               style={[
                 styles.check,
@@ -354,9 +355,9 @@ export default function ShareScreen() {
               {alsoSavePlace ? <CheckIcon size={12} color={colors.bg} /> : null}
             </View>
             <Text style={{ flex: 1, fontSize: 13, color: colors.text, lineHeight: 18, fontWeight: '600' }}>
-              Mettilo anche sulla mappa
+              {t.condividi.ancheSullaMappa}
               <Text style={{ color: colors.textDim, fontWeight: '400' }}>
-                {placeCategories[0] ? `, in «${placeCategories[0].name}»` : ''}, già collegato a questo link.
+                {t.condividi.giaCollegato(placeCategories[0]?.name ?? null)}
               </Text>
             </Text>
           </Pressable>
@@ -364,7 +365,7 @@ export default function ShareScreen() {
       </ScrollConTastiera>
 
       <View style={[styles.footer, { backgroundColor: colors.bg }]}>
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={save}
           disabled={saving || !groupId}
           style={[styles.saveBtn, { backgroundColor: colors.amber, opacity: saving || !groupId ? 0.5 : 1 }]}
@@ -389,7 +390,7 @@ function Header({ onClose }: { onClose: () => void }) {
   return (
     <View style={styles.header}>
       <Text style={[styles.headerTitle, { color: colors.text }]}>{t.condividi.titolo}</Text>
-      <Pressable onPress={onClose} hitSlop={10} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.chiudi} onPress={onClose} hitSlop={10} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
         <CloseIcon size={15} color={colors.textDim} />
       </Pressable>
     </View>
@@ -409,7 +410,7 @@ function Message({ title, body, onClose }: { title: string; body: string; onClos
         </View>
         <Text style={{ fontSize: 21, fontWeight: '800', color: colors.text, marginBottom: 6, letterSpacing: -0.3 }}>{title}</Text>
         <Text style={{ fontSize: 13.5, color: colors.textDim, textAlign: 'center', lineHeight: 20 }}>{body}</Text>
-        <Pressable onPress={onClose} style={[styles.saveBtn, { backgroundColor: colors.surface, alignSelf: 'stretch', marginTop: 18 }]}>
+        <Pressable accessibilityRole="button" onPress={onClose} style={[styles.saveBtn, { backgroundColor: colors.surface, alignSelf: 'stretch', marginTop: 18 }]}>
           <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>{t.condividi.chiudi}</Text>
         </Pressable>
       </View>

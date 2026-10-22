@@ -42,7 +42,7 @@ export interface RawVote {
 const SELECT_COLUMNS =
   'id, group_id, created_by, question, options, multi, secret, counts, voters_count, closed_at, created_at';
 
-function toRaw(row: PollRow): RawPoll {
+export function toRaw(row: PollRow): RawPoll {
   return {
     id: row.id,
     createdBy: row.created_by,

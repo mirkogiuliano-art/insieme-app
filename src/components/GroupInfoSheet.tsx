@@ -1,22 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, Share, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Share, ActivityIndicator, Linking } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
 import { fitFontSize } from '@/lib/fitText';
 import { useAuth } from '@/lib/authStore';
 import { groupColor, useAppStore } from '@/lib/appStore';
 import { useToast } from '@/components/Toast';
-import { ShareIcon, LogoutIcon, EditIcon, CalendarIcon, MapIcon, PlusIcon, CloseIcon, ChevronIcon, CheckIcon } from '@/components/Icon';
+import { ShareIcon, LogoutIcon, EditIcon, CalendarIcon, MapIcon, PlusIcon, CloseIcon, ChevronIcon, CheckIcon, SearchIcon } from '@/components/Icon';
 import { listPins, type RawPin } from '@/lib/api/pins';
+import { searchPlaces, type FoundPlace } from '@/lib/api/places';
+import { CampoData } from '@/components/CampoData';
 import { listFacts, addFact, editFact, removeFact, subscribeToFacts, type RawFact } from '@/lib/api/groupFacts';
 import { setGroupInfo } from '@/lib/api/groups';
-import { rangeLabel, countdownLabel, isoToInput, inputToIso } from '@/lib/groupInfo';
+import { rangeLabel, countdownLabel } from '@/lib/groupInfo';
 import { listLastReads, subscribeToLastReads, countMembers } from '@/lib/api/groupMembers';
 import { getInviteToken, rotateInvite, revokeInvite, inviteUrl } from '@/lib/api/invites';
-import { initials, colorForUser, dateLabel, inkOn } from '@/lib/utils';
-import type { Group } from '@/types';
+import { initials, colorForUser, dateLabel, inkOn, googleMapsPlaceUrl, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
+import type { Group, MetaLibera } from '@/types';
 import { useT, dizionario } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
+import { messaggioErrore, eProblemaDiRete } from '@/lib/errori';
+import { leggiCopia, salvaCopia, useRiprovaDaSola } from '@/lib/copiaLocale';
+import { SenzaRete } from '@/components/SenzaRete';
 
 interface GroupInfoSheetProps {
   visible: boolean;
@@ -28,6 +34,10 @@ interface GroupInfoSheetProps {
   onLeaveGroup: () => void;
   /** Apre sulla mappa il posto scelto come meta, quando c'è. */
   onShowPlace?: (pinId: string) => void;
+  /** Il nome della meta, dalla schermata del gruppo che ne tiene la copia:
+   * senza rete i posti qui non si leggono, e la meta diventava un invito
+   * a sceglierla. */
+  metaNome?: string | null;
 }
 
 function lastSeenLabel(ts: number | null | undefined): string {
@@ -86,15 +96,18 @@ function FactEditor({
       />
       <View style={styles.factActions}>
         {onRemove ? (
-          <Pressable onPress={onRemove} hitSlop={8} accessibilityLabel={t.infoGruppo.togliRiga}>
+          <Pressable accessibilityRole="button" onPress={onRemove} hitSlop={8} accessibilityLabel={t.infoGruppo.togliRiga}>
             <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '700' }}>{t.infoGruppo.togli}</Text>
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }} />
-        <Pressable onPress={onCancel} hitSlop={8}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t.comune.annulla} onPress={onCancel} hitSlop={8}>
           <CloseIcon size={16} color={colors.textFaint} />
         </Pressable>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.accessibilita.salvaRiga}
+          hitSlop={7}
           onPress={onSave}
           disabled={!pronto}
           style={[styles.factSave, { backgroundColor: colors.amber, opacity: pronto ? 1 : 0.5 }]}
@@ -106,53 +119,102 @@ function FactEditor({
   );
 }
 
+/** La meta scelta: un posto della mappa del gruppo, o uno trovato
+ * cercando per nome, che resta fuori dalla mappa. */
+type Meta = { tipo: 'posto'; id: string } | { tipo: 'libera'; posto: MetaLibera } | null;
+
+type Ricerca = { stato: 'ferma' } | { stato: 'cerca' } | { stato: 'errore' } | { stato: 'trovati'; posti: FoundPlace[] };
+
 /**
  * La pagina di modifica delle info: descrizione, date e meta insieme, in
- * un colpo solo. Le date si scrivono GG/MM/AAAA; la meta si sceglie fra i
- * posti già salvati nella mappa del gruppo.
+ * un colpo solo. Le date si scelgono dal calendario; la meta fra i posti
+ * della mappa del gruppo, o cercandola per nome.
  */
 function InfoEditor({
   group,
   pins,
   onCancel,
   onSaved,
-  onError,
 }: {
   group: Group;
   pins: RawPin[];
   onCancel: () => void;
   onSaved: () => void;
-  onError: (message: string) => void;
 }) {
   const { colors } = useTheme();
   const t = useT();
   const [description, setDescription] = useState(group.description ?? '');
-  const [dal, setDal] = useState(isoToInput(group.startsOn));
-  const [al, setAl] = useState(isoToInput(group.endsOn));
-  const [pinId, setPinId] = useState<string | null>(group.placePinId ?? null);
+  const [dal, setDal] = useState<string | null>(group.startsOn ?? null);
+  const [al, setAl] = useState<string | null>(group.endsOn ?? null);
+  const [meta, setMeta] = useState<Meta>(
+    group.placePinId ? { tipo: 'posto', id: group.placePinId } : group.metaLibera ? { tipo: 'libera', posto: group.metaLibera } : null,
+  );
+  const [query, setQuery] = useState('');
+  const [ricerca, setRicerca] = useState<Ricerca>({ stato: 'ferma' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const salva = async () => {
-    const inizio = inputToIso(dal);
-    const fine = inputToIso(al);
-    if (!inizio.ok || !fine.ok) {
-      setError(t.infoGruppo.dateSbagliate);
+  // Ricerca mentre si scrive, con una piccola attesa, come nella mappa.
+  const ultima = useRef(0);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setRicerca({ stato: 'ferma' });
       return;
     }
+    const mia = ++ultima.current;
+    setRicerca({ stato: 'cerca' });
+    const timer = setTimeout(async () => {
+      const posti = await searchPlaces(q);
+      // Arrivata dopo una ricerca più recente: si butta.
+      if (mia !== ultima.current) return;
+      setRicerca(posti ? { stato: 'trovati', posti: posti.slice(0, 5) } : { stato: 'errore' });
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const scegliTrovato = (posto: FoundPlace) => {
+    // Se è già nella mappa del gruppo si sceglie quello, senza doppioni.
+    const giaSalvato = pins.find((p) => p.mapsUrl?.includes(posto.placeId));
+    setMeta(
+      giaSalvato
+        ? { tipo: 'posto', id: giaSalvato.id }
+        : {
+            tipo: 'libera',
+            posto: { nome: posto.name, lat: posto.lat, lng: posto.lng, mapsUrl: googleMapsPlaceUrl(posto.name, posto.placeId) },
+          },
+    );
+    setQuery('');
+  };
+
+  const scegliDal = (iso: string | null) => {
+    setDal(iso);
+    // La fine non viene prima dell'inizio: si sposta con lui.
+    if (iso && al && al < iso) setAl(iso);
+    setError('');
+  };
+
+  const salva = async () => {
     setBusy(true);
     setError('');
     try {
-      await setGroupInfo(group.id, {
-        description: description.trim() || null,
-        startsOn: inizio.iso,
-        endsOn: fine.iso,
-        placePinId: pinId,
-      });
+      await withTimeout(
+        setGroupInfo(group.id, {
+          description: description.trim() || null,
+          startsOn: dal,
+          endsOn: al,
+          placePinId: meta?.tipo === 'posto' ? meta.id : null,
+          metaLibera: meta?.tipo === 'libera' ? meta.posto : null,
+        }),
+        WRITE_TIMEOUT,
+      );
       onSaved();
     } catch (err) {
       segnalaErrore(err, 'infoGruppo.erroreInfo');
-      onError((err as { message?: string })?.message || t.infoGruppo.erroreInfo);
+      // Qui nel foglio, e non in un avviso: sopra un foglio aperto, su
+      // Android, l'avviso finisce sotto e non si vede. Il foglio resta
+      // aperto con quello che si era scritto, per riprovare.
+      setError(messaggioErrore(err, t.infoGruppo.erroreInfo));
     } finally {
       setBusy(false);
     }
@@ -176,45 +238,87 @@ function InfoEditor({
 
       <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.quando}</Text>
       <View style={styles.editDates}>
-        <TextInput
-          style={[styles.editDate, { backgroundColor: colors.surface2, color: colors.text }]}
-          placeholder={t.infoGruppo.dal}
-          placeholderTextColor={colors.textFaint}
-          value={dal}
-          onChangeText={(t) => {
-            setDal(t);
+        <CampoData valore={dal} onCambia={scegliDal} segnaposto={t.infoGruppo.dal} etichetta={t.accessibilita.dataInizio} />
+        <CampoData
+          valore={al}
+          onCambia={(iso) => {
+            setAl(iso);
             setError('');
           }}
-          keyboardType="numbers-and-punctuation"
-          maxLength={10}
-        />
-        <TextInput
-          style={[styles.editDate, { backgroundColor: colors.surface2, color: colors.text }]}
-          placeholder={t.infoGruppo.al}
-          placeholderTextColor={colors.textFaint}
-          value={al}
-          onChangeText={(t) => {
-            setAl(t);
-            setError('');
-          }}
-          keyboardType="numbers-and-punctuation"
-          maxLength={10}
+          segnaposto={t.infoGruppo.al}
+          etichetta={t.accessibilita.dataFine}
+          minimo={dal}
         />
       </View>
 
       <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.dove}</Text>
-      {pins.length === 0 ? (
-        <Text style={[styles.factsEmpty, { color: colors.textFaint }]}>
-          {t.infoGruppo.nessunPosto}
-        </Text>
-      ) : (
-        <View style={styles.metaList}>
+      <View style={[styles.cercaPosto, { backgroundColor: colors.surface2 }]}>
+        <SearchIcon size={15} color={colors.textFaint} />
+        <TextInput
+          style={[styles.cercaPostoInput, { color: colors.text }]}
+          placeholder={t.infoGruppo.cercaPosto}
+          placeholderTextColor={colors.textFaint}
+          value={query}
+          onChangeText={setQuery}
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {query ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.cancellaRicerca} onPress={() => setQuery('')} hitSlop={8}>
+            <CloseIcon size={13} color={colors.textFaint} />
+          </Pressable>
+        ) : null}
+      </View>
+      {ricerca.stato === 'cerca' ? (
+        <View style={styles.ricercaNota}>
+          <ActivityIndicator size="small" color={colors.textDim} />
+        </View>
+      ) : ricerca.stato === 'errore' ? (
+        <Text style={[styles.ricercaTesto, { color: colors.textDim }]}>{t.nuovoPosto.ricercaFallita}</Text>
+      ) : ricerca.stato === 'trovati' && ricerca.posti.length === 0 ? (
+        <Text style={[styles.ricercaTesto, { color: colors.textDim }]}>{t.nuovoPosto.nessunRisultato}</Text>
+      ) : ricerca.stato === 'trovati' ? (
+        <View style={[styles.risultati, { backgroundColor: colors.surface2 }]}>
+          {ricerca.posti.map((r, i) => (
+            <Pressable
+              accessibilityRole="button"
+              key={r.placeId}
+              onPress={() => scegliTrovato(r)}
+              style={[styles.risultato, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
+            >
+              <MapIcon size={16} color={colors.teal} strokeWidth={2} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.risultatoNome, { color: colors.text }]} numberOfLines={1}>
+                  {r.name}
+                </Text>
+                <Text style={[styles.risultatoIndirizzo, { color: colors.textFaint }]} numberOfLines={1}>
+                  {r.address}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {meta?.tipo === 'libera' || pins.length > 0 ? (
+        <View style={[styles.metaList, styles.metaSotto]}>
+          {meta?.tipo === 'libera' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: true }}
+              onPress={() => setMeta(null)}
+              style={[styles.metaChip, { backgroundColor: colors.teal, borderColor: colors.teal }]}
+            >
+              <Text style={{ color: colors.bg, fontSize: 13, fontWeight: '700' }}>{meta.posto.nome}</Text>
+            </Pressable>
+          ) : null}
           {pins.slice(0, 8).map((p) => {
-            const scelto = p.id === pinId;
+            const scelto = meta?.tipo === 'posto' && meta.id === p.id;
             return (
               <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: scelto }}
                 key={p.id}
-                onPress={() => setPinId(scelto ? null : p.id)}
+                onPress={() => setMeta(scelto ? null : { tipo: 'posto', id: p.id })}
                 style={[
                   styles.metaChip,
                   { backgroundColor: scelto ? colors.teal : colors.surface2, borderColor: scelto ? colors.teal : 'transparent' },
@@ -225,15 +329,15 @@ function InfoEditor({
             );
           })}
         </View>
-      )}
+      ) : null}
 
       {error ? <Text style={[styles.editError, { color: colors.danger }]}>{error}</Text> : null}
 
-      <View style={styles.confirmActions}>
-        <Pressable onPress={onCancel} disabled={busy} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
+      <View style={[styles.confirmActions, styles.editActions]}>
+        <Pressable accessibilityRole="button" onPress={onCancel} disabled={busy} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
           <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
         </Pressable>
-        <Pressable onPress={salva} disabled={busy} style={[styles.btnPrimary, { backgroundColor: colors.amber, opacity: busy ? 0.6 : 1 }]}>
+        <Pressable accessibilityRole="button" onPress={salva} disabled={busy} style={[styles.btnPrimary, { backgroundColor: colors.amber, opacity: busy ? 0.6 : 1 }]}>
           {busy ? (
             <ActivityIndicator size="small" color={colors.inkOnAmber} />
           ) : (
@@ -245,7 +349,7 @@ function InfoEditor({
   );
 }
 
-export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, onShowPlace }: GroupInfoSheetProps) {
+export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, onShowPlace, metaNome }: GroupInfoSheetProps) {
   const { colors } = useTheme();
   const t = useT();
   const { session } = useAuth();
@@ -255,7 +359,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
   const [inviteToken, setInviteToken] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [cardWidth, setCardWidth] = useState(0);
-  const { leaveGroup } = useAppStore();
+  const { leaveGroup, offlineDal } = useAppStore();
   /** Conferma per l'uscita dal gruppo, mostrata al posto del contenuto
    * del foglio (vedi SettingsSheet per il perché non si usa Alert). */
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -269,6 +373,16 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
   const [pins, setPins] = useState<RawPin[]>([]);
   /** La riga della bacheca che si sta scrivendo o correggendo. */
   const [factDraft, setFactDraft] = useState<{ id: string | null; label: string; value: string } | null>(null);
+  /** Senza rete: da quando sono i dati a schermo. Intanto le azioni che
+   * scrivono si spengono, invece di invitare a fare cose che falliranno. */
+  const [senzaRete, setSenzaRete] = useState<number | null>(null);
+  /** Il link d'invito non si è potuto leggere: «nessun link attivo»
+   * sarebbe falso. */
+  const [invitoIrraggiungibile, setInvitoIrraggiungibile] = useState(false);
+  /** Ogni giro rilegge tutto: lo fanno «Riprova» e il tentativo da solo. */
+  const [giro, setGiro] = useState(0);
+  const riprova = () => setGiro((g) => g + 1);
+  useRiprovaDaSola(visible && senzaRete !== null, riprova);
 
   // Riaprendo il foglio si riparte dalle informazioni, mai da una
   // conferma rimasta a metà.
@@ -285,9 +399,24 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
     let alive = true;
     const carica = () => {
       listFacts(group.id)
-        .then((f) => alive && setFacts(f))
-        .catch(() => {});
+        .then((f) => {
+          if (!alive) return;
+          setFacts(f);
+          setSenzaRete(null);
+          salvaCopia(session?.user.id, `info:${group.id}`, f);
+        })
+        .catch(async (err) => {
+          // Senza rete, le cose da sapere dell'ultima volta: in viaggio
+          // sono proprio quelle che servono.
+          const copia = await leggiCopia<RawFact[]>(session?.user.id, `info:${group.id}`);
+          if (!alive) return;
+          if (copia) setFacts((prev) => (prev.length > 0 ? prev : copia.dati));
+          if (eProblemaDiRete(err)) setSenzaRete(copia?.ts ?? offlineDal ?? Date.now());
+        });
     };
+    leggiCopia<RawFact[]>(session?.user.id, `info:${group.id}`).then((copia) => {
+      if (alive && copia) setFacts((prev) => (prev.length > 0 ? prev : copia.dati));
+    });
     carica();
     listPins(group.id)
       .then((p) => alive && setPins(p))
@@ -297,9 +426,17 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       alive = false;
       unsubscribe();
     };
-  }, [visible, group.id]);
+  }, [visible, group.id, giro]);
 
-  const meta = group.placePinId ? (pins.find((p) => p.id === group.placePinId) ?? null) : null;
+  // Senza rete i posti non arrivano: resta il nome salvato della meta.
+  const meta: { id: string; name: string } | null = group.placePinId
+    ? (pins.find((p) => p.id === group.placePinId) ?? (metaNome ? { id: group.placePinId, name: metaNome } : null))
+    : null;
+  /** La meta fuori dalla mappa: al tocco si apre su Google Maps. */
+  const metaLibera = group.placePinId ? null : (group.metaLibera ?? null);
+  const nomeMeta = meta?.name ?? metaLibera?.nome ?? null;
+  /** Con la rete si modifica; senza, si legge e basta. */
+  const scrive = senzaRete === null;
   const date = rangeLabel(group.startsOn, group.endsOn);
   const conto = countdownLabel(group.startsOn, group.endsOn);
 
@@ -358,8 +495,13 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
 
   useEffect(() => {
     if (!visible) return;
-    getInviteToken(group.id).then(setInviteToken);
-  }, [visible, group.id]);
+    getInviteToken(group.id)
+      .then((tok) => {
+        setInviteToken(tok);
+        setInvitoIrraggiungibile(false);
+      })
+      .catch(() => setInvitoIrraggiungibile(true));
+  }, [visible, group.id, giro]);
 
   const shareLink = async () => {
     if (busy) return;
@@ -429,7 +571,6 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
         pins={pins}
         onCancel={() => setEditingInfo(false)}
         onSaved={() => setEditingInfo(false)}
-        onError={(m) => toast.show(m, 'error')}
       />
     );
   }
@@ -445,14 +586,14 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
           {lastOne ? t.menuGruppo.ultimoTesto : t.menuGruppo.lasciaTesto}
         </Text>
         <View style={styles.confirmActions}>
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={() => setConfirmLeave(false)}
             disabled={leaving}
             style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}
           >
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={runLeave}
             disabled={leaving}
             style={[styles.btnPrimary, { backgroundColor: colors.danger, opacity: leaving ? 0.6 : 1 }]}
@@ -479,6 +620,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
             const size = cardWidth > 0 ? fitFontSize(group.name, cardWidth, 20, 46) : 28;
             return (
               <Text
+                maxFontSizeMultiplier={1}
                 style={{ fontFamily: FONT_ROUNDED, fontSize: size, lineHeight: Math.round(size * 1.2), color: inkOn(groupColor(group)) }}
                 numberOfLines={1}
               >
@@ -489,11 +631,47 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
         </View>
       </View>
 
-      <Text style={[styles.sectionLabel, { color: colors.textDim }]}>{t.infoGruppo.descrizione}</Text>
-      <Pressable onPress={() => setEditingInfo(true)} style={[styles.infoBlock, { backgroundColor: colors.surface2 }]}>
+      {senzaRete !== null ? <SenzaRete dal={senzaRete} onRetry={riprova} style={[styles.senzaRete, { backgroundColor: colors.surface2 }]} /> : null}
+
+      {/* Prima quando e dove: è quello che si cerca aprendo Info, e in
+          viaggio il conto alla rovescia e la meta servono subito. */}
+      <Text style={[styles.sectionLabel, { color: colors.textDim }]}>{t.infoGruppo.quandoEDove}</Text>
+      <View style={[styles.membersBlock, { backgroundColor: colors.surface2 }]}>
+        <Pressable accessibilityRole="button" disabled={!scrive} onPress={() => setEditingInfo(true)} style={styles.infoRow}>
+          <CalendarIcon size={17} color={date ? colors.textDim : colors.textFaint} />
+          <Text style={[styles.infoRowText, { color: date ? colors.text : colors.textFaint, fontWeight: date ? '700' : '500' }]}>
+            {date ?? (scrive ? t.infoGruppo.aggiungiDate : t.infoGruppo.nessunaData)}
+          </Text>
+          {conto ? (
+            <View style={[styles.countdown, { backgroundColor: colors.amber + '2E' }]}>
+              <Text style={{ color: colors.amberText, fontSize: 11.5, fontWeight: '800' }}>{conto}</Text>
+            </View>
+          ) : scrive ? (
+            <ChevronIcon size={15} color={colors.textFaint} />
+          ) : null}
+        </Pressable>
+        <Pressable accessibilityRole="button"
+          disabled={!nomeMeta && !scrive}
+          onPress={() => {
+            if (meta) onShowPlace?.(meta.id);
+            else if (metaLibera) void Linking.openURL(metaLibera.mapsUrl);
+            else setEditingInfo(true);
+          }}
+          style={[styles.infoRow, { borderTopWidth: 1, borderTopColor: colors.border }]}
+        >
+          <MapIcon size={17} color={nomeMeta ? colors.teal : colors.textFaint} strokeWidth={1.9} />
+          <Text style={[styles.infoRowText, { color: nomeMeta ? colors.teal : colors.textFaint, fontWeight: nomeMeta ? '700' : '500' }]}>
+            {nomeMeta ?? (scrive ? t.infoGruppo.scegliMeta : t.infoGruppo.nessunaMeta)}
+          </Text>
+          {nomeMeta || scrive ? <ChevronIcon size={15} color={colors.textFaint} /> : null}
+        </Pressable>
+      </View>
+
+      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.descrizione}</Text>
+      <Pressable accessibilityRole="button" disabled={!scrive} onPress={() => setEditingInfo(true)} style={[styles.infoBlock, { backgroundColor: colors.surface2 }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.description, { color: group.description ? colors.text : colors.textFaint }]}>
-            {group.description || t.infoGruppo.descrizioneVuota}
+            {group.description || (scrive ? t.infoGruppo.descrizioneVuota : t.infoGruppo.nessunaDescrizione)}
           </Text>
           {group.description && group.infoUpdatedAt ? (
             <Text style={[styles.infoMeta, { color: colors.textFaint }]}>
@@ -504,41 +682,14 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
             </Text>
           ) : null}
         </View>
-        <EditIcon size={15} color={colors.textDim} />
+        {scrive ? <EditIcon size={15} color={colors.textDim} /> : null}
       </Pressable>
-
-      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.quandoEDove}</Text>
-      <View style={[styles.membersBlock, { backgroundColor: colors.surface2 }]}>
-        <Pressable onPress={() => setEditingInfo(true)} style={styles.infoRow}>
-          <CalendarIcon size={17} color={date ? colors.textDim : colors.textFaint} />
-          <Text style={[styles.infoRowText, { color: date ? colors.text : colors.textFaint, fontWeight: date ? '700' : '500' }]}>
-            {date ?? t.infoGruppo.aggiungiDate}
-          </Text>
-          {conto ? (
-            <View style={[styles.countdown, { backgroundColor: colors.amber + '2E' }]}>
-              <Text style={{ color: colors.amber, fontSize: 11.5, fontWeight: '800' }}>{conto}</Text>
-            </View>
-          ) : (
-            <ChevronIcon size={15} color={colors.textFaint} />
-          )}
-        </Pressable>
-        <Pressable
-          onPress={() => (meta ? onShowPlace?.(meta.id) : setEditingInfo(true))}
-          style={[styles.infoRow, { borderTopWidth: 1, borderTopColor: colors.border }]}
-        >
-          <MapIcon size={17} color={meta ? colors.teal : colors.textFaint} strokeWidth={1.9} />
-          <Text style={[styles.infoRowText, { color: meta ? colors.teal : colors.textFaint, fontWeight: meta ? '700' : '500' }]}>
-            {meta ? meta.name : t.infoGruppo.scegliMeta}
-          </Text>
-          <ChevronIcon size={15} color={colors.textFaint} />
-        </Pressable>
-      </View>
 
       <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.coseDaSapere}</Text>
       <View style={[styles.membersBlock, { backgroundColor: colors.surface2 }]}>
         {facts.length === 0 && !factDraft ? (
           <Text style={[styles.factsEmpty, { color: colors.textFaint }]}>
-            {t.infoGruppo.bachecaVuota}
+            {scrive ? t.infoGruppo.bachecaVuota : t.infoGruppo.bachecaSenzaRete}
           </Text>
         ) : null}
         {facts.map((f, i) =>
@@ -553,8 +704,9 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
               first={i === 0}
             />
           ) : (
-            <Pressable
+            <Pressable accessibilityRole="button"
               key={f.id}
+              disabled={!scrive}
               onPress={() => setFactDraft({ id: f.id, label: f.label, value: f.value })}
               style={[styles.factRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
             >
@@ -562,7 +714,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
                 <Text style={[styles.factLabel, { color: colors.textFaint }]}>{f.label.toUpperCase()}</Text>
                 <Text style={[styles.factValue, { color: colors.text }]}>{f.value}</Text>
               </View>
-              <EditIcon size={14} color={colors.textFaint} />
+              {scrive ? <EditIcon size={14} color={colors.textFaint} /> : null}
             </Pressable>
           ),
         )}
@@ -574,22 +726,30 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
             onCancel={() => setFactDraft(null)}
             first={facts.length === 0}
           />
-        ) : (
-          <Pressable
+        ) : scrive ? (
+          <Pressable accessibilityRole="button"
             onPress={() => setFactDraft({ id: null, label: '', value: '' })}
             style={[styles.addFact, facts.length > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
           >
             <PlusIcon size={14} color={colors.lilac} />
             <Text style={{ color: colors.lilac, fontSize: 13.5, fontWeight: '800' }}>{t.infoGruppo.aggiungiRiga}</Text>
           </Pressable>
-        )}
+        ) : null}
       </View>
 
       <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.linkInvito}</Text>
       <Text style={[styles.inviteNote, { color: colors.textFaint }]}>
-        {inviteToken === undefined ? t.comune.unAttimo : inviteToken ? t.infoGruppo.invitoAttivo : t.infoGruppo.invitoSpento}
+        {invitoIrraggiungibile
+          ? t.infoGruppo.invitoSenzaRete
+          : inviteToken === undefined
+            ? t.comune.unAttimo
+            : inviteToken
+              ? t.infoGruppo.invitoAttivo
+              : t.infoGruppo.invitoSpento}
       </Text>
-      <Pressable
+      {/* Senza rete il link non si legge né si crea: niente tasto. */}
+      {invitoIrraggiungibile ? null : (
+      <Pressable accessibilityRole="button"
         onPress={shareLink}
         disabled={busy || inviteToken === undefined}
         style={[styles.inviteBtn, { backgroundColor: colors.amber, opacity: busy || inviteToken === undefined ? 0.6 : 1 }]}
@@ -599,12 +759,13 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
           {inviteToken ? t.infoGruppo.condividiLink : t.infoGruppo.creaLink}
         </Text>
       </Pressable>
-      {inviteToken ? (
+      )}
+      {inviteToken && !invitoIrraggiungibile ? (
         <View style={styles.inviteActions}>
-          <Pressable onPress={regenerate} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
+          <Pressable accessibilityRole="button" onPress={regenerate} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontSize: 12.5, fontWeight: '600' }}>{t.infoGruppo.generaNuovo}</Text>
           </Pressable>
-          <Pressable onPress={revoke} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
+          <Pressable accessibilityRole="button" onPress={revoke} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '600' }}>{t.infoGruppo.disattiva}</Text>
           </Pressable>
         </View>
@@ -617,7 +778,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
           return (
             <View key={userId} style={[styles.memberRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
               <View style={[styles.memberAvatar, { backgroundColor: colorForUser(name) }]}>
-                <Text style={styles.memberAvatarText}>{initials(name)}</Text>
+                <Text maxFontSizeMultiplier={1} style={styles.memberAvatarText}>{initials(name)}</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.memberName, { color: colors.text }]}>
@@ -638,7 +799,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       {/* In fondo e staccata dal resto: è una cosa del gruppo, quindi sta
           qui e non nelle impostazioni, ma è anche l'unica che ti porta
           fuori. Passa da una conferma. */}
-      <Pressable onPress={() => setConfirmLeave(true)} style={[styles.leaveRow, { backgroundColor: colors.surface2 }]}>
+      <Pressable accessibilityRole="button" onPress={() => setConfirmLeave(true)} style={[styles.leaveRow, { backgroundColor: colors.surface2 }]}>
         <View style={[styles.leaveIcon, { backgroundColor: colors.danger + '26' }]}>
           <LogoutIcon size={15} color={colors.danger} strokeWidth={2} />
         </View>
@@ -666,14 +827,23 @@ const styles = StyleSheet.create({
   factInputValue: { borderRadius: RADIUS.sm, paddingHorizontal: 12, height: 40, fontSize: 13.5 },
   factActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   factSave: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  editTitle: { fontFamily: FONT_ROUNDED, fontSize: 21, letterSpacing: -0.3, marginBottom: 14 },
+  editTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 14 },
   editArea: { borderRadius: RADIUS.sm, padding: 14, fontSize: 14.5, lineHeight: 20, minHeight: 96, textAlignVertical: 'top' },
   counter: { fontSize: 11.5, marginTop: 6, textAlign: 'right' },
   editDates: { flexDirection: 'row', gap: 8 },
-  editDate: { flex: 1, borderRadius: RADIUS.sm, paddingHorizontal: 14, height: 48, fontSize: 14.5 },
+  cercaPosto: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: RADIUS.sm, paddingHorizontal: 12, height: 44 },
+  cercaPostoInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
+  ricercaNota: { paddingVertical: 12, alignItems: 'center' },
+  ricercaTesto: { fontSize: 12.5, marginTop: 10, lineHeight: 17 },
+  risultati: { borderRadius: RADIUS.md, marginTop: 8, overflow: 'hidden' },
+  risultato: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 12, paddingVertical: 10 },
+  risultatoNome: { fontSize: 14, fontWeight: '700' },
+  risultatoIndirizzo: { fontSize: 11.5, marginTop: 1 },
   metaList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  metaSotto: { marginTop: 10 },
   metaChip: { height: 36, paddingHorizontal: 13, borderRadius: 999, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   editError: { fontSize: 12.5, marginTop: 12 },
+  senzaRete: { marginHorizontal: 0, marginTop: 0, marginBottom: 18 },
   card: { height: 92, borderRadius: 22, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 18 },
   cardBlob: { position: 'absolute', right: -30, top: -38, width: 110, height: 110, borderRadius: 55, backgroundColor: 'rgba(0,0,0,0.09)' },
   sectionLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 },
@@ -699,9 +869,10 @@ const styles = StyleSheet.create({
     marginTop: 26, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 11, borderRadius: RADIUS.md,
   },
   leaveIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  confirmTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  confirmTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.2, marginBottom: 4 },
   confirmBody: { fontSize: 12.5, lineHeight: 18, marginTop: 4, marginBottom: 16 },
   confirmActions: { flexDirection: 'row', gap: 10 },
+  editActions: { marginTop: 22 },
   btnSecondary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   btnPrimary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 });

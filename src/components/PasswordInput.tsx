@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, TextInput, Pressable, StyleSheet, Platform, type TextInputProps } from 'react-native';
+import { View, TextInput, StyleSheet, Platform, type TextInputProps } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { EyeIcon, EyeOffIcon, LockIcon } from '@/components/Icon';
 import { FIELD_HEIGHT } from '@/components/Field';

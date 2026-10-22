@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme } from '@/theme/theme';
 import { FileIcon } from '@/components/Icon';
 import { fileKindFor, fileLabelFor, formatFileSize, type FileKind } from '@/lib/utils';
@@ -42,7 +43,7 @@ export function FileAttachmentBubble({
   const tint = own ? colors.inkOnAmber : badge;
 
   return (
-    <Pressable
+    <Pressable accessibilityRole="button"
       onPress={(e) => {
         // Senza questo il tocco arriva anche al fumetto e aprirebbe le reazioni.
         e.stopPropagation?.();

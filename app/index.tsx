@@ -19,7 +19,7 @@ function Loading() {
       <ScreenGlow />
       <Logo size={92} />
       <Text style={{ fontFamily: FONT_ROUNDED, fontSize: 40, letterSpacing: -0.8, marginTop: -4, color: colors.text }}>Insieme</Text>
-      <ActivityIndicator color={colors.amber} style={{ marginTop: 22 }} />
+      <ActivityIndicator color={colors.amberText} style={{ marginTop: 22 }} />
     </View>
   );
 }

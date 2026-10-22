@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, Linking } from 'react-native';
+import { View, Text, StyleSheet, Image, Linking } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme } from '@/theme/theme';
 import Svg, { Rect, Path } from 'react-native-svg';
 import { PlayIcon, StarIcon, FileIcon, MapIcon, MoreIcon, ImageIcon, GlobeIcon } from '@/components/Icon';
@@ -7,6 +8,7 @@ import { platformInfo, fileKindFor } from '@/lib/utils';
 import { fileBadgeColor } from '@/components/FileAttachmentBubble';
 import { getLinkPreview } from '@/lib/api/linkPreviews';
 import type { RawLink } from '@/lib/api/links';
+import { dizionario, useT } from '@/i18n';
 
 function hostOf(url: string): string {
   try {
@@ -72,6 +74,9 @@ export function useLinkPreview(item: RawLink | null) {
 
 /** Colore e scritta del marchio di piattaforma sulla miniatura. Per i
  * siti qualunque il marchio è il dominio stesso: dice da dove viene. */
+/** Le piattaforme con un marchio riconoscibile a colpo d'occhio. */
+const MARCHI = new Set(['youtube', 'instagram', 'tiktok', 'vimeo', 'spotify', 'twitter']);
+
 function badgeFor(item: RawLink): { text: string; bg: string } {
   switch (item.platform) {
     case 'youtube':
@@ -87,9 +92,9 @@ function badgeFor(item: RawLink): { text: string; bg: string } {
     case 'twitter':
       return { text: 'X', bg: '#111111' };
     case 'image':
-      return { text: 'Foto', bg: 'rgba(14,20,27,0.72)' };
+      return { text: dizionario().segnaposto.foto, bg: 'rgba(14,20,27,0.72)' };
     case 'video':
-      return { text: 'Video', bg: 'rgba(14,20,27,0.72)' };
+      return { text: dizionario().segnaposto.video, bg: 'rgba(14,20,27,0.72)' };
     case 'file':
       return { text: item.label, bg: 'rgba(14,20,27,0.72)' };
     default:
@@ -215,7 +220,10 @@ export function LinkFallbackThumb({ source, iconSize }: { source: FallbackSource
  * vuote sopra e sotto. Il titolo accanto dice già di che cosa si tratta.
  *
  * Il marchio della piattaforma si mette solo sopra un'immagine vera: senza,
- * sono già colore e icona del ripiego a dire di che tipo è il link.
+ * sono già colore e icona del ripiego a dire di che tipo è il link. Nella
+ * miniatura piccola resta solo un marchio vero (YouTube, Instagram...):
+ * il sito o "Foto" li dice già la riga accanto, e in quello spazio
+ * diventavano "pasteisd…".
  */
 function Thumb({
   item,
@@ -230,6 +238,7 @@ function Thumb({
 }) {
   const { colors } = useTheme();
   const badge = badgeFor(item);
+  const conMarchio = !compact || MARCHI.has(item.platform);
   const fileColor = item.platform === 'file' ? fileBadgeColor(fileKindFor(item.title), colors) : colors.textDim;
   // Un'immagine che non si carica (file sparito, sito che la nega) vale
   // quanto nessuna immagine: meglio il ripiego di un riquadro vuoto.
@@ -240,6 +249,7 @@ function Thumb({
       {image && !broken ? (
         <>
           <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setBroken(true)} />
+          {conMarchio ? (
           <View
             style={[
               styles.badge,
@@ -251,6 +261,7 @@ function Thumb({
               {compact && item.platform === 'youtube' ? '▶' : badge.text}
             </Text>
           </View>
+          ) : null}
         </>
       ) : (
         <LinkFallbackThumb source={item} iconSize={compact ? 24 : 34} />
@@ -270,7 +281,7 @@ function Thumb({
 function PlaceChip({ place, onPress }: { place: LinkedPlace; onPress: () => void }) {
   const { colors } = useTheme();
   return (
-    <Pressable
+    <Pressable accessibilityRole="button"
       onPress={(e) => {
         e.stopPropagation?.();
         onPress();
@@ -288,8 +299,11 @@ function PlaceChip({ place, onPress }: { place: LinkedPlace; onPress: () => void
 
 function MoreButton({ onPress }: { onPress: () => void }) {
   const { colors } = useTheme();
+  const t = useT();
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t.accessibilita.altreAzioni}
       onPress={(e) => {
         // Come per il link toccabile nel testo della chat: senza questo
         // il tocco proseguirebbe fino alla scheda e aprirebbe l'indirizzo.
@@ -323,7 +337,7 @@ export function LinkRow({ item, addedBy, places, onOpenMenu, onShowPlace }: Card
           <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={2}>
             {title}
           </Text>
-          {item.isFavorite ? <StarIcon size={12} color={colors.amber} filled /> : null}
+          {item.isFavorite ? <StarIcon size={12} color={colors.amberText} filled /> : null}
         </View>
         <Text style={[styles.meta, { color: colors.textFaint }]} numberOfLines={1}>
           <Text style={{ color: colors.textDim, fontWeight: '700' }}>{addedBy}</Text> · {item.label}

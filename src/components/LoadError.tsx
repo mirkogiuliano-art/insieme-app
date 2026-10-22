@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { CloudOffIcon, RetryIcon } from '@/components/Icon';
 import { useT } from '@/i18n';
@@ -9,6 +10,8 @@ interface LoadErrorProps {
    * "i link", "i posti". Finisce dentro la frase mostrata. */
   what: string;
   onRetry: () => void;
+  /** Per allinearlo al contenuto della schermata (la home ha margini più larghi). */
+  style?: StyleProp<ViewStyle>;
 }
 
 /**
@@ -19,11 +22,11 @@ interface LoadErrorProps {
  * finivano tutti in un elenco vuoto, indistinguibile dal caso normale — e
  * chi guardava lo schermo pensava di aver perso i propri dati.
  */
-export function LoadError({ what, onRetry }: LoadErrorProps) {
+export function LoadError({ what, onRetry, style }: LoadErrorProps) {
   const { colors } = useTheme();
   const t = useT();
   return (
-    <View style={[styles.box, { backgroundColor: colors.surface }]}>
+    <View style={[styles.box, { backgroundColor: colors.surface }, style]}>
       <View style={[styles.icon, { backgroundColor: colors.danger + '1F' }]}>
         <CloudOffIcon size={20} color={colors.danger} />
       </View>
@@ -33,7 +36,7 @@ export function LoadError({ what, onRetry }: LoadErrorProps) {
           {t.erroreCaricamento.sottotitolo}
         </Text>
       </View>
-      <Pressable onPress={onRetry} style={[styles.btn, { backgroundColor: colors.amber }]}>
+      <Pressable accessibilityRole="button" onPress={onRetry} style={[styles.btn, { backgroundColor: colors.amber }]}>
         <RetryIcon size={13} color={colors.inkOnAmber} strokeWidth={2.4} />
         <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 12.5 }}>{t.comune.riprova}</Text>
       </Pressable>

@@ -39,7 +39,7 @@ export interface RawMessage {
 const SELECT_COLUMNS =
   'id, user_id, text, created_at, reply_to_id, attachment_url, attachment_type, attachment_duration_seconds, attachment_name, attachment_size, poll_id';
 
-function toRaw(row: MessageRow): RawMessage {
+export function toRaw(row: MessageRow): RawMessage {
   return {
     id: row.id,
     userId: row.user_id,
@@ -123,7 +123,20 @@ export async function sendMessage(
  * `postgres_changes` il nome conta solo per questo client — al contrario
  * dei canali broadcast, dove è il punto d'incontro fra client diversi e
  * deve restare identico (vedi typing.ts). */
-export function subscribeToMessages(groupId: string, onInsert: (message: RawMessage) => void): () => void {
+/** Elimina un proprio messaggio, per tutti. Il database lo permette solo a
+ * chi l'ha scritto: se il messaggio non è suo non si cancella niente, e
+ * qui lo si dice invece di far finta che sia andata. */
+export async function deleteMessage(id: string): Promise<void> {
+  const { data, error } = await supabase.from('messages').delete().eq('id', id).select('id');
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error(dizionario().errori.eliminaMessaggio);
+}
+
+export function subscribeToMessages(
+  groupId: string,
+  onInsert: (message: RawMessage) => void,
+  onDelete?: (id: string) => void,
+): () => void {
   const uniqueSuffix = Math.random().toString(36).slice(2, 8);
   const channel = supabase
     .channel(`messages:${groupId}:${uniqueSuffix}`)
@@ -132,6 +145,13 @@ export function subscribeToMessages(groupId: string, onInsert: (message: RawMess
       { event: 'INSERT', schema: 'public', table: 'messages', filter: `group_id=eq.${groupId}` },
       (payload) => onInsert(toRaw(payload.new as MessageRow)),
     )
+    // Di un messaggio eliminato il database manda solo l'id, senza il
+    // gruppo: si ascoltano tutte le eliminazioni, e chi non ha quel
+    // messaggio in elenco semplicemente non trova niente da togliere.
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
+      const id = (payload.old as { id?: string } | null)?.id;
+      if (id && onDelete) onDelete(id);
+    })
     .subscribe();
 
   return () => {

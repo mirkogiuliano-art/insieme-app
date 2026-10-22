@@ -12,6 +12,10 @@ export interface ThemeColors {
   textDim: string;
   textFaint: string;
   amber: string;
+  /** L'ambra quando è testo o icona su una superficie, non il fondo di un
+   * tasto. Nello scuro coincide con `amber`; nel chiaro è più profonda,
+   * perché l'ambra piena su bianco non si legge (2,2:1). */
+  amberText: string;
   inkOnAmber: string;
   teal: string;
   coral: string;
@@ -38,9 +42,14 @@ const DARK: ThemeColors = {
   surface2: '#212C38',
   border: '#26313D',
   text: '#E8EDF2',
-  textDim: '#93A3B2',
-  textFaint: '#5F6E7D',
+  // I due grigi del testo reggono il contrasto minimo (4,5:1) anche sulla
+  // superficie più chiara, `surface2`: il tenue serve a segnaposto, orari e
+  // didascalie, che vanno letti. Il secondario si alza con lui per restare
+  // un gradino sopra.
+  textDim: '#ACB9C4',
+  textFaint: '#8493A2',
   amber: '#E9A23B',
+  amberText: '#E9A23B',
   inkOnAmber: '#23190A',
   teal: '#4FB3A5',
   coral: '#E4707A',
@@ -71,14 +80,18 @@ const LIGHT: ThemeColors = {
   surface2: '#E2E7EC',
   border: '#DDE3E9',
   text: '#16202B',
-  textDim: '#55636F',
-  textFaint: '#8794A0',
+  textDim: '#414C55',
+  textFaint: '#5C6974',
   amber: '#E9A23B',
+  amberText: '#88570F',
   inkOnAmber: '#2B2109',
-  teal: '#2F9C86',
+  // Verde acqua, lilla e rosso servono sia da testo sia da fondo: qui sono
+  // il gradino più chiaro che regge 4,5:1 su tutte e tre le superfici del
+  // chiaro. Il rosso così porta anche il bianco sopra (5,6:1, prima 3,9).
+  teal: '#237363',
   coral: '#D9555C',
-  lilac: '#8C7CE0',
-  danger: '#D9555C',
+  lilac: '#6651D6',
+  danger: '#C32C34',
 };
 
 /** Angoli più larghi di prima: senza contorni la forma è l'unica cosa

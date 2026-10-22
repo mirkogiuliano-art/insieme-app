@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Linking, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Linking, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { PasswordInput } from '@/components/PasswordInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
-import { BackIcon, MailIcon, CheckIcon } from '@/components/Icon';
+import { BackIcon, MailIcon, CheckIcon, UsersIcon } from '@/components/Icon';
+import { useAuth } from '@/lib/authStore';
 import { Field } from '@/components/Field';
 import { Logo } from '@/components/Logo';
 import { useDocumenti } from '@/lib/legal';
@@ -22,11 +24,18 @@ const MIN_PASSWORD = 8;
 
 export function AuthScreen() {
   const { colors } = useTheme();
+  const { pendingInviteToken } = useAuth();
   const t = useT();
   const { lingua } = useLingua();
   // Informativa e condizioni nella lingua in uso.
   const documenti = useDocumenti();
-  const [mode, setMode] = useState<Mode>('login');
+  // Chi arriva con un invito di solito non ha ancora un account: si parte
+  // da «Registrati». Se tocca «Accedi», da lì vale la sua scelta.
+  const [mode, setMode] = useState<Mode>(pendingInviteToken ? 'signup' : 'login');
+  const sceltoAMano = useRef(false);
+  useEffect(() => {
+    if (pendingInviteToken && !sceltoAMano.current) setMode((m) => (m === 'login' ? 'signup' : m));
+  }, [pendingInviteToken]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -40,6 +49,7 @@ export function AuthScreen() {
   const [conGoogle, setConGoogle] = useState(false);
 
   const switchMode = (next: Mode) => {
+    sceltoAMano.current = true;
     setMode(next);
     setSentTo(null);
     setError('');
@@ -147,7 +157,7 @@ export function AuthScreen() {
       // ── Link partito ──
       <>
         <View style={[styles.bigIcon, { backgroundColor: colors.surface }]}>
-          <MailIcon size={34} color={colors.amber} />
+          <MailIcon size={34} color={colors.amberText} />
         </View>
         <Text style={[styles.title, { color: colors.text }]}>{t.recupero.postaTitolo}</Text>
         <Text style={[styles.subtitle, { color: colors.textDim }]}>
@@ -155,10 +165,10 @@ export function AuthScreen() {
           <Text style={{ color: colors.text, fontWeight: '700' }}>{sentTo}</Text>.{'\n'}
           {t.recupero.postaDopo}
         </Text>
-        <Pressable onPress={() => switchMode('login')} style={[styles.button, { backgroundColor: colors.surface }]}>
+        <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={[styles.button, { backgroundColor: colors.surface }]}>
           <Text style={[styles.buttonText, { color: colors.text }]}>{t.recupero.tornaAccesso}</Text>
         </Pressable>
-        <Pressable onPress={submit} disabled={loading}>
+        <Pressable accessibilityRole="button" onPress={submit} disabled={loading}>
           <Text style={[styles.link, { color: colors.textDim }]}>{loading ? t.comune.unAttimo : t.recupero.rimanda}</Text>
         </Pressable>
         {error ? <Text style={[styles.message, { color: colors.danger }]}>{error}</Text> : null}
@@ -182,7 +192,7 @@ export function AuthScreen() {
           onSubmitEditing={submit}
         />
         {error ? <Text style={[styles.message, { color: colors.danger }]}>{error}</Text> : null}
-        <Pressable onPress={submit} disabled={loading} style={[styles.button, { backgroundColor: colors.amber, opacity: loading ? 0.6 : 1 }]}>
+        <Pressable accessibilityRole="button" onPress={submit} disabled={loading} style={[styles.button, { backgroundColor: colors.amber, opacity: loading ? 0.6 : 1 }]}>
           {busy ?? <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>{t.recupero.mandaLink}</Text>}
         </Pressable>
       </>
@@ -205,11 +215,20 @@ export function AuthScreen() {
           ) : null}
         </View>
 
+        {/* Arrivati da un invito: l'avviso resta finché non si entra,
+            anche dopo la registrazione e la conferma dell'email. */}
+        {pendingInviteToken ? (
+          <View style={[styles.invito, { backgroundColor: colors.surface, borderColor: colors.amber }]}>
+            <UsersIcon size={18} color={colors.amberText} strokeWidth={2} />
+            <Text style={[styles.invitoTesto, { color: colors.text }]}>{t.accesso.invitoInSospeso}</Text>
+          </View>
+        ) : null}
+
         {/* Le due strade come le due voci di un selettore, invece di un
             link in fondo: si vede subito che ce ne sono due. */}
         <View style={[styles.seg, { backgroundColor: colors.surface }]}>
           {(['login', 'signup'] as const).map((k) => (
-            <Pressable key={k} onPress={() => switchMode(k)} style={[styles.segBtn, mode === k && { backgroundColor: colors.amber }]}>
+            <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: mode === k }} onPress={() => switchMode(k)} style={[styles.segBtn, mode === k && { backgroundColor: colors.amber }]}>
               <Text style={[styles.segText, { color: mode === k ? colors.inkOnAmber : colors.textDim }]}>
                 {k === 'login' ? t.accesso.accedi : t.accesso.registrati}
               </Text>
@@ -253,7 +272,7 @@ export function AuthScreen() {
         {error ? <Text style={[styles.message, { color: colors.danger }]}>{error}</Text> : null}
         {info ? <Text style={[styles.message, { color: colors.teal }]}>{info}</Text> : null}
 
-        <Pressable onPress={submit} disabled={loading} style={[styles.button, { backgroundColor: colors.amber, opacity: loading ? 0.6 : 1 }]}>
+        <Pressable accessibilityRole="button" onPress={submit} disabled={loading} style={[styles.button, { backgroundColor: colors.amber, opacity: loading ? 0.6 : 1 }]}>
           {busy ?? (
             <Text style={[styles.buttonText, { color: colors.inkOnAmber }]}>{mode === 'login' ? t.accesso.accedi : t.accesso.creaAccount}</Text>
           )}
@@ -296,7 +315,7 @@ export function AuthScreen() {
             {t.accesso.legale3}
           </Text>
         ) : (
-          <Pressable onPress={() => switchMode('forgot')}>
+          <Pressable accessibilityRole="button" onPress={() => switchMode('forgot')}>
             <Text style={[styles.link, { color: colors.textDim }]}>{t.accesso.dimenticata}</Text>
           </Pressable>
         )}
@@ -309,7 +328,7 @@ export function AuthScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
         <ScrollConTastiera contentContainerStyle={styles.inner}>
           {mode === 'forgot' ? (
-            <Pressable onPress={() => switchMode('login')} style={[styles.backBtn, { backgroundColor: colors.surface }]} hitSlop={10}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => switchMode('login')} style={[styles.backBtn, { backgroundColor: colors.surface }]} hitSlop={10}>
               <BackIcon size={18} color={colors.textDim} />
             </Pressable>
           ) : null}
@@ -341,6 +360,8 @@ const styles = StyleSheet.create({
   reqText: { fontSize: 12, fontWeight: '700' },
   legale: { fontSize: 11.5, lineHeight: 17, textAlign: 'center', marginTop: 2 },
   message: { fontSize: 12.5, textAlign: 'center', lineHeight: 17 },
+  invito: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: RADIUS.md, paddingHorizontal: 14, paddingVertical: 12 },
+  invitoTesto: { flex: 1, fontSize: 13, fontWeight: '700', lineHeight: 18 },
   button: { width: '100%', height: 50, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   buttonText: { fontWeight: '800', fontSize: 15 },
   link: { fontSize: 13, fontWeight: '700', marginTop: 4 },

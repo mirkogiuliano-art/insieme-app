@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
 import { ShareIcon, UsersIcon, CheckIcon, BackIcon, LogoutIcon } from '@/components/Icon';
 import { groupColor } from '@/lib/appStore';
-import { inkOn } from '@/lib/utils';
+import { inkOn, primoSegno } from '@/lib/utils';
 import { GROUP_PALETTE, type Group } from '@/types';
 import { useT } from '@/i18n';
 
@@ -21,6 +22,9 @@ interface GroupActionsSheetProps {
   onColor: (group: Group, color: string) => void;
   onMarkRead: (group: Group) => void;
   onLeave: (group: Group) => Promise<void>;
+  /** Una voce in più in cima, per chi apre il menu da dentro il gruppo
+   * (l'archivio della chat). */
+  extra?: { icon: React.ReactNode; label: string; onPress: () => void };
 }
 
 type Step = 'menu' | 'color' | 'leave';
@@ -40,6 +44,7 @@ export function GroupActionsSheet({
   onColor,
   onMarkRead,
   onLeave,
+  extra,
 }: GroupActionsSheetProps) {
   const { colors } = useTheme();
   const t = useT();
@@ -60,7 +65,7 @@ export function GroupActionsSheet({
   };
 
   const Item = ({ icon, label, danger, onPress }: { icon: React.ReactNode; label: string; danger?: boolean; onPress: () => void }) => (
-    <Pressable onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
       {icon}
       <Text style={[styles.itemText, { color: danger ? colors.danger : colors.text }]}>{label}</Text>
     </Pressable>
@@ -68,7 +73,7 @@ export function GroupActionsSheet({
 
   const StepTitle = ({ title }: { title: string }) => (
     <View style={styles.stepTitleRow}>
-      <Pressable onPress={() => setStep('menu')} hitSlop={10}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setStep('menu')} hitSlop={10}>
         <BackIcon size={20} color={colors.textDim} />
       </Pressable>
       <Text style={[styles.stepTitle, { color: colors.text }]}>{title}</Text>
@@ -81,11 +86,14 @@ export function GroupActionsSheet({
         <StepTitle title={t.menuGruppo.coloreTitolo} />
         <Text style={[styles.sub, { color: colors.textDim }]}>{t.menuGruppo.coloreSotto}</Text>
         <View style={styles.swatches}>
-          {GROUP_PALETTE.map((c) => {
+          {GROUP_PALETTE.map((c, i) => {
             const on = c.toUpperCase() === tint.toUpperCase();
             return (
               <Pressable
                 key={c}
+                accessibilityRole="button"
+                accessibilityLabel={t.accessibilita.colore(i + 1, GROUP_PALETTE.length)}
+                accessibilityState={{ selected: on }}
                 onPress={() => (on ? setStep('menu') : run(() => onColor(group, c)))}
                 style={[styles.swatch, { backgroundColor: c, borderColor: on ? colors.text : 'transparent' }]}
               >
@@ -107,10 +115,10 @@ export function GroupActionsSheet({
           {lastOne ? t.menuGruppo.ultimoTesto : t.menuGruppo.lasciaTesto}
         </Text>
         <View style={styles.actions}>
-          <Pressable onPress={() => setStep('menu')} disabled={leaving} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
+          <Pressable accessibilityRole="button" onPress={() => setStep('menu')} disabled={leaving} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={async () => {
               setLeaving(true);
               try {
@@ -138,7 +146,7 @@ export function GroupActionsSheet({
     <BottomSheet visible onClose={onClose}>
       <View style={styles.header}>
         <View style={[styles.tile, { backgroundColor: tint }]}>
-          <Text style={[styles.tileText, { color: inkOn(tint) }]}>{group.name.slice(0, 1).toUpperCase()}</Text>
+          <Text style={[styles.tileText, { color: inkOn(tint) }]}>{primoSegno(group.name.trim()).toUpperCase()}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
@@ -149,7 +157,8 @@ export function GroupActionsSheet({
           </Text>
         </View>
       </View>
-      <Item icon={<ShareIcon size={17} color={colors.amber} />} label={t.menuGruppo.invita} onPress={() => run(() => onInvite(group))} />
+      {extra ? <Item icon={extra.icon} label={extra.label} onPress={() => run(extra.onPress)} /> : null}
+      <Item icon={<ShareIcon size={17} color={colors.amberText} />} label={t.menuGruppo.invita} onPress={() => run(() => onInvite(group))} />
       <Item icon={<UsersIcon size={18} color={colors.teal} strokeWidth={2} />} label={t.menuGruppo.info} onPress={() => run(() => onInfo(group))} />
       <Item
         icon={<View style={[styles.colorDot, { backgroundColor: tint, borderColor: colors.border }]} />}

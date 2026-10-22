@@ -20,7 +20,7 @@ export interface RawFact {
 
 const SELECT_COLUMNS = 'id, label, value, position, created_by, created_at';
 
-function toRaw(row: FactRow): RawFact {
+export function toRaw(row: FactRow): RawFact {
   return {
     id: row.id,
     label: row.label,

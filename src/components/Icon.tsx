@@ -21,11 +21,13 @@ export function ChatIcon({ size = 22, color = '#000', strokeWidth = 1.8 }: IconP
   );
 }
 
+/** Il link: una catena. Prima era un riquadro col «play», e la sezione
+ * Link sembrava quella dei video, che dei link sono solo un tipo. */
 export function LinkIcon({ size = 22, color = '#000', strokeWidth = 1.8 }: IconProps) {
   return (
     <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      <Rect x="3" y="5" width="18" height="14" rx="3" />
-      <Polygon points="10 9 15 12 10 15 10 9" fill={color} stroke="none" />
+      <Path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7" />
+      <Path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7" />
     </Svg>
   );
 }
@@ -478,6 +480,27 @@ export function PollIcon({ size = 18, color = '#000', strokeWidth = 2.2 }: IconP
   return (
     <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round">
       <Path d="M5 20V11M12 20V4M19 20v-6" />
+    </Svg>
+  );
+}
+
+/** Una videocamera, a tratto come le altre icone: il triangolo pieno di
+ * PlayIcon resta per il tasto "riproduci" sopra un video. */
+export function VideoIcon({ size = 20, color = '#000', strokeWidth = 1.7 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="2.8" y="6" width="12.7" height="12" rx="2.6" />
+      <Path d="M15.5 10.2l4.6-2.7a.8.8 0 011.2.7v7.6a.8.8 0 01-1.2.7l-4.6-2.7" />
+    </Svg>
+  );
+}
+
+/** Una persona sola: il volto che manca finché non si sceglie un nome. */
+export function PersonIcon({ size = 20, color = '#000', strokeWidth = 1.7 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="12" cy="8" r="4" />
+      <Path d="M4.5 20.5a7.5 7.5 0 0115 0" />
     </Svg>
   );
 }

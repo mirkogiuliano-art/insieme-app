@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import * as Clipboard from 'expo-clipboard';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme } from '@/theme/theme';
-import { ReplyIcon, FlagIcon, BanIcon, BackIcon, LinkIcon, CopyIcon } from '@/components/Icon';
+import { ReplyIcon, FlagIcon, BanIcon, BackIcon, LinkIcon, CopyIcon, TrashIcon } from '@/components/Icon';
 import type { RawMessage } from '@/lib/api/messages';
 import { parsePlaceMessage } from '@/lib/chatPlace';
 import type { RawLinkCategory } from '@/lib/api/linkCategories';
@@ -29,6 +30,8 @@ interface MessageActionsSheetProps {
   onReport: () => void;
   onBlock: () => void;
   onCopied: () => void;
+  /** Solo sui propri messaggi (non sui sondaggi, che si chiudono). */
+  onDelete?: () => void;
 }
 
 /**
@@ -49,10 +52,11 @@ export function MessageActionsSheet({
   onReport,
   onBlock,
   onCopied,
+  onDelete,
 }: MessageActionsSheetProps) {
   const { colors } = useTheme();
   const t = useT();
-  const [step, setStep] = useState<'menu' | 'save'>('menu');
+  const [step, setStep] = useState<'menu' | 'save' | 'elimina'>('menu');
 
   useEffect(() => {
     setStep('menu');
@@ -66,7 +70,7 @@ export function MessageActionsSheet({
   };
 
   const Item = ({ icon, label, danger, onPress }: { icon: React.ReactNode; label: string; danger?: boolean; onPress: () => void }) => (
-    <Pressable onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
       {icon}
       <Text style={[styles.itemText, { color: danger ? colors.danger : colors.text }]}>{label}</Text>
     </Pressable>
@@ -83,11 +87,38 @@ export function MessageActionsSheet({
           ? t.menuMessaggio.vocale
           : message.attachmentName || t.segnaposto.documento);
 
+  const citazione = (
+    <View style={[styles.quote, { backgroundColor: colors.surface2, borderLeftColor: colors.teal }]}>
+      <Text style={[styles.quoteAuthor, { color: colors.teal }]}>{isMine ? t.segnaposto.tu : authorName}</Text>
+      <Text style={[styles.quoteText, { color: colors.text }]} numberOfLines={2}>
+        {preview}
+      </Text>
+    </View>
+  );
+
+  if (step === 'elimina' && onDelete) {
+    return (
+      <BottomSheet visible onClose={onClose}>
+        <Text style={[styles.stepTitle, { color: colors.text, marginBottom: 6 }]}>{t.menuMessaggio.eliminare}</Text>
+        <Text style={[styles.stepSub, { color: colors.textDim }]}>{t.menuMessaggio.eliminaTesto}</Text>
+        {citazione}
+        <View style={styles.actions}>
+          <Pressable accessibilityRole="button" onPress={() => setStep('menu')} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
+            <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => run(onDelete)} style={[styles.btn, { backgroundColor: colors.danger }]}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>{t.menuMessaggio.elimina}</Text>
+          </Pressable>
+        </View>
+      </BottomSheet>
+    );
+  }
+
   if (step === 'save') {
     return (
       <BottomSheet visible onClose={onClose}>
         <View style={styles.stepTitleRow}>
-          <Pressable onPress={() => setStep('menu')} hitSlop={10}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setStep('menu')} hitSlop={10}>
             <BackIcon size={20} color={colors.textDim} />
           </Pressable>
           <Text style={[styles.stepTitle, { color: colors.text }]}>{t.menuMessaggio.salvaNeiLink}</Text>
@@ -96,7 +127,7 @@ export function MessageActionsSheet({
           {t.menuMessaggio.qualeCategoria(saveable?.title ?? '')}
         </Text>
         {linkCategories.map((c) => (
-          <Pressable key={c.id} onPress={() => run(() => onSaveToLinks(c.id))} style={[styles.item, { borderTopColor: colors.border }]}>
+          <Pressable accessibilityRole="button" key={c.id} onPress={() => run(() => onSaveToLinks(c.id))} style={[styles.item, { borderTopColor: colors.border }]}>
             <View style={[styles.dot, { backgroundColor: c.color }]} />
             <Text style={[styles.itemText, { color: colors.text }]}>{c.name}</Text>
           </Pressable>
@@ -107,18 +138,13 @@ export function MessageActionsSheet({
 
   return (
     <BottomSheet visible onClose={onClose}>
-      <View style={[styles.quote, { backgroundColor: colors.surface2, borderLeftColor: colors.teal }]}>
-        <Text style={[styles.quoteAuthor, { color: colors.teal }]}>{isMine ? t.segnaposto.tu : authorName}</Text>
-        <Text style={[styles.quoteText, { color: colors.text }]} numberOfLines={2}>
-          {preview}
-        </Text>
-      </View>
+      {citazione}
 
       <View style={styles.emojiRow}>
         {QUICK_REACTIONS.map((emoji) => {
           const on = myReactions.includes(emoji);
           return (
-            <Pressable
+            <Pressable accessibilityRole="button"
               key={emoji}
               onPress={() => run(() => onReact(emoji))}
               style={[styles.emojiBtn, { backgroundColor: on ? colors.amber + '40' : colors.surface2, borderColor: on ? colors.amber : 'transparent' }]}
@@ -132,7 +158,7 @@ export function MessageActionsSheet({
       <Item icon={<ReplyIcon size={17} color={colors.textDim} />} label={t.menuMessaggio.rispondi} onPress={() => run(onReply)} />
       {saveable && linkCategories.length > 0 ? (
         <Item
-          icon={<LinkIcon size={18} color={colors.amber} strokeWidth={2} />}
+          icon={<LinkIcon size={18} color={colors.amberText} strokeWidth={2} />}
           label={t.menuMessaggio.salvaNeiLink}
           onPress={() => (linkCategories.length === 1 ? run(() => onSaveToLinks(linkCategories[0].id)) : setStep('save'))}
         />
@@ -147,6 +173,9 @@ export function MessageActionsSheet({
             })
           }
         />
+      ) : null}
+      {onDelete ? (
+        <Item icon={<TrashIcon size={17} color={colors.danger} />} label={t.menuMessaggio.elimina} danger onPress={() => setStep('elimina')} />
       ) : null}
       {/* Solo sui messaggi degli altri: segnalare o bloccare se stessi non
           vuol dire niente. */}
@@ -173,4 +202,6 @@ const styles = StyleSheet.create({
   stepTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   stepTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.2 },
   stepSub: { fontSize: 12.5, marginBottom: 8, lineHeight: 17 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  btn: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 });

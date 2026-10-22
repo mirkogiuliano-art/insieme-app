@@ -6,12 +6,16 @@ import { sweepGroupMedia } from '@/lib/api/mediaUpload';
 import { hashStr } from '@/lib/utils';
 import { GROUP_PALETTE, type Group } from '@/types';
 import { segnalaErrore } from '@/lib/sentry';
+import { eProblemaDiRete } from '@/lib/errori';
+import { leggiCopia, salvaCopia, useRiprovaDaSola } from '@/lib/copiaLocale';
 
 interface AppStoreValue {
   ready: boolean;
   myGroups: Group[];
   /** true se l'ultima lettura dei gruppi è fallita. */
   loadError: boolean;
+  /** Da quando si vede l'elenco salvato sul telefono, se il server non ha risposto. */
+  offlineDal: number | null;
   refreshGroups: () => Promise<void>;
   /** Aggiorna solo la cache locale — la scrittura su Supabase è già stata
    * fatta dal chiamante (groups.createGroupWithMembership /
@@ -26,6 +30,7 @@ const AppStoreContext = createContext<AppStoreValue>({
   ready: false,
   myGroups: [],
   loadError: false,
+  offlineDal: null,
   refreshGroups: async () => {},
   addGroup: () => {},
   leaveGroup: async () => false,
@@ -41,19 +46,35 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [myGroups, setMyGroups] = useState<Group[]>([]);
   const [loadError, setLoadError] = useState(false);
+  const [offlineDal, setOfflineDal] = useState<number | null>(null);
 
   /** `loadError` distingue "non hai gruppi" da "non sono riuscito a
    * leggerli": senza, un guasto di rete faceva sembrare che i gruppi
    * fossero spariti. */
   const refreshGroups = async () => {
+    const utente = session?.user.id;
     try {
-      setMyGroups(await listMyGroups());
+      const gruppi = await listMyGroups();
+      setMyGroups(gruppi);
       setLoadError(false);
+      setOfflineDal(null);
+      salvaCopia(utente, 'gruppi', gruppi);
     } catch (err) {
-      segnalaErrore(err, 'caricamento.gruppi');
-      setLoadError(true);
+      if (!eProblemaDiRete(err)) segnalaErrore(err, 'caricamento.gruppi');
+      // Senza rete, i gruppi dell'ultima volta: si possono aprire, e
+      // dentro ognuno c'è la sua copia.
+      const copia = await leggiCopia<Group[]>(utente, 'gruppi');
+      if (copia) {
+        setMyGroups((prev) => (prev.length > 0 ? prev : copia.dati));
+        setOfflineDal(copia.ts);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
+      }
     }
   };
+
+  useRiprovaDaSola(!!session && (loadError || offlineDal !== null), refreshGroups);
 
   useEffect(() => {
     if (!authReady) return;
@@ -63,8 +84,17 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     (async () => {
-      await refreshGroups();
-      setReady(true);
+      // Con la copia dei gruppi la home si apre subito, anche senza rete;
+      // il server la aggiorna appena risponde.
+      const copia = await leggiCopia<Group[]>(session.user.id, 'gruppi');
+      if (copia) {
+        setMyGroups((prev) => (prev.length > 0 ? prev : copia.dati));
+        setReady(true);
+        await refreshGroups();
+      } else {
+        await refreshGroups();
+        setReady(true);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authReady, session?.user.id]);
@@ -88,7 +118,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppStoreContext.Provider
-      value={{ ready, myGroups, loadError, refreshGroups, addGroup, leaveGroup, getGroup }}
+      value={{ ready, myGroups, loadError, offlineDal, refreshGroups, addGroup, leaveGroup, getGroup }}
     >
       {children}
     </AppStoreContext.Provider>

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { dizionario } from '@/i18n';
+import { nomeCategoria } from '@/lib/categorie';
 
 export interface RawPlaceCategory {
   id: string;
@@ -15,8 +16,9 @@ interface CategoryRow {
 
 const SELECT_COLUMNS = 'id, name, color';
 
-function toRaw(row: CategoryRow): RawPlaceCategory {
-  return { id: row.id, name: row.name, color: row.color };
+export function toRaw(row: CategoryRow): RawPlaceCategory {
+  // Il nome di partenza si mostra nella lingua di chi guarda.
+  return { id: row.id, name: nomeCategoria(row.name), color: row.color };
 }
 
 /** Le 5 categorie di default vengono già create insieme al gruppo

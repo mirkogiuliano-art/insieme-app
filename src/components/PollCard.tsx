@@ -1,8 +1,11 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme, FONT_ROUNDED } from '@/theme/theme';
 import { PollIcon, CheckIcon } from '@/components/Icon';
-import { initials, inkOn } from '@/lib/utils';
+import { initials, inkOn, colorForUser } from '@/lib/utils';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { DECELERA } from '@/lib/movimento';
 import type { RawPoll, RawVote } from '@/lib/api/polls';
 import { useT } from '@/i18n';
 
@@ -36,6 +39,9 @@ export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMe
   const mine = votes.filter((v) => v.userId === myId).map((v) => v.optionIndex);
   const voted = mine.length > 0;
   const showResults = voted || poll.closed;
+  // I risultati comparsi adesso (il voto appena dato) crescono da zero;
+  // quelli già visibili aprendo la chat sono subito al loro posto.
+  const risultatiGiaVisti = useRef(showResults).current;
   const total = poll.counts.reduce((a, b) => a + b, 0);
   const leader = Math.max(0, ...poll.counts);
 
@@ -76,22 +82,18 @@ export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMe
           const pct = total > 0 ? Math.round((100 * n) / total) : 0;
           const votanti = chiHaVotato(index);
           return (
-            <Pressable
+            <Pressable accessibilityRole="button"
               key={index}
               onPress={() => tocca(index)}
               disabled={poll.closed}
               style={[styles.option, { backgroundColor: colors.surface2 }]}
             >
               {showResults ? (
-                <View
-                  style={[
-                    styles.fill,
-                    {
-                      width: `${pct}%`,
-                      backgroundColor: colors.lilac,
-                      opacity: scelta ? 0.38 : n === leader && n > 0 ? 0.22 : 0.12,
-                    },
-                  ]}
+                <Riempimento
+                  pct={pct}
+                  daZero={!risultatiGiaVisti}
+                  colore={colors.lilac}
+                  opacita={scelta ? 0.38 : n === leader && n > 0 ? 0.22 : 0.12}
                 />
               ) : null}
               <View style={styles.optionMain}>
@@ -118,13 +120,15 @@ export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMe
                           style={[
                             styles.avatar,
                             {
-                              backgroundColor: colors.lilac,
+                              // Il colore di chi ha votato, come in chat e
+                              // nell'elenco dei votanti.
+                              backgroundColor: colorForUser(roster[v.userId] ?? ''),
                               borderColor: colors.surface2,
                               marginLeft: i === 0 ? 0 : -7,
                             },
                           ]}
                         >
-                          <Text style={[styles.avatarText, { color: inkOn(colors.lilac) }]}>
+                          <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: '#1B2530' }]}>
                             {initials(roster[v.userId] ?? '')}
                           </Text>
                         </View>
@@ -139,7 +143,7 @@ export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMe
         })}
       </View>
 
-      <Pressable onPress={onOpenVoters} style={styles.foot} hitSlop={6}>
+      <Pressable accessibilityRole="button" onPress={onOpenVoters} style={styles.foot} hitSlop={6}>
         <Text style={[styles.footText, { color: colors.textFaint }]}>
           {poll.votersCount === 0 ? t.sondaggio.nessunVoto : t.sondaggio.votanti(poll.votersCount, membri)}
         </Text>
@@ -151,6 +155,18 @@ export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMe
       </Pressable>
     </Pressable>
   );
+}
+
+/** La barra di un'opzione: quando cambiano i voti si allunga o si
+ * accorcia fino al valore nuovo, invece di saltarci. */
+function Riempimento({ pct, daZero, colore, opacita }: { pct: number; daZero: boolean; colore: string; opacita: number }) {
+  const larghezza = useSharedValue(daZero ? 0 : pct);
+  useEffect(() => {
+    larghezza.value = withTiming(pct, { duration: 420, easing: DECELERA });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pct]);
+  const stile = useAnimatedStyle(() => ({ width: `${larghezza.value}%` }));
+  return <Animated.View style={[styles.fill, { backgroundColor: colore, opacity: opacita }, stile]} />;
 }
 
 const styles = StyleSheet.create({

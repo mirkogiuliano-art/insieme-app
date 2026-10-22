@@ -7,11 +7,46 @@ export function genGroupCode(): string {
   return s;
 }
 
+/**
+ * Il primo segno di una parola come lo vede una persona. Un'emoji è fatta
+ * di più unità di testo (a volte di più caratteri uniti, o con il tono
+ * della pelle): prenderne "la prima lettera" con `[0]` o `slice` la taglia
+ * a metà, e a schermo resta un rombo con il punto di domanda.
+ */
+export function primoSegno(parola: string): string {
+  const pezzi = Array.from(parola);
+  if (pezzi.length === 0) return '';
+  let segno = pezzi[0];
+  let i = 1;
+  while (i < pezzi.length) {
+    const cp = pezzi[i].codePointAt(0) ?? 0;
+    // Selettore di variante (la versione colorata) o tono della pelle.
+    if (cp === 0xfe0f || (cp >= 0x1f3fb && cp <= 0x1f3ff)) {
+      segno += pezzi[i];
+      i += 1;
+    } else if (cp === 0x200d && i + 1 < pezzi.length) {
+      // Unione di più emoji in una sola (famiglie, mestieri...).
+      segno += pezzi[i] + pezzi[i + 1];
+      i += 2;
+    } else {
+      break;
+    }
+  }
+  return segno;
+}
+
+/** Le iniziali per un avatar. Chi le mostra in un cerchio di misura fissa
+ * passa `maxFontSizeMultiplier={1}` al testo: con il testo di sistema
+ * ingrandito le lettere uscirebbero dal cerchio. */
 export function initials(name?: string): string {
-  if (!name) return '?';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
+  const pulito = name?.trim();
+  if (!pulito) return '?';
+  const parts = pulito.split(/\s+/);
+  if (parts.length === 1) {
+    const primo = primoSegno(parts[0]);
+    return (primo + primoSegno(parts[0].slice(primo.length))).toUpperCase();
+  }
+  return (primoSegno(parts[0]) + primoSegno(parts[1])).toUpperCase();
 }
 
 export function hashStr(s: string): number {
@@ -35,9 +70,21 @@ export function dateLabel(ts: number): string {
   return new Date(ts).toLocaleDateString(localeAttuale(), { day: '2-digit', month: 'short' });
 }
 
-const USER_COLORS = ['#2F9C86', '#8C7CE0', '#D9932E', '#5FA8DE', '#3E9950'];
+/** I colori delle persone, in giro per la ruota: verde acqua, azzurro,
+ * lilla, orchidea, terracotta, ambra, lime, verde. Erano cinque, e in un
+ * gruppo di tre due persone finivano spesso dello stesso colore (Giulia e
+ * Marco erano tutti e due azzurri). Le iniziali scure si leggono su
+ * ognuno (almeno 4,5:1). */
+const USER_COLORS = ['#2F9C86', '#5FA8DE', '#8C7CE0', '#C97BD9', '#E0795A', '#D9932E', '#A3B83A', '#3E9950'];
 export function colorForUser(name: string): string {
   return USER_COLORS[hashStr(name) % USER_COLORS.length];
+}
+
+/** Il colore di una persona quando è testo (il nome sopra un messaggio,
+ * l'autore di una citazione): la tinta delle sue iniziali, schiarita o
+ * scurita finché si legge su `sfondo`. */
+export function inchiostroPersona(nome: string, sfondo: string): string {
+  return testoLeggibile(colorForUser(nome), sfondo);
 }
 
 function extractYouTubeId(url: string): string | null {
@@ -322,6 +369,53 @@ export function inkOn(hex: string, factor = 0.17): string {
       .toString(16)
       .padStart(2, '0');
   return `#${channel(16)}${channel(8)}${channel(0)}`;
+}
+
+function canali(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+function luminanza([r, g, b]: [number, number, number]): number {
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+function contrasto(a: [number, number, number], b: [number, number, number]): number {
+  const [hi, lo] = [luminanza(a), luminanza(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+const LEGGIBILI = new Map<string, string>();
+
+/**
+ * Un colore scelto dal gruppo (quello di una categoria) quando fa da
+ * testo: lo si scurisce su un fondo chiaro, lo si schiarisce su uno scuro,
+ * finché regge 4,5:1. Il tono resta quello della categoria, cambia solo la
+ * luce. `sfondo` è la superficie su cui il testo si posa.
+ */
+export function testoLeggibile(hex: string, sfondo: string): string {
+  const chiave = `${hex}|${sfondo}`;
+  const giaFatto = LEGGIBILI.get(chiave);
+  if (giaFatto) return giaFatto;
+  const colore = canali(hex);
+  const fondo = canali(sfondo);
+  if (!colore || !fondo) return hex;
+  // Verso il nero su un fondo chiaro, verso il bianco su uno scuro.
+  const meta: [number, number, number] = luminanza(fondo) > 0.4 ? [0, 0, 0] : [255, 255, 255];
+  let c = colore;
+  for (let passo = 1; passo <= 20 && contrasto(c, fondo) < 4.5; passo++) {
+    const t = passo * 0.05;
+    c = colore.map((v, i) => Math.round(v + (meta[i] - v) * t)) as [number, number, number];
+  }
+  const risultato = `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  LEGGIBILI.set(chiave, risultato);
+  return risultato;
 }
 
 /** Durata in mm:ss, per i messaggi vocali e la registrazione in corso. */

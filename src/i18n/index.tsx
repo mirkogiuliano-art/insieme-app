@@ -13,6 +13,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import * as Localization from 'expo-localization';
 import { storage } from '@/lib/storage';
+import { eErroreDiRete } from '@/lib/rete';
 import { it, type Dizionario } from './it';
 import { en } from './en';
 import type { LanguageName, LanguagePreference } from '@/types';
@@ -97,6 +98,7 @@ export function localeAttuale(): string {
  */
 export function messaggioAuth(err: { code?: string; message?: string } | null | undefined): string {
   const e = dizionario().erroriAuth;
+  if (eErroreDiRete(err)) return dizionario().errori.rete;
   switch (err?.code) {
     case 'invalid_credentials':
       return e.credenziali;

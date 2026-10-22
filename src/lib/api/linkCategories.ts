@@ -1,10 +1,14 @@
 import { supabase } from '@/lib/supabase';
 import { dizionario } from '@/i18n';
+import { nomeCategoria, eGeneraleDeiLink } from '@/lib/categorie';
 
 export interface RawLinkCategory {
   id: string;
+  /** Il nome da mostrare: quelli di partenza sono tradotti (src/lib/categorie.ts). */
   name: string;
   color: string;
+  /** "Generale", quella che nasce con il gruppo e non si elimina. */
+  predefinita: boolean;
 }
 
 interface CategoryRow {
@@ -15,8 +19,8 @@ interface CategoryRow {
 
 const SELECT_COLUMNS = 'id, name, color';
 
-function toRaw(row: CategoryRow): RawLinkCategory {
-  return { id: row.id, name: row.name, color: row.color };
+export function toRaw(row: CategoryRow): RawLinkCategory {
+  return { id: row.id, name: nomeCategoria(row.name), color: row.color, predefinita: eGeneraleDeiLink(row.name) };
 }
 
 /** La categoria "Generale" viene già creata insieme al gruppo (funzione

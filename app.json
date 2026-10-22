@@ -108,7 +108,8 @@
           "organization": "mirko-giuliano",
           "project": "insieme-app"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "router": {},

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useTheme } from '@/theme/theme';
 import { PlayIcon, PauseIcon } from '@/components/Icon';
@@ -27,7 +28,7 @@ export function VoiceBubble({ uri, durationSeconds, own }: { uri: string; durati
   const playedColor = own ? colors.inkOnAmber : colors.teal;
   const unplayedColor = own ? 'rgba(0,0,0,0.3)' : colors.surface2;
   return (
-    <Pressable onPress={toggle} style={styles.voiceRow}>
+    <Pressable accessibilityRole="button" onPress={toggle} style={styles.voiceRow}>
       {/* Il pulsante pieno, come il play sulle schede video dei link. */}
       <View style={[styles.voicePlayBtn, { backgroundColor: own ? colors.inkOnAmber : colors.teal }]}>
         {status.playing ? (

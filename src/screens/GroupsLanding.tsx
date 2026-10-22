@@ -2,12 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  Pressable,
   StyleSheet,
   ScrollView,
   TextInput,
   Share,
 } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
@@ -17,7 +17,9 @@ import { useToast } from '@/components/Toast';
 import { BottomSheet } from '@/components/BottomSheet';
 import { SettingsSheet, type SettingsPage } from '@/components/SettingsSheet';
 import { LoadError } from '@/components/LoadError';
-import { SettingsIcon, PlusIcon, UsersIcon, SearchIcon, CloseIcon, SortIcon, CheckIcon, MoreIcon } from '@/components/Icon';
+import { InCaricamento } from '@/components/InCaricamento';
+import { SenzaRete } from '@/components/SenzaRete';
+import { SettingsIcon, PlusIcon, UsersIcon, SearchIcon, CloseIcon, SortIcon, CheckIcon, MoreIcon, ShareIcon } from '@/components/Icon';
 import { FilterChip } from '@/components/FilterChip';
 import { NewGroupSheet } from '@/components/NewGroupSheet';
 import { GroupActionsSheet } from '@/components/GroupActionsSheet';
@@ -25,14 +27,19 @@ import { GroupInfoSheet } from '@/components/GroupInfoSheet';
 import { createGroupWithMembership, setGroupColor } from '@/lib/api/groups';
 import { listRoster, updateLastRead } from '@/lib/api/groupMembers';
 import { storage } from '@/lib/storage';
+import { leggiCopia, salvaCopia } from '@/lib/copiaLocale';
+import { precaricaGruppi } from '@/lib/precarica';
 import { getInviteToken, rotateInvite, inviteUrl } from '@/lib/api/invites';
 import { listGroupPreviews, type GroupPreview } from '@/lib/api/groupPreviews';
 import { initials, inkOn, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
+import { countdownLabel, rangeLabel } from '@/lib/groupInfo';
 import { fitFontSize, LETTER_SPACING_EM } from '@/lib/fitText';
+import { useFinestra } from '@/lib/finestra';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { useT, dizionario } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
+import { messaggioErrore } from '@/lib/errori';
 
 /** Quante facce stanno sulla scheda prima di riassumere il resto in "+N". */
 const AVATARS_SHOWN = 3;
@@ -73,6 +80,9 @@ function NomeGruppo({ name, color }: { name: string; color: string }) {
   return (
     <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <Text
+        // Il nome è già grande quanto la scheda: se Android lo ingrandisse
+        // ancora (testo di sistema più grande) finirebbe tagliato coi puntini.
+        maxFontSizeMultiplier={1}
         style={[
           styles.groupName,
           {
@@ -92,9 +102,19 @@ function NomeGruppo({ name, color }: { name: string; color: string }) {
   );
 }
 
-export function GroupsLanding() {
+/**
+ * La home. Con `pannello` è il riquadro a sinistra del gruppo aperto, sugli
+ * schermi larghi: le schede restano in colonna, quella del gruppo aperto è
+ * evidenziata, e toccarne un'altra cambia gruppo invece di aprirne uno sopra.
+ */
+export function GroupsLanding({ pannello }: { pannello?: { selezionato: string } } = {}) {
   const { colors } = useTheme();
   const t = useT();
+  const { classe, larghezza } = useFinestra();
+  // Sugli schermi larghi le schede vanno a griglia invece di allungarsi:
+  // due colonne da tablet in su, tre oltre i 1200 punti.
+  const colonne = pannello || classe === 'compatta' ? 1 : larghezza >= 1200 ? 3 : 2;
+  const larghezzaScheda = colonne > 1 ? Math.floor((larghezza - 48 - 16 * (colonne - 1)) / colonne) : undefined;
   const SORT_LABELS: Record<GroupsSort, string> = {
     recent: t.home.ordineRecente,
     name: t.home.ordineNome,
@@ -102,8 +122,9 @@ export function GroupsLanding() {
   };
   const router = useRouter();
   const toast = useToast();
-  const { profile } = useAuth();
-  const { myGroups, addGroup, loadError, refreshGroups, leaveGroup } = useAppStore();
+  const { profile, session } = useAuth();
+  const utente = session?.user.id;
+  const { myGroups, addGroup, loadError, offlineDal, refreshGroups, leaveGroup } = useAppStore();
 
   /** Da quale pagina aprire le impostazioni; `null` = chiuse. */
   const [settingsAt, setSettingsAt] = useState<SettingsPage | null>(null);
@@ -133,13 +154,45 @@ export function GroupsLanding() {
   /** Info gruppo aperto dalla home, con i suoi membri. */
   const [infoFor, setInfoFor] = useState<{ group: Group; roster: Record<string, string> } | null>(null);
 
+  /** Le anteprime ci sono, dal server o dalla copia sul telefono, e
+   * l'ordine scelto è stato letto: sono loro a decidere dove sta ogni
+   * gruppo. Prima la home li mostrava in un ordine e, un attimo dopo, li
+   * rimescolava. */
+  const [anteprimePronte, setAnteprimePronte] = useState(false);
+  const [ordineLetto, setOrdineLetto] = useState(false);
+  const pronta = anteprimePronte && ordineLetto;
+
   useEffect(() => {
-    storage.get<GroupsSort>(SORT_KEY).then((v) => {
-      if (v && SORT_ORDER.includes(v)) setSort(v);
-    });
+    storage
+      .get<GroupsSort>(SORT_KEY)
+      .then((v) => {
+        if (v && SORT_ORDER.includes(v)) setSort(v);
+      })
+      .finally(() => setOrdineLetto(true));
   }, []);
 
-  const reloadPreviews = () => listGroupPreviews().then(setPreviews);
+  // Le anteprime dell'ultima volta subito: l'ordine dei gruppi è già
+  // quello giusto, e il server lo aggiorna appena risponde.
+  useEffect(() => {
+    leggiCopia<Record<string, GroupPreview>>(utente, 'anteprime').then((copia) => {
+      if (!copia) return;
+      setPreviews((prev) => (Object.keys(prev).length > 0 ? prev : copia.dati));
+      setAnteprimePronte(true);
+    });
+  }, [utente]);
+
+  /** Tiene le anteprime arrivate dal server e ne salva la copia. Una
+   * lettura non riuscita torna vuota (vedi listGroupPreviews): allora
+   * restano quelle che c'erano, invece di rimescolare i gruppi. */
+  const tieniAnteprime = (p: Record<string, GroupPreview>): boolean => {
+    setAnteprimePronte(true);
+    if (Object.keys(p).length === 0 && myGroups.length > 0) return false;
+    setPreviews(p);
+    salvaCopia(utente, 'anteprime', p);
+    return true;
+  };
+
+  const reloadPreviews = () => listGroupPreviews().then(tieniAnteprime);
 
   // Ricaricate a ogni ritorno sulla schermata, non solo al primo
   // montaggio: uscendo da una chat i non letti di quel gruppo sono
@@ -149,7 +202,9 @@ export function GroupsLanding() {
     useCallback(() => {
       let alive = true;
       listGroupPreviews().then((p) => {
-        if (alive) setPreviews(p);
+        if (!alive || !tieniAnteprime(p)) return;
+        // Intanto si scaricano i gruppi non ancora aperti, o con novità.
+        void precaricaGruppi(utente, myGroups, p);
       });
       return () => {
         alive = false;
@@ -167,7 +222,7 @@ export function GroupsLanding() {
       return null;
     } catch (err) {
       segnalaErrore(err, 'home.erroreCrea');
-      return (err as { message?: string })?.message || t.home.erroreCrea;
+      return messaggioErrore(err, t.home.erroreCrea);
     }
   };
 
@@ -251,13 +306,13 @@ export function GroupsLanding() {
           <Text style={[styles.headerTitle, { color: colors.text }]}>{t.home.titolo}</Text>
         </View>
         <View style={styles.headerRight}>
-          <Pressable onPress={() => setSettingsAt('settings')} style={[styles.iconBtn, { backgroundColor: colors.surface }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.impostazioni} hitSlop={6} onPress={() => setSettingsAt('settings')} style={[styles.iconBtn, { backgroundColor: colors.surface }]}>
             <SettingsIcon size={18} color={colors.textDim} />
           </Pressable>
           {/* Le proprie iniziali portano dritte al profilo: nome, documenti,
               uscita ed eliminazione dell'account. */}
-          <Pressable onPress={() => setSettingsAt('profile')} style={[styles.meAvatar, { backgroundColor: colors.amber }]}>
-            <Text style={[styles.meAvatarText, { color: colors.inkOnAmber }]}>{initials(profile?.displayName ?? '')}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.profilo} hitSlop={6} onPress={() => setSettingsAt('profile')} style={[styles.meAvatar, { backgroundColor: colors.amber }]}>
+            <Text maxFontSizeMultiplier={1} style={[styles.meAvatarText, { color: colors.inkOnAmber }]}>{initials(profile?.displayName ?? '')}</Text>
           </Pressable>
         </View>
       </View>
@@ -276,12 +331,12 @@ export function GroupsLanding() {
             returnKeyType="search"
           />
           {query ? (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.cancellaRicerca} onPress={() => setQuery('')} hitSlop={8}>
               <CloseIcon size={13} color={colors.textFaint} />
             </Pressable>
           ) : null}
         </View>
-        <Pressable onPress={() => setCreateOpen(true)} style={[styles.newBtn, { backgroundColor: colors.amber }]}>
+        <Pressable accessibilityRole="button" onPress={() => setCreateOpen(true)} style={[styles.newBtn, { backgroundColor: colors.amber }]}>
           <PlusIcon size={13} color={colors.inkOnAmber} />
           <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.home.nuovo}</Text>
         </Pressable>
@@ -302,10 +357,14 @@ export function GroupsLanding() {
         </View>
       ) : null}
 
-      {loadError ? <LoadError what={t.erroreCaricamento.gruppi} onRetry={refreshGroups} /> : null}
+      {offlineDal ? (
+        <SenzaRete dal={offlineDal} onRetry={refreshGroups} style={styles.avviso} />
+      ) : loadError ? (
+        <LoadError what={t.erroreCaricamento.gruppi} onRetry={refreshGroups} style={styles.avviso} />
+      ) : null}
 
-      <ScrollView contentContainerStyle={styles.list}>
-        {myGroups.length > 0 && shownGroups.length === 0 ? (
+      <ScrollView contentContainerStyle={[styles.list, colonne > 1 && styles.griglia]}>
+        {pronta && myGroups.length > 0 && shownGroups.length === 0 ? (
           <View style={styles.empty}>
             <Text style={[styles.emptyText, { color: colors.textFaint }]}>
               {term ? t.home.nessunoCon(query.trim()) : t.home.tuttiLetti}
@@ -319,6 +378,12 @@ export function GroupsLanding() {
               {t.home.vuoto}
             </Text>
           </View>
+        ) : !pronta ? (
+          // La prima volta su questo telefono, finché non arrivano le
+          // anteprime: i gruppi compaiono già al loro posto.
+          <View style={styles.empty}>
+            <InCaricamento />
+          </View>
         ) : (
           shownGroups.map((g) => {
             // La scheda è tutta della tinta del gruppo, e il testo sopra
@@ -330,13 +395,23 @@ export function GroupsLanding() {
             const preview = previews[g.id];
             const shown = preview?.memberNames.slice(0, AVATARS_SHOWN) ?? [];
             const extra = (preview?.memberCount ?? 0) - shown.length;
+            // Sotto il nome, nella fascia che era vuota: quanto manca, o
+            // le date, o (per i gruppi senza date) l'ultima attività.
+            const stato =
+              countdownLabel(g.startsOn, g.endsOn) ?? rangeLabel(g.startsOn, g.endsOn) ?? activityLabel(preview?.lastAt);
 
             return (
               <Pressable
                 key={g.id}
-                onPress={() => router.push(`/group/${g.id}`)}
+                onPress={() => (pannello ? router.replace(`/group/${g.id}`) : router.push(`/group/${g.id}`))}
                 onLongPress={() => setActionsFor(g)}
-                style={[styles.groupCard, { backgroundColor: tint }]}
+                accessibilityState={pannello ? { selected: pannello.selezionato === g.id } : undefined}
+                style={[
+                  styles.groupCard,
+                  { backgroundColor: tint },
+                  larghezzaScheda ? { width: larghezzaScheda } : null,
+                  pannello?.selezionato === g.id ? [styles.aperta, { borderColor: colors.text }] : null,
+                ]}
               >
                 {/* Solo luce: un cerchio appena più scuro della tinta, che
                     esce dall'angolo e viene ritagliato dalla scheda. */}
@@ -349,18 +424,24 @@ export function GroupsLanding() {
                         key={`${name}-${i}`}
                         style={[styles.avatar, { borderColor: tint, marginLeft: i === 0 ? 0 : -8 }]}
                       >
-                        <Text style={[styles.avatarText, { color: ink }]}>{initials(name)}</Text>
+                        <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: ink }]}>{initials(name)}</Text>
                       </View>
                     ))}
                     {extra > 0 ? (
                       <View style={[styles.avatar, { borderColor: tint, marginLeft: -8 }]}>
-                        <Text style={[styles.avatarText, { color: ink }]}>+{extra}</Text>
+                        <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: ink }]}>+{extra}</Text>
                       </View>
                     ) : null}
                   </View>
                 ) : null}
 
                 <NomeGruppo name={g.name} color={ink} />
+
+                {stato ? (
+                  <Text maxFontSizeMultiplier={1.3} style={[styles.cardStato, { color: ink }]} numberOfLines={1}>
+                    {stato}
+                  </Text>
+                ) : null}
 
                 {preview && preview.unread > 0 ? (
                   <View style={[styles.unread, { backgroundColor: ink }]}>
@@ -372,7 +453,7 @@ export function GroupsLanding() {
 
                 {/* Il menu del gruppo: anche tenendo premuta la scheda, ma
                     sul web la pressione lunga non arriva. */}
-                <Pressable
+                <Pressable accessibilityRole="button"
                   onPress={(e) => {
                     e.stopPropagation?.();
                     setActionsFor(g);
@@ -428,13 +509,13 @@ export function GroupsLanding() {
       <BottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
         <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 8 }]}>{t.home.ordinaPer}</Text>
         {SORT_ORDER.map((k, i) => (
-          <Pressable
+          <Pressable accessibilityRole="button"
             key={k}
             onPress={() => chooseSort(k)}
             style={[styles.sortRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
           >
             <Text style={[styles.sortLabel, { color: colors.text, fontWeight: sort === k ? '800' : '600' }]}>{SORT_LABELS[k]}</Text>
-            {sort === k ? <CheckIcon size={17} color={colors.amber} /> : null}
+            {sort === k ? <CheckIcon size={17} color={colors.amberText} /> : null}
           </Pressable>
         ))}
       </BottomSheet>
@@ -447,25 +528,28 @@ export function GroupsLanding() {
             <Text style={[styles.sheetSub, { color: colors.textDim }]}>
               {t.home.creatoTesto(inviteOpen.name)}
             </Text>
+            {/* Prima l'invito: un gruppo con una persona sola non serve
+                ancora a niente. Il gruppo si apre lo stesso, dall'altro tasto. */}
             <View style={styles.sheetActions}>
-              <Pressable
-                onPress={() => shareInvite(inviteOpen)}
-                disabled={sharing}
-                style={[styles.btnSecondary, { backgroundColor: colors.surface2, opacity: sharing ? 0.6 : 1 }]}
-              >
-                <Text style={{ color: colors.textDim, fontWeight: '600' }}>
-                  {sharing ? t.comune.unAttimo : t.home.condividiInvito}
-                </Text>
-              </Pressable>
-              <Pressable
+              <Pressable accessibilityRole="button"
                 onPress={() => {
                   const g = inviteOpen;
                   setInviteOpen(null);
                   router.push(`/group/${g.id}`);
                 }}
-                style={[styles.btnPrimary, { backgroundColor: colors.amber }]}
+                style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}
               >
-                <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>{t.home.vaiAlGruppo}</Text>
+                <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.home.vaiAlGruppo}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button"
+                onPress={() => shareInvite(inviteOpen)}
+                disabled={sharing}
+                style={[styles.btnPrimary, styles.btnConIcona, { backgroundColor: colors.amber, opacity: sharing ? 0.6 : 1 }]}
+              >
+                <ShareIcon size={15} color={colors.inkOnAmber} />
+                <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>
+                  {sharing ? t.comune.unAttimo : t.home.condividiInvito}
+                </Text>
               </Pressable>
             </View>
           </>
@@ -503,19 +587,26 @@ const styles = StyleSheet.create({
   sortRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
   sortLabel: { flex: 1, fontSize: 15 },
   cardMore: { position: 'absolute', right: 16, bottom: 12, opacity: 0.75 },
+  cardStato: { position: 'absolute', left: 18, right: 52, bottom: 15, fontSize: 13, fontWeight: '700' },
   list: { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 12, gap: 16, flexGrow: 1 },
+  griglia: { flexDirection: 'row', flexWrap: 'wrap', alignContent: 'flex-start' },
+  // Gli avvisi sopra le schede, con gli stessi margini delle schede.
+  avviso: { marginHorizontal: 24 },
+  // Il gruppo aperto accanto, nel riquadro a sinistra.
+  aperta: { borderWidth: 3 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30, paddingTop: 80 },
   emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 240, lineHeight: 18 },
 
-  // Il nome sta al centro dell'altezza: gli angoli sono occupati dalle
-  // facce dei membri e dai non letti, quindi al centro non urta niente e
-  // la scheda resta in equilibrio anche quando quei due mancano.
+  // Il nome sta al centro dello spazio fra le facce in alto e la riga di
+  // stato in basso. La fascia in basso c'è anche quando la riga manca:
+  // così in elenco e in griglia i nomi stanno tutti alla stessa altezza.
   // `overflow: hidden` ritaglia il cerchio decorativo che sborda.
   groupCard: {
     minHeight: 144,
     borderRadius: 24,
     paddingHorizontal: 18,
-    paddingVertical: 18,
+    paddingTop: 18,
+    paddingBottom: 38,
     justifyContent: 'center',
     overflow: 'hidden',
   },
@@ -570,10 +661,11 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   actionPrimaryText: { fontWeight: '800', fontSize: 14 },
-  sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
+  sheetTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 2 },
   sheetSub: { fontSize: 12.5, marginBottom: 12, lineHeight: 18 },
   mInput: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 13, fontSize: 14.5, marginBottom: 10 },
   sheetActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   btnSecondary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   btnPrimary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  btnConIcona: { flexDirection: 'row', gap: 7 },
 });

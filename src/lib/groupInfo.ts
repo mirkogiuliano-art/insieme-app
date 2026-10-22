@@ -2,9 +2,8 @@
  * Le date delle info del gruppo, scritte e lette come le dice una persona.
  *
  * Nel database sono date vere ('AAAA-MM-GG'), qui diventano "12 aprile" e
- * "mancano 24 giorni". Non c'è un calendario a comparsa perché servirebbe
- * un pacchetto nativo in più, e una data si scrive anche a mano: i campi
- * accettano GG/MM/AAAA e rifiutano quello che non è una data.
+ * "mancano 24 giorni". Si scelgono dal calendario (vedi CampoData): a mano,
+ * con la tastiera del telefono, una data scritta male non si salvava.
  *
  * I nomi dei mesi non sono più scritti qui: li dà `Intl` nella lingua in
  * uso. Le frasi intorno — "mancano N giorni", "giorno 3 di 8" — stanno nel
@@ -12,35 +11,6 @@
  */
 
 import { dizionario, localeAttuale } from '@/i18n';
-
-/** 'AAAA-MM-GG' → '12/04/2027', per i campi di scrittura. Il formato
- * giorno/mese/anno resta uguale in tutte le lingue: è quello che i campi
- * dichiarano nel loro segnaposto. */
-export function isoToInput(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  return y && m && d ? `${d}/${m}/${y}` : '';
-}
-
-/** '12/04/2027' → 'AAAA-MM-GG', oppure `null` se non è una data vera
- * (giorno 31 di febbraio compreso). Una stringa vuota vale "nessuna data". */
-export function inputToIso(text: string): { iso: string | null; ok: boolean } {
-  const pulito = text.trim();
-  if (!pulito) return { iso: null, ok: true };
-  const m = pulito.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/);
-  if (!m) return { iso: null, ok: false };
-  const [, gg, mm, aaaa] = m;
-  const giorno = Number(gg);
-  const mese = Number(mm);
-  const anno = Number(aaaa);
-  const d = new Date(anno, mese - 1, giorno);
-  // Il 31 febbraio diventerebbe il 3 marzo: si controlla che la data
-  // rimessa insieme sia ancora quella scritta.
-  if (d.getFullYear() !== anno || d.getMonth() !== mese - 1 || d.getDate() !== giorno) {
-    return { iso: null, ok: false };
-  }
-  return { iso: `${aaaa}-${String(mese).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`, ok: true };
-}
 
 function parti(iso: string): { g: number; m: number; a: number } | null {
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -57,6 +27,12 @@ function nomeMese(mese: number): string {
  * "12 April" in inglese — l'inglese britannico tiene lo stesso ordine. */
 function giornoEMese(g: number, m: number): string {
   return `${g} ${nomeMese(m)}`;
+}
+
+/** Una data sola, corta, per i campi del calendario: «12 apr 2027». */
+export function dataCorta(iso: string): string {
+  const d = parti(iso);
+  return d ? `${d.g} ${nomeMese(d.m).slice(0, 3)} ${d.a}` : iso;
 }
 
 /**

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Image, Linking } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Image, Linking } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { BottomSheet } from '@/components/BottomSheet';
-import { PlusIcon, CloseIcon, SearchIcon, MapIcon } from '@/components/Icon';
-import { dateLabel } from '@/lib/utils';
+import { PlusIcon, CloseIcon, SearchIcon, MapIcon, MoreIcon } from '@/components/Icon';
+import { dateLabel, testoLeggibile } from '@/lib/utils';
 import { PlaceTile } from '@/components/MapPin';
 import { LinkThumbMini, LinkFallbackThumb, useLinkPreview } from '@/components/LinkCard';
 import { openPinInMaps } from '@/lib/api/places';
@@ -32,6 +33,9 @@ interface PlaceSheetProps {
   startPicking?: boolean;
   /** "1,2 km", quando si conosce la propria posizione. */
   distance?: string | null;
+  /** Il menu del posto, lo stesso della pressione lunga: da qui si
+   * raggiungono anche «Manda in chat», «Sposta» e «Condividi». */
+  onMenu?: () => void;
 }
 
 /** Miniatura di un link: la foto se c'è, altrimenti lo stesso ripiego
@@ -49,10 +53,11 @@ function LinkThumb({ link, size }: { link: RawLink; size: number }) {
  * × per scollegarlo (il link resta, si toglie solo il collegamento). */
 function LinkedRow({ link, first, onDetach }: { link: RawLink; first: boolean; onDetach: () => void }) {
   const { colors } = useTheme();
+  const t = useT();
   const { title } = useLinkPreview(link);
   return (
     <View style={[styles.linkedRow, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}>
-      <Pressable onPress={() => Linking.openURL(link.url)} style={styles.linkedMain}>
+      <Pressable accessibilityRole="button" onPress={() => Linking.openURL(link.url)} style={styles.linkedMain}>
         <LinkThumbMini item={link} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.text }} numberOfLines={2}>
@@ -61,7 +66,7 @@ function LinkedRow({ link, first, onDetach }: { link: RawLink; first: boolean; o
           <Text style={{ fontSize: 11, color: colors.textFaint, marginTop: 2 }}>{link.label}</Text>
         </View>
       </Pressable>
-      <Pressable hitSlop={8} onPress={onDetach} style={styles.detachBtn}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.scollega} hitSlop={8} onPress={onDetach} style={styles.detachBtn}>
         <CloseIcon size={13} color={colors.textFaint} />
       </Pressable>
     </View>
@@ -82,6 +87,7 @@ export function PlaceSheet({
   onClose,
   startPicking = false,
   distance,
+  onMenu,
 }: PlaceSheetProps) {
   const { colors } = useTheme();
   const t = useT();
@@ -114,7 +120,7 @@ export function PlaceSheet({
       {picking ? (
         <>
           <Text style={[styles.title, { color: colors.text }]}>{t.posto.collegaLink}</Text>
-          <Text style={[styles.sub, { color: colors.textDim }]}>a &quot;{pin.name}&quot;</Text>
+          <Text style={[styles.sub, { color: colors.textDim }]}>{t.posto.collegaA(pin.name)}</Text>
           <View style={[styles.searchRow, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
             <SearchIcon size={15} color={colors.textFaint} />
             <TextInput
@@ -131,7 +137,7 @@ export function PlaceSheet({
             </Text>
           ) : (
             attachable.map((l) => (
-              <Pressable
+              <Pressable accessibilityRole="button"
                 key={l.id}
                 onPress={() => {
                   onAttach(l.id);
@@ -151,21 +157,21 @@ export function PlaceSheet({
               </Pressable>
             ))
           )}
-          <Pressable onPress={() => setPicking(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2, marginTop: 14 }]}>
+          <Pressable accessibilityRole="button" onPress={() => setPicking(false)} style={[styles.backBtn, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.indietro}</Text>
           </Pressable>
         </>
       ) : confirmDelete ? (
         <>
-          <Text style={[styles.title, { color: colors.text }]}>{t.posto.eliminare(pin.name)}</Text>
+          <Text style={[styles.confirmTitle, { color: colors.text }]}>{t.posto.eliminare(pin.name)}</Text>
           <Text style={[styles.sub, { color: colors.textDim }]}>
             {linked.length > 0 ? t.posto.eliminaConLink(linked.length) : t.posto.eliminaSemplice}
           </Text>
           <View style={styles.actions}>
-            <Pressable onPress={() => setConfirmDelete(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
+            <Pressable accessibilityRole="button" onPress={() => setConfirmDelete(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
               <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
             </Pressable>
-            <Pressable onPress={onDelete} style={[styles.btnPrimary, { backgroundColor: colors.danger }]}>
+            <Pressable accessibilityRole="button" onPress={onDelete} style={[styles.btnPrimary, { backgroundColor: colors.danger }]}>
               <Text style={{ color: '#fff', fontWeight: '700' }}>{t.comune.elimina}</Text>
             </Pressable>
           </View>
@@ -175,19 +181,30 @@ export function PlaceSheet({
           <View style={styles.hero}>
             <PlaceTile color={categoryColor} categoryName={categoryName} size={52} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.catLabel, { color: categoryColor }]}>{categoryName.toUpperCase()}</Text>
+              <Text style={[styles.catLabel, { color: testoLeggibile(categoryColor, colors.surface) }]}>{categoryName.toUpperCase()}</Text>
               <Text style={[styles.heroName, { color: colors.text }]}>{pin.name}</Text>
               {distance ? <Text style={[styles.heroSub, { color: colors.textDim }]}>{t.mappa.daTe(distance)}</Text> : null}
             </View>
+            {onMenu ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t.accessibilita.altreAzioni}
+                onPress={onMenu}
+                hitSlop={8}
+                style={[styles.menuBtn, { backgroundColor: colors.surface2 }]}
+              >
+                <MoreIcon size={18} color={colors.textDim} />
+              </Pressable>
+            ) : null}
           </View>
 
           <View style={styles.heroActions}>
             {onShowOnMap ? (
-              <Pressable onPress={onShowOnMap} style={[styles.heroBtn, { backgroundColor: colors.surface2 }]}>
+              <Pressable accessibilityRole="button" onPress={onShowOnMap} style={[styles.heroBtn, { backgroundColor: colors.surface2 }]}>
                 <Text style={{ color: colors.text, fontWeight: '800', fontSize: 13.5 }}>{t.posto.sullaMappa}</Text>
               </Pressable>
             ) : null}
-            <Pressable onPress={() => void openPinInMaps(pin)} style={[styles.heroBtn, { flex: 1.4, backgroundColor: colors.amber }]}>
+            <Pressable accessibilityRole="button" onPress={() => void openPinInMaps(pin)} style={[styles.heroBtn, { flex: 1.4, backgroundColor: colors.amber }]}>
               <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13.5 }}>{t.posto.portamiLi}</Text>
             </Pressable>
           </View>
@@ -206,7 +223,7 @@ export function PlaceSheet({
             ))
           )}
 
-          <Pressable onPress={() => setPicking(true)} style={[styles.attachRow, { borderColor: colors.border }]}>
+          <Pressable accessibilityRole="button" onPress={() => setPicking(true)} style={[styles.attachRow, { borderColor: colors.border }]}>
             <PlusIcon size={13} color={colors.textDim} />
             <Text style={{ color: colors.textDim, fontWeight: '700', fontSize: 13 }}>{t.posto.collegaLink}</Text>
           </Pressable>
@@ -216,7 +233,7 @@ export function PlaceSheet({
           </Text>
 
           {onDelete ? (
-            <Pressable onPress={() => setConfirmDelete(true)} style={styles.deleteBtn}>
+            <Pressable accessibilityRole="button" onPress={() => setConfirmDelete(true)} style={styles.deleteBtn}>
               <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '600' }}>{t.posto.eliminaPosto}</Text>
             </Pressable>
           ) : null}
@@ -228,6 +245,7 @@ export function PlaceSheet({
 
 const styles = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  menuBtn: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
   catLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.7 },
   heroName: { fontSize: 19, fontWeight: '800', letterSpacing: -0.3, lineHeight: 23, marginTop: 1 },
   heroSub: { fontSize: 12, marginTop: 2 },
@@ -237,7 +255,8 @@ const styles = StyleSheet.create({
   footer: { fontSize: 11.5, textAlign: 'center', marginTop: 14 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   placeDot: { width: 14, height: 14, borderRadius: 3, transform: [{ rotate: '45deg' }] },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
+  title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 2 },
+  confirmTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.2, marginBottom: 2 },
   sub: { fontSize: 12.5, marginBottom: 12, lineHeight: 18 },
   sectionLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8 },
   emptyLinked: { fontSize: 12.5, lineHeight: 18, marginBottom: 4 },
@@ -266,5 +285,6 @@ const styles = StyleSheet.create({
   emptyPicker: { fontSize: 12.5, lineHeight: 18, paddingVertical: 8 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   btnSecondary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { marginTop: 14, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   btnPrimary: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 });

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useTheme } from '@/theme/theme';
@@ -7,9 +8,12 @@ import { Field } from '@/components/Field';
 import { useAuth } from '@/lib/authStore';
 import { updateDisplayName } from '@/lib/api/profiles';
 import { initials } from '@/lib/utils';
+import { PersonIcon } from '@/components/Icon';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { ScrollConTastiera } from '@/components/ScrollConTastiera';
 import { useT } from '@/i18n';
+import { messaggioErrore, eProblemaDiRete } from '@/lib/errori';
+import { segnalaErrore } from '@/lib/sentry';
 
 /** Il nome che Google ha passato alla registrazione, se c'è, ridotto al
  * nome di battesimo e alla lunghezza che il campo accetta. */
@@ -35,13 +39,23 @@ export function NameOnboarding() {
   // amici, e lo si può comunque cambiare prima di continuare.
   const [value, setValue] = useState(() => nomeDaGoogle(session?.user.user_metadata));
   const [saving, setSaving] = useState(false);
+  const [errore, setErrore] = useState('');
 
+  // Se la rete cade proprio qui, prima il tasto restava a girare per
+  // sempre: ora si dice cosa è successo e si può riprovare.
   const submit = async () => {
     if (!value.trim() || saving) return;
     setSaving(true);
-    await updateDisplayName(value);
-    await refreshProfile();
-    setSaving(false);
+    setErrore('');
+    try {
+      await updateDisplayName(value);
+      await refreshProfile();
+    } catch (err) {
+      if (!eProblemaDiRete(err)) segnalaErrore(err, 'primoNome.errore');
+      setErrore(messaggioErrore(err, t.primoNome.errore));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const ready = !!value.trim();
@@ -55,9 +69,11 @@ export function NameOnboarding() {
             <Text style={[styles.title, { color: colors.text }]}>{t.primoNome.titolo}</Text>
             <Text style={[styles.subtitle, { color: colors.textDim }]}>{t.primoNome.sottotitolo}</Text>
             <View style={[styles.avatar, { backgroundColor: ready ? colors.amber : colors.surface }]}>
-              <Text style={[styles.avatarText, { color: ready ? colors.inkOnAmber : colors.textFaint }]}>
-                {ready ? initials(value) : '?'}
-              </Text>
+              {ready ? (
+                <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: colors.inkOnAmber }]}>{initials(value)}</Text>
+              ) : (
+                <PersonIcon size={36} color={colors.textFaint} />
+              )}
             </View>
             <Field
               placeholder={t.primoNome.campo}
@@ -69,7 +85,8 @@ export function NameOnboarding() {
               onSubmitEditing={submit}
               style={styles.field}
             />
-            <Pressable
+            {errore ? <Text style={[styles.errore, { color: colors.danger }]}>{errore}</Text> : null}
+            <Pressable accessibilityRole="button"
               onPress={submit}
               disabled={!ready || saving}
               style={[styles.button, { backgroundColor: colors.amber, opacity: ready && !saving ? 1 : 0.45 }]}
@@ -81,7 +98,7 @@ export function NameOnboarding() {
               )}
             </Pressable>
             <Text style={[styles.account, { color: colors.textFaint }]}>{t.primoNome.accessoCome(session?.user.email ?? '')}</Text>
-            <Pressable onPress={signOut}>
+            <Pressable accessibilityRole="button" onPress={signOut}>
               <Text style={[styles.link, { color: colors.textDim }]}>{t.primoNome.nonSeiTu}</Text>
             </Pressable>
           </View>
@@ -93,6 +110,7 @@ export function NameOnboarding() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  errore: { fontSize: 12.5, textAlign: 'center', lineHeight: 17 },
   // `flexGrow` e non `flex`: dentro una lista che scorre, il contenuto
   // riempie lo schermo quando è corto e si allunga quando non ci sta.
   inner: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },

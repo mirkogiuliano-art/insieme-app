@@ -1,6 +1,8 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme } from '@/theme/theme';
+import { useT } from '@/i18n';
 import { EditIcon } from '@/components/Icon';
 
 interface FilterChipProps {
@@ -17,6 +19,7 @@ interface FilterChipProps {
 
 export function FilterChip({ label, dotColor, icon, active, dashed, onPress, onEdit }: FilterChipProps) {
   const { colors } = useTheme();
+  const t = useT();
   return (
     <View
       style={[
@@ -28,7 +31,7 @@ export function FilterChip({ label, dotColor, icon, active, dashed, onPress, onE
         },
       ]}
     >
-      <Pressable onPress={onPress} style={styles.main} hitSlop={onEdit ? undefined : 6}>
+      <Pressable accessibilityRole="button" accessibilityState={{ selected: !!active }} onPress={onPress} style={styles.main} hitSlop={onEdit ? undefined : 6}>
         {icon ?? (dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null)}
         <Text
           style={{
@@ -41,7 +44,7 @@ export function FilterChip({ label, dotColor, icon, active, dashed, onPress, onE
         </Text>
       </Pressable>
       {onEdit ? (
-        <Pressable onPress={onEdit} hitSlop={8} style={styles.editBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.modificaCategoria(label)} onPress={onEdit} hitSlop={8} style={styles.editBtn}>
           <EditIcon size={11} color={colors.textFaint} />
         </Pressable>
       ) : null}

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
 import { PlaceTile } from '@/components/MapPin';
 import { LinkThumbMini, useLinkPreview } from '@/components/LinkCard';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { ImageIcon, PlayIcon, FileIcon, MapIcon, LinkIcon, LocateIcon, BackIcon, SearchIcon, PollIcon } from '@/components/Icon';
+import { ImageIcon, FileIcon, MapIcon, LinkIcon, LocateIcon, BackIcon, SearchIcon, PollIcon } from '@/components/Icon';
 import type { RawPin } from '@/lib/api/pins';
 import type { RawLink } from '@/lib/api/links';
 import { useT } from '@/i18n';
@@ -15,8 +16,8 @@ interface ChatAttachSheetProps {
   pins: RawPin[];
   categoryFor: (pin: RawPin) => { name: string; color: string };
   links: RawLink[];
-  onPhoto: () => void;
-  onVideo: () => void;
+  /** Foto e video insieme: la galleria del telefono è una sola. */
+  onMedia: () => void;
   onDocument: () => void;
   onPlace: (pin: RawPin) => void;
   onLink: (link: RawLink) => void;
@@ -32,7 +33,7 @@ function LinkChoice({ link, first, onPress }: { link: RawLink; first: boolean; o
   const { colors } = useTheme();
   const { title } = useLinkPreview(link);
   return (
-    <Pressable onPress={onPress} style={[styles.choice, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.choice, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}>
       <LinkThumbMini item={link} />
       <View style={{ flex: 1 }}>
         <Text style={[styles.choiceName, { color: colors.text }]} numberOfLines={2}>
@@ -57,8 +58,7 @@ export function ChatAttachSheet({
   pins,
   categoryFor,
   links,
-  onPhoto,
-  onVideo,
+  onMedia,
   onDocument,
   onPlace,
   onLink,
@@ -89,7 +89,7 @@ export function ChatAttachSheet({
   const PinChoice = ({ pin, first }: { pin: RawPin; first: boolean }) => {
     const cat = categoryFor(pin);
     return (
-      <Pressable onPress={() => run(() => onPlace(pin))} style={[styles.choice, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}>
+      <Pressable accessibilityRole="button" onPress={() => run(() => onPlace(pin))} style={[styles.choice, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}>
         <PlaceTile color={cat.color} categoryName={cat.name} size={34} />
         <View style={{ flex: 1 }}>
           <Text style={[styles.choiceName, { color: colors.text }]} numberOfLines={1}>
@@ -111,7 +111,7 @@ export function ChatAttachSheet({
     return (
       <BottomSheet visible={visible} onClose={onClose}>
         <View style={styles.titleRow}>
-          <Pressable onPress={() => setStep('grid')} hitSlop={10}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setStep('grid')} hitSlop={10}>
             <BackIcon size={20} color={colors.textDim} />
           </Pressable>
           <Text style={[styles.title, { color: colors.text }]}>{isPlaces ? t.allega.mandaPosto : t.allega.mandaLink}</Text>
@@ -147,23 +147,18 @@ export function ChatAttachSheet({
   const Tile = ({
     icon,
     label,
-    highlight,
-    tint,
     onPress,
     busy,
   }: {
     icon: React.ReactNode;
     label: string;
-    highlight?: boolean;
-    /** Colore del contorno di una voce in evidenza (ambra se non detto). */
-    tint?: string;
     onPress: () => void;
     busy?: boolean;
   }) => (
-    <Pressable
+    <Pressable accessibilityRole="button"
       onPress={onPress}
       disabled={busy}
-      style={[styles.tile, { backgroundColor: colors.surface2, borderColor: highlight ? (tint ?? colors.amber) + '88' : 'transparent' }]}
+      style={[styles.tile, { backgroundColor: colors.surface2 }]}
     >
       {busy ? <ActivityIndicator size="small" color={colors.textDim} /> : icon}
       <Text style={[styles.tileText, { color: colors.textDim }]} numberOfLines={1}>
@@ -175,26 +170,33 @@ export function ChatAttachSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={[styles.title, { color: colors.text, marginBottom: 12 }]}>{t.allega.titolo}</Text>
+      {/* Due righe da tre: sopra quello che viene dal telefono, sotto
+          quello che il gruppo ha già. Foto e video sono una voce sola,
+          perché la galleria è una; le voci del gruppo si riconoscono
+          dall'icona colorata, non da un contorno. */}
       <View style={styles.grid}>
-        <Tile icon={<ImageIcon size={21} color={colors.textDim} />} label={t.allega.foto} onPress={() => run(onPhoto)} />
-        <Tile icon={<PlayIcon size={19} color={colors.textDim} />} label={t.allega.video} onPress={() => run(onVideo)} />
-        <Tile icon={<FileIcon size={21} color={colors.textDim} />} label={t.allega.documento} onPress={() => run(onDocument)} />
-        <Tile icon={<MapIcon size={21} color={colors.teal} />} label={t.allega.unPosto} highlight tint={colors.teal} onPress={() => setStep('places')} />
-        <Tile icon={<LinkIcon size={21} color={colors.amber} />} label={t.allega.unLink} highlight onPress={() => setStep('links')} />
-        <Tile icon={<PollIcon size={21} color={colors.lilac} />} label={t.allega.sondaggio} highlight tint={colors.lilac} onPress={() => run(onPoll)} />
-        <Tile
-          icon={<LocateIcon size={21} color={colors.textDim} />}
-          label={t.allega.doveSono}
-          busy={locating}
-          onPress={async () => {
-            setLocating(true);
-            try {
-              await onMyPosition();
-            } finally {
-              setLocating(false);
-            }
-          }}
-        />
+        <View style={styles.gridRow}>
+          <Tile icon={<ImageIcon size={21} color={colors.textDim} />} label={t.allega.fotoEVideo} onPress={() => run(onMedia)} />
+          <Tile icon={<FileIcon size={21} color={colors.textDim} />} label={t.allega.documento} onPress={() => run(onDocument)} />
+          <Tile
+            icon={<LocateIcon size={21} color={colors.textDim} />}
+            label={t.allega.doveSono}
+            busy={locating}
+            onPress={async () => {
+              setLocating(true);
+              try {
+                await onMyPosition();
+              } finally {
+                setLocating(false);
+              }
+            }}
+          />
+        </View>
+        <View style={styles.gridRow}>
+          <Tile icon={<MapIcon size={21} color={colors.teal} />} label={t.allega.unPosto} onPress={() => setStep('places')} />
+          <Tile icon={<LinkIcon size={21} color={colors.amberText} />} label={t.allega.unLink} onPress={() => setStep('links')} />
+          <Tile icon={<PollIcon size={21} color={colors.lilac} />} label={t.allega.sondaggio} onPress={() => run(onPoll)} />
+        </View>
       </View>
       {recentPins.length > 0 ? (
         <>
@@ -213,8 +215,9 @@ export function ChatAttachSheet({
 const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tile: { width: '23.5%', height: 68, borderRadius: RADIUS.md, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  grid: { gap: 8 },
+  gridRow: { flexDirection: 'row', gap: 8 },
+  tile: { flex: 1, height: 72, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 4 },
   tileText: { fontSize: 11.5, fontWeight: '700' },
   label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 16, marginBottom: 8 },
   list: { borderRadius: RADIUS.md, overflow: 'hidden' },

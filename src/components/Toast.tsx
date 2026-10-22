@@ -28,9 +28,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       setTone(t);
       Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
       if (timer.current) clearTimeout(timer.current);
+      // Il tempo per leggerlo: un avviso corto resta 2,6 secondi, uno
+      // lungo (come quelli dei permessi, che dicono dove sbloccarli) di
+      // più, fino a 7.
+      const durata = Math.min(7000, Math.max(2600, 1200 + m.length * 50));
       timer.current = setTimeout(() => {
         Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }).start();
-      }, 2600);
+      }, durata);
     },
     [opacity],
   );

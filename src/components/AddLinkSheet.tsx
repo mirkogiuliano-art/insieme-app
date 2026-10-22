@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import * as Clipboard from 'expo-clipboard';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { LinkIcon, ImageIcon, PlayIcon, FileIcon } from '@/components/Icon';
+import { LinkIcon, ImageIcon, VideoIcon, FileIcon } from '@/components/Icon';
 import { normalizeUrl } from '@/lib/utils';
 import { getLinkPreview } from '@/lib/api/linkPreviews';
 import type { RawLinkCategory } from '@/lib/api/linkCategories';
@@ -115,16 +116,16 @@ export function AddLinkSheet({
       <Text style={[styles.title, { color: colors.text }]}>{t.aggiungiLink.titolo}</Text>
 
       {copied ? (
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={() => saveUrl(copied.url)}
           disabled={busy}
           style={[styles.copied, { borderColor: colors.amber, backgroundColor: colors.amber + '14' }]}
         >
           <View style={[styles.copiedIcon, { backgroundColor: colors.surface2 }]}>
-            <LinkIcon size={18} color={colors.amber} />
+            <LinkIcon size={18} color={colors.amberText} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.copiedLabel, { color: colors.amber }]}>{t.aggiungiLink.hoCopiato}</Text>
+            <Text style={[styles.copiedLabel, { color: colors.amberText }]}>{t.aggiungiLink.hoCopiato}</Text>
             <Text style={[styles.copiedTitle, { color: colors.text }]} numberOfLines={2}>
               {copied.title ?? copied.url}
             </Text>
@@ -158,7 +159,7 @@ export function AddLinkSheet({
         {categories.map((c) => {
           const on = categoryId === c.id;
           return (
-            <Pressable
+            <Pressable accessibilityRole="button"
               key={c.id}
               onPress={() => setCategoryId(c.id)}
               style={[styles.cat, { backgroundColor: on ? c.color + '2E' : colors.surface2, borderColor: on ? c.color : 'transparent' }]}
@@ -174,10 +175,10 @@ export function AddLinkSheet({
       <View style={styles.files}>
         {[
           { key: 'img', label: t.aggiungiLink.foto, icon: <ImageIcon size={20} color={colors.textDim} />, fn: () => onPickMedia('images', title, categoryId) },
-          { key: 'vid', label: t.aggiungiLink.video, icon: <PlayIcon size={18} color={colors.textDim} />, fn: () => onPickMedia('videos', title, categoryId) },
+          { key: 'vid', label: t.aggiungiLink.video, icon: <VideoIcon size={20} color={colors.textDim} />, fn: () => onPickMedia('videos', title, categoryId) },
           { key: 'doc', label: t.aggiungiLink.documento, icon: <FileIcon size={20} color={colors.textDim} />, fn: () => onPickDocument(title, categoryId) },
         ].map((b) => (
-          <Pressable
+          <Pressable accessibilityRole="button"
             key={b.key}
             onPress={() => pick(b.fn)}
             disabled={busy}
@@ -189,7 +190,7 @@ export function AddLinkSheet({
         ))}
       </View>
 
-      <Pressable
+      <Pressable accessibilityRole="button"
         onPress={() => saveUrl(url)}
         disabled={!url.trim() || busy}
         style={[styles.save, { backgroundColor: colors.amber, opacity: !url.trim() || busy ? 0.45 : 1 }]}
@@ -214,7 +215,9 @@ const styles = StyleSheet.create({
   copiedLabel: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.6 },
   copiedTitle: { fontSize: 13.5, fontWeight: '700', lineHeight: 18, marginTop: 2 },
   input: { borderRadius: RADIUS.sm, paddingHorizontal: 13, paddingVertical: 13, fontSize: 14, marginBottom: 8 },
-  label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 8, marginBottom: 7 },
+  // Più spazio sopra un'etichetta che sotto: appartiene a quello che
+  // segue, non a quello che la precede.
+  label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 18, marginBottom: 8 },
   cat: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7, marginRight: 7 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   files: { flexDirection: 'row', gap: 8 },

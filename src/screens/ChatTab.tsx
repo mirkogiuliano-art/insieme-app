@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   TextInput,
-  Pressable,
   StyleSheet,
   FlatList,
   Image,
@@ -11,13 +10,14 @@ import {
   Linking,
   ActivityIndicator,
 } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAudioRecorder, useAudioPlayer, useAudioPlayerStatus, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio';
 import { useSpazioBarraAnimato } from '@/lib/tabBarSpace';
 import Animated from 'react-native-reanimated';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { SendIcon, ChatIcon, CloseIcon, PlayIcon, MicIcon, StopIcon, SearchIcon, CheckIcon, ChevronIcon, PlusIcon, GridIcon, MapIcon, CalendarIcon } from '@/components/Icon';
+import { SendIcon, ChatIcon, CloseIcon, PlayIcon, MicIcon, TrashIcon, SearchIcon, CheckIcon, ChevronIcon, PlusIcon, ShareIcon, UsersIcon } from '@/components/Icon';
 import { ChatLinkPreview } from '@/components/ChatLinkPreview';
 import { ChatPlaceCard } from '@/components/ChatPlaceCard';
 import { VoiceBubble } from '@/components/VoiceBubble';
@@ -29,10 +29,12 @@ import { PollVotersSheet } from '@/components/PollVotersSheet';
 import { MessageActionsSheet } from '@/components/MessageActionsSheet';
 import { ChatArchive } from '@/components/ChatArchive';
 import { LoadError } from '@/components/LoadError';
+import { InCaricamento } from '@/components/InCaricamento';
 import {
   timeLabel,
   initials,
   colorForUser,
+  inchiostroPersona,
   splitTextByUrls,
   firstUrl,
   platformInfo,
@@ -47,31 +49,42 @@ import {
 } from '@/lib/utils';
 import { useAuth } from '@/lib/authStore';
 import { useToast } from '@/components/Toast';
-import { listMessages, sendMessage, subscribeToMessages, type RawMessage } from '@/lib/api/messages';
-import { listReactions, toggleReaction, subscribeToReactions, type RawReaction } from '@/lib/api/reactions';
-import { listPolls, listVotes, createPoll, votePoll, closePoll, subscribeToPolls, type RawPoll, type RawVote } from '@/lib/api/polls';
-import { uploadGroupMedia, uploadGroupFile, type AttachmentKind } from '@/lib/api/mediaUpload';
-import { listLastReads, updateLastRead, subscribeToLastReads } from '@/lib/api/groupMembers';
+import { listMessages, sendMessage, deleteMessage, subscribeToMessages, type RawMessage } from '@/lib/api/messages';
+import { toggleReaction, subscribeToReactions, type RawReaction } from '@/lib/api/reactions';
+import { listVotes, createPoll, votePoll, closePoll, subscribeToPolls, type RawPoll, type RawVote } from '@/lib/api/polls';
+import { uploadGroupMedia, uploadGroupFile, sweepGroupMedia, type AttachmentKind } from '@/lib/api/mediaUpload';
+import { updateLastRead, subscribeToLastReads } from '@/lib/api/groupMembers';
 import { subscribeToTyping } from '@/lib/api/typing';
 import { avvisaDelMessaggio, setGruppoAperto } from '@/lib/api/push';
-import { reportMessage, blockUser, listBlocked } from '@/lib/api/moderation';
+import { reportMessage, blockUser } from '@/lib/api/moderation';
 import * as Location from 'expo-location';
 import { parsePlaceMessage, placeMessageText } from '@/lib/chatPlace';
-import { listPins, type RawPin } from '@/lib/api/pins';
-import { rangeLabel, countdownLabel } from '@/lib/groupInfo';
-import type { Group } from '@/types';
-import { listCategories as listPlaceCategories, type RawPlaceCategory } from '@/lib/api/placeCategories';
-import { listLinks, createLink, type RawLink } from '@/lib/api/links';
-import { listCategories as listLinkCategories, type RawLinkCategory } from '@/lib/api/linkCategories';
+import type { RawPin } from '@/lib/api/pins';
+import type { RawPlaceCategory } from '@/lib/api/placeCategories';
+import { createLink, type RawLink } from '@/lib/api/links';
+import type { RawLinkCategory } from '@/lib/api/linkCategories';
 import { useT, dizionario, localeAttuale } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
+import { messaggioErrore, eProblemaDiRete } from '@/lib/errori';
+import { leggiCopia, salvaCopia, useRiprovaDaSola } from '@/lib/copiaLocale';
+import { leggiLinkEPosti, salvaCopieGruppo, type CopiaChat } from '@/lib/precarica';
+import { apriGruppo } from '@/lib/api/apriGruppo';
+import { SenzaRete } from '@/components/SenzaRete';
+
+/** Cosa c'è sopra i messaggi: niente, la ricerca o l'archivio. */
+export type StrumentoChat = 'chat' | 'cerca' | 'archivio';
 
 interface ChatTabProps {
   groupId: string;
   roster: Record<string, string>;
-  /** Le info del gruppo, per la riga in cima; assenti se non ci sono. */
-  group?: Group | null;
-  onOpenInfo?: () => void;
+  /** Lo decidono la lente e la griglia nell'intestazione del gruppo. */
+  strumento: StrumentoChat;
+  onStrumento: (s: StrumentoChat) => void;
+  /** Condivide il link d'invito: lo offre la chat vuota di chi è solo. */
+  onInvita?: () => void;
+  /** I nomi dei membri sono arrivati, o non arriveranno: la prima volta
+   * la chat li aspetta per comparire. */
+  nomiPronti: boolean;
 }
 
 /** Quanti messaggi per pagina, sia al primo caricamento sia scorrendo
@@ -121,7 +134,17 @@ function highlightSegments(text: string, term: string): { text: string; match: b
   return segments;
 }
 
-export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
+type RigaInfo = { item: RawMessage; index: number };
+type VersioneRighe = { disegna: (info: RigaInfo) => React.ReactElement };
+
+/** Un fumetto della chat. Il disegno vero sta in ChatTab, che ne conosce i
+ * dati; qui c'è solo il confine che lo salta quando il messaggio, la sua
+ * posizione e i dati che mostra sono quelli di prima. */
+const RigaMessaggio = memo(function RigaMessaggio({ item, index, versione }: RigaInfo & { versione: VersioneRighe }) {
+  return versione.disegna({ item, index });
+});
+
+export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nomiPronti }: ChatTabProps) {
   const { colors } = useTheme();
   const t = useT();
   const spazioBarra = useSpazioBarraAnimato();
@@ -142,7 +165,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
   /** Il sondaggio di cui si sta guardando chi ha votato. */
   const [votersFor, setVotersFor] = useState<RawPoll | null>(null);
   /** Conversazione, o archivio di tutto ciò che vi è passato. */
-  const [mode, setMode] = useState<'chat' | 'archive'>('chat');
+  const mode: 'chat' | 'archive' = strumento === 'archivio' ? 'archive' : 'chat';
   /** Il messaggio a cui tornare uscendo dall'archivio. */
   const [jumpTo, setJumpTo] = useState<string | null>(null);
   // Posti e link del gruppo: servono a disegnare i posti mandati in chat,
@@ -151,14 +174,31 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
   const [placeCategories, setPlaceCategories] = useState<RawPlaceCategory[]>([]);
   const [links, setLinks] = useState<RawLink[]>([]);
   const [linkCategories, setLinkCategories] = useState<RawLinkCategory[]>([]);
+  /** Posti e categorie arrivati, dal server o dalla copia (o non
+   * arriveranno): servono alle schede dei posti mandati in chat. */
+  const [postiLetti, setPostiLetti] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  /** Un vocale che non è partito resta sotto la chat, con «Riprova»:
+   * prima spariva, e con lui quello che si era detto. */
+  const [vocaleNonInviato, setVocaleNonInviato] = useState<{ uri: string; durationSeconds: number; replyToId: string | null } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  // Chiusa la ricerca, o passati all'archivio, il testo cercato non serve più.
+  useEffect(() => {
+    setSearchQuery('');
+  }, [strumento]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [lastReads, setLastReads] = useState<Record<string, number | null>>({});
   const [typingUsers, setTypingUsers] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState(false);
+  /** Da quando si vede la copia salvata, se il server non ha risposto. */
+  const [offlineDal, setOfflineDal] = useState<number | null>(null);
+  /** Finita la prima lettura, dal server o dalla copia. Prima, una
+   * sezione senza niente sta ancora leggendo, non è vuota. */
+  const [letto, setLetto] = useState(false);
+  /** Arrivati i dati veri, la copia non deve più sovrascriverli. */
+  const daServer = useRef(false);
   // Scorrimento all'indietro: `hasMore` diventa falso quando il database
   // restituisce meno messaggi di quanti ne siano stati chiesti, cioè
   // quando si è arrivati all'inizio della conversazione.
@@ -169,6 +209,10 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
   const lastReadCallRef = useRef(0);
   const typingSendRef = useRef<{ send: (userId: string) => void } | null>(null);
   const lastTypingSentRef = useRef(0);
+  /** Quando è partito l'ultimo messaggio scritto: subito dopo l'invio il
+   * tasto diventa il microfono, e un secondo tocco ravvicinato sullo stesso
+   * punto non deve far partire una registrazione. */
+  const ultimoInvioRef = useRef(0);
 
   /** Carica la pagina precedente quando si arriva in cima alla chat.
    * L'elenco è invertito, quindi "la fine" della lista è il messaggio più
@@ -201,18 +245,6 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     setGruppoAperto(groupId);
     return () => setGruppoAperto(null);
   }, [groupId]);
-
-  // L'elenco dei bloccati si legge una volta all'apertura: cambia solo
-  // per mano di chi sta guardando, e in quel caso lo aggiorniamo noi.
-  useEffect(() => {
-    let alive = true;
-    listBlocked().then((ids) => {
-      if (alive) setBloccati(ids);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const markRead = () => {
     const now = Date.now();
@@ -265,18 +297,49 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
    * menu di un messaggio): cambiano nelle altre sezioni, e tenerli in
    * tempo reale anche qui costerebbe più di quanto serva. */
   const loadGroupStuff = useCallback(() => {
-    Promise.all([listPins(groupId), listPlaceCategories(groupId), listLinks(groupId), listLinkCategories(groupId)])
-      .then(([p, pc, l, lc]) => {
+    // Sono gli stessi delle sezioni Link e Mappa, che così trovano già la
+    // loro copia la prima volta che si aprono.
+    leggiLinkEPosti(session?.user.id, groupId)
+      .then(({ pins: p, placeCats: pc, links: l, linkCats: lc }) => {
         setPins(p);
         setPlaceCategories(pc);
         setLinks(l);
         setLinkCategories(lc);
+        setPostiLetti(true);
+        salvaCopia(session?.user.id, `chat-extra:${groupId}`, { p, pc, l, lc });
       })
-      .catch(() => {});
-  }, [groupId]);
+      .catch(async () => {
+        // Senza rete, posti e categorie dell'ultima volta: servono alle
+        // schede dei posti mandati in chat.
+        const copia = await leggiCopia<{ p: RawPin[]; pc: RawPlaceCategory[]; l: RawLink[]; lc: RawLinkCategory[] }>(
+          session?.user.id,
+          `chat-extra:${groupId}`,
+        );
+        setPostiLetti(true);
+        if (!copia) return;
+        setPins((x) => (x.length > 0 ? x : copia.dati.p));
+        setPlaceCategories((x) => (x.length > 0 ? x : copia.dati.pc));
+        setLinks((x) => (x.length > 0 ? x : copia.dati.l));
+        setLinkCategories((x) => (x.length > 0 ? x : copia.dati.lc));
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, session?.user.id]);
 
   useEffect(() => {
-    loadGroupStuff();
+    // Posti e categorie dell'ultima volta subito, per le schede dei posti
+    // in chat; il server li aggiorna dopo, insieme ai messaggi.
+    leggiCopia<{ p: RawPin[]; pc: RawPlaceCategory[]; l: RawLink[]; lc: RawLinkCategory[] }>(
+      session?.user.id,
+      `chat-extra:${groupId}`,
+    ).then((copia) => {
+      if (!copia) return;
+      setPostiLetti(true);
+      setPins((x) => (x.length > 0 ? x : copia.dati.p));
+      setPlaceCategories((x) => (x.length > 0 ? x : copia.dati.pc));
+      setLinks((x) => (x.length > 0 ? x : copia.dati.l));
+      setLinkCategories((x) => (x.length > 0 ? x : copia.dati.lc));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadGroupStuff]);
 
   // Uscendo dall'archivio si torna al messaggio toccato.
@@ -297,36 +360,82 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     return () => clearInterval(id);
   }, [recording]);
 
-  /** Messaggi e reazioni insieme: se la lettura fallisce si mostra
-   * l'avviso, invece di una chat che sembra semplicemente vuota. */
+  const utente = session?.user.id;
+  const mostraCopia = (c: CopiaChat) => {
+    setMessages((prev) => (prev.length > 0 ? prev : c.msgs));
+    setReactions((prev) => (prev.length > 0 ? prev : c.reacts));
+    setPolls((prev) => (prev.length > 0 ? prev : c.sondaggi));
+    setVotes((prev) => (prev.length > 0 ? prev : c.voti));
+    const bloccatiNellaCopia = c.bloccati;
+    if (bloccatiNellaCopia) setBloccati((prev) => (prev.length > 0 ? prev : bloccatiNellaCopia));
+  };
+
   const loadAll = useCallback(async () => {
     try {
-      const [msgs, reacts, sondaggi, voti] = await withTimeout(
-        Promise.all([listMessages(groupId, PAGE_SIZE), listReactions(groupId), listPolls(groupId), listVotes(groupId)]),
-      );
-      setMessages(msgs);
-      setReactions(reacts);
-      setPolls(sondaggi);
-      setVotes(voti);
-      setHasMore(msgs.length === PAGE_SIZE);
+      // Tutto il gruppo in una richiesta sola (vedi apriGruppo): erano una
+      // quindicina, e sul telefono partono cinque alla volta.
+      const g = await withTimeout(apriGruppo(groupId));
+      daServer.current = true;
+      setMessages(g.messaggi);
+      setReactions(g.reazioni);
+      setPolls(g.sondaggi);
+      setVotes(g.voti);
+      // Chi ho bloccato cambia solo per mano di chi guarda, e in quel
+      // caso lo aggiorniamo noi (vedi blocca).
+      setBloccati(g.bloccati);
+      setLastReads(g.lettoAlle);
+      setPins(g.posti);
+      setPlaceCategories(g.categoriePosti);
+      setLinks(g.link);
+      setLinkCategories(g.categorieLink);
+      setPostiLetti(true);
+      setHasMore(g.altriMessaggi);
       setLoadError(false);
+      setOfflineDal(null);
+      salvaCopieGruppo(utente, groupId, g);
     } catch (err) {
-      segnalaErrore(err, 'caricamento.messaggi');
-      setLoadError(true);
+      if (!eProblemaDiRete(err)) segnalaErrore(err, 'caricamento.messaggi');
+      // Senza rete la chat già letta resta a schermo, con l'ora della copia.
+      const copia = await leggiCopia<CopiaChat>(utente, `chat:${groupId}`);
+      if (copia) {
+        mostraCopia(copia.dati);
+        setOfflineDal(copia.ts);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
+      }
+      // Posti e categorie restano quelli della copia, se c'è: la chat
+      // non li aspetta.
+      setPostiLetti(true);
     }
-  }, [groupId]);
+    setLetto(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, utente]);
+
+  useRiprovaDaSola(loadError || offlineDal !== null, loadAll);
 
   useEffect(() => {
     let cancelled = false;
-    loadAll();
-    listLastReads(groupId).then((data) => {
-      if (!cancelled) setLastReads(data);
+    daServer.current = false;
+    // Mentre si legge dal server, la copia dell'ultima volta: la chat
+    // compare subito anche con la rete lenta o assente.
+    leggiCopia<CopiaChat>(utente, `chat:${groupId}`).then((copia) => {
+      if (!cancelled && copia && !daServer.current) {
+        mostraCopia(copia.dati);
+        setLetto(true);
+      }
     });
+    // Messaggi, posti, link, spunte e bloccati arrivano tutti insieme.
+    loadAll();
     markRead();
 
-    const unsubscribeMessages = subscribeToMessages(groupId, (message) => {
-      setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [message, ...prev]));
-    });
+    const unsubscribeMessages = subscribeToMessages(
+      groupId,
+      (message) => {
+        setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [message, ...prev]));
+      },
+      (id) => setMessages((prev) => prev.filter((m) => m.id !== id)),
+    );
     const unsubscribeReactions = subscribeToReactions(groupId, {
       onInsert: (r) => setReactions((prev) => (prev.some((x) => x.id === r.id) ? prev : [...prev, r])),
       onDelete: (id) => setReactions((prev) => prev.filter((r) => r.id !== id)),
@@ -428,7 +537,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
   const send = async () => {
     const text = draft.trim();
     if (!text || !session) return;
-    const replyToId = replyingTo?.id ?? null;
+    const risposta = replyingTo;
+    const replyToId = risposta?.id ?? null;
+    ultimoInvioRef.current = Date.now();
     setDraft('');
     setReplyingTo(null);
     const tempId = `temp-${Date.now()}`;
@@ -439,9 +550,23 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       avvisaDelMessaggio(sent.id);
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      // Quello che si era scritto torna nel campo, con la risposta a cui
+      // era agganciato: un invio fallito non deve costare il testo. Se nel
+      // frattempo si è già cominciato a scrivere altro, non lo si tocca.
+      setDraft((attuale) => (attuale.trim() ? attuale : text));
+      setReplyingTo((attuale) => attuale ?? risposta);
       segnalaErrore(err, 'chat.erroreInvio');
       toast.show(t.chat.erroreInvio, 'error');
     }
+  };
+
+  /** Il tasto in fondo: invia quando c'è del testo, altrimenti registra.
+   * Un tocco che arriva entro un attimo dall'invio è il secondo di un
+   * doppio tocco su "Invia", non una richiesta di registrare. */
+  const inviaORegistra = () => {
+    if (draft.trim()) return send();
+    if (Date.now() - ultimoInvioRef.current < 800) return;
+    return toggleRecording();
   };
 
   /** Manda un testo preparato (un posto, un link salvato, la propria
@@ -477,7 +602,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       return null;
     } catch (err) {
       segnalaErrore(err, 'chat.erroreSondaggio');
-      return (err as { message?: string })?.message || t.chat.erroreSondaggio;
+      return messaggioErrore(err, t.chat.erroreSondaggio);
     }
   };
 
@@ -495,7 +620,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     } catch (err) {
       setVotes(prima);
       segnalaErrore(err, 'chat.erroreVoto');
-      toast.show((err as { message?: string })?.message || t.chat.erroreVoto, 'error');
+      toast.show(messaggioErrore(err, t.chat.erroreVoto), 'error');
     }
   };
 
@@ -505,7 +630,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       setVotersFor(null);
     } catch (err) {
       segnalaErrore(err, 'chat.erroreChiusura');
-      toast.show((err as { message?: string })?.message || t.chat.erroreChiusura, 'error');
+      toast.show(messaggioErrore(err, t.chat.erroreChiusura), 'error');
     }
   };
 
@@ -647,14 +772,14 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     }
   };
 
-  const pickAttachment = async (mediaType: 'images' | 'videos') => {
+  const pickAttachment = async () => {
     if (!session || uploading) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       toast.show(t.chat.permessoFoto, 'hint');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: [mediaType], quality: 0.7 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.7 });
     const asset = result.canceled ? null : result.assets?.[0];
     if (!asset) return;
 
@@ -730,6 +855,68 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     }
   };
 
+  /** Il proprio messaggio sparisce per tutti. Si toglie subito dallo
+   * schermo; se il server rifiuta, torna dov'era. */
+  const eliminaMessaggio = async (m: RawMessage) => {
+    setMessages((prev) => prev.filter((x) => x.id !== m.id));
+    try {
+      await withTimeout(deleteMessage(m.id), WRITE_TIMEOUT);
+      // Foto, video, vocali e documenti: li toglie la spazzata, che
+      // cerca i file rimasti senza messaggio.
+      if (m.attachmentUrl) sweepGroupMedia(groupId);
+    } catch (err) {
+      setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m].sort((a, b) => b.ts - a.ts)));
+      segnalaErrore(err, 'chat.erroreElimina');
+      toast.show(messaggioErrore(err, t.chat.erroreElimina), 'error');
+    }
+  };
+
+  /** Un vocale partito per sbaglio si butta: prima l'unico modo di
+   * fermarlo era mandarlo. */
+  const annullaRegistrazione = async () => {
+    setRecording(false);
+    try {
+      await recorder.stop();
+    } catch {
+      // già fermo: non c'è niente da buttare
+    }
+  };
+
+  /** Carica e manda un vocale già registrato. Se non riesce resta da
+   * parte, per riprovare o buttarlo. */
+  const inviaVocale = async (uri: string, durationSeconds: number, replyToId: string | null) => {
+    if (!session) return;
+    setVocaleNonInviato(null);
+    setUploading(true);
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => [
+      {
+        id: tempId,
+        userId: session.user.id,
+        text: null,
+        ts: Date.now(),
+        replyToId,
+        attachmentUrl: uri,
+        attachmentType: 'audio',
+        attachmentDurationSeconds: durationSeconds,
+      },
+      ...prev,
+    ]);
+    try {
+      const url = await withTimeout(uploadGroupMedia(groupId, uri), UPLOAD_TIMEOUT);
+      const sent = await withTimeout(sendMessage(groupId, session.user.id, null, replyToId, { url, type: 'audio', durationSeconds }), WRITE_TIMEOUT);
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      avvisaDelMessaggio(sent.id);
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setVocaleNonInviato({ uri, durationSeconds, replyToId });
+      segnalaErrore(err, 'chat.erroreVocale');
+      toast.show(t.chat.erroreVocale, 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const toggleRecording = async () => {
     if (!session || uploading) return;
     if (recording) {
@@ -740,33 +927,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       if (!uri) return;
       const replyToId = replyingTo?.id ?? null;
       setReplyingTo(null);
-      setUploading(true);
-      const tempId = `temp-${Date.now()}`;
-      setMessages((prev) => [
-        {
-          id: tempId,
-          userId: session.user.id,
-          text: null,
-          ts: Date.now(),
-          replyToId,
-          attachmentUrl: uri,
-          attachmentType: 'audio',
-          attachmentDurationSeconds: durationSeconds,
-        },
-        ...prev,
-      ]);
-      try {
-        const url = await withTimeout(uploadGroupMedia(groupId, uri), UPLOAD_TIMEOUT);
-        const sent = await withTimeout(sendMessage(groupId, session.user.id, null, replyToId, { url, type: 'audio', durationSeconds }), WRITE_TIMEOUT);
-        setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
-      avvisaDelMessaggio(sent.id);
-      } catch (err) {
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
-        segnalaErrore(err, 'chat.erroreVocale');
-        toast.show(t.chat.erroreVocale, 'error');
-      } finally {
-        setUploading(false);
-      }
+      await inviaVocale(uri, durationSeconds, replyToId);
     } else {
       const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) {
@@ -824,7 +985,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     </Text>
   );
 
-  const renderItem = ({ item, index }: { item: RawMessage; index: number }) => {
+  const disegnaRiga = ({ item, index }: RigaInfo) => {
     const own = session ? item.userId === session.user.id : false;
     const displayName = roster[item.userId] ?? t.segnaposto.utente;
     const chips = reactionsByMessage[item.id] ?? [];
@@ -860,6 +1021,8 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       loadGroupStuff();
     };
 
+    const nomeCitato = quoted ? (roster[quoted.userId] ?? t.segnaposto.utente) : '';
+
     const timeRow = (
       <View style={styles.timeRow}>
         <Text style={[styles.time, { color: own && hasBubble ? '#6B5730' : colors.textFaint }]}>{timeLabel(item.ts)}</Text>
@@ -893,12 +1056,12 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
               <View style={styles.avatarSpacer} />
             ) : (
               <View style={[styles.avatar, { backgroundColor: colorForUser(displayName) }]}>
-                <Text style={styles.avatarText}>{initials(displayName)}</Text>
+                <Text maxFontSizeMultiplier={1} style={styles.avatarText}>{initials(displayName)}</Text>
               </View>
             )
           ) : null}
           <View style={[styles.bubbleCol, own && { alignItems: 'flex-end' }]}>
-            {!own && !sameAsOlder ? <Text style={[styles.name, { color: colors.teal }]}>{displayName}</Text> : null}
+            {!own && !sameAsOlder ? <Text style={[styles.name, { color: inchiostroPersona(displayName, colors.bg) }]}>{displayName}</Text> : null}
             {hasBubble ? (
               <Pressable
                 onPress={openMenu}
@@ -917,9 +1080,11 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
                 ]}
               >
                 {item.replyToId ? (
-                  <View style={[styles.quoteBox, { borderLeftColor: own ? '#6B5730' : colors.teal, backgroundColor: own ? '#C98A22' : colors.surface2 }]}>
-                    <Text style={[styles.quoteAuthor, { color: own ? '#3D2E10' : colors.teal }]} numberOfLines={1}>
-                      {quoted ? (roster[quoted.userId] ?? t.segnaposto.utente) : ''}
+                  // Nei messaggi degli altri la citazione prende il colore di
+                  // chi viene citato, come il suo nome e le sue iniziali.
+                  <View style={[styles.quoteBox, { borderLeftColor: own ? '#6B5730' : colorForUser(nomeCitato), backgroundColor: own ? '#C98A22' : colors.surface2 }]}>
+                    <Text style={[styles.quoteAuthor, { color: own ? '#3D2E10' : inchiostroPersona(nomeCitato, colors.surface2) }]} numberOfLines={1}>
+                      {quoted ? nomeCitato : ''}
                     </Text>
                     <Text style={[styles.quoteText, { color: own ? '#4A3A18' : colors.textDim }]} numberOfLines={2}>
                       {quoted ? (parsePlaceMessage(quoted.text)?.name ?? quoted.text ?? t.segnaposto.allegato) : t.chat.messaggioSparito}
@@ -927,12 +1092,12 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
                   </View>
                 ) : null}
                 {item.attachmentUrl && item.attachmentType === 'image' ? (
-                  <Pressable onPress={() => setPreviewImage(item.attachmentUrl!)} onLongPress={openMenu}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.apriFoto} onPress={() => setPreviewImage(item.attachmentUrl!)} onLongPress={openMenu}>
                     <Image source={{ uri: item.attachmentUrl }} style={styles.attachmentImage} />
                   </Pressable>
                 ) : null}
                 {item.attachmentUrl && item.attachmentType === 'video' ? (
-                  <Pressable onPress={() => Linking.openURL(item.attachmentUrl!)} onLongPress={openMenu} style={styles.videoCard}>
+                  <Pressable accessibilityRole="button" onPress={() => Linking.openURL(item.attachmentUrl!)} onLongPress={openMenu} style={styles.videoCard}>
                     <PlayIcon size={30} color="#fff" />
                     <Text style={styles.videoCardLabel}>{t.segnaposto.video}</Text>
                   </Pressable>
@@ -969,11 +1134,11 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
               />
             ) : null}
             {linkUrl ? <ChatLinkPreview url={linkUrl} onMenu={openMenu} /> : null}
-            {place || linkUrl || poll ? <Pressable onPress={openMenu}>{timeRow}</Pressable> : null}
+            {place || linkUrl || poll ? <Pressable accessibilityRole="button" onPress={openMenu}>{timeRow}</Pressable> : null}
             {chips.length > 0 ? (
               <View style={styles.reactionsRow}>
                 {chips.map((c) => (
-                  <Pressable
+                  <Pressable accessibilityRole="button"
                     key={c.emoji}
                     onPress={() => toggleChip(item.id, c.emoji, c.mine)}
                     style={[styles.reactionChip, { backgroundColor: colors.surface, borderColor: c.mine ? colors.amber : 'transparent' }]}
@@ -991,18 +1156,34 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     );
   };
 
-  /** "Tokyo · mancano 24 giorni": la meta, il conto alla rovescia, o le
-   * date da sole. Niente info, niente riga. */
-  const infoMeta = group?.placePinId ? (pins.find((p) => p.id === group.placePinId) ?? null) : null;
-  const infoHasPlace = !!infoMeta;
-  const infoLabel = (() => {
-    if (!group) return null;
-    const conto = countdownLabel(group.startsOn, group.endsOn);
-    const pezzi = [infoMeta?.name, conto ?? rangeLabel(group.startsOn, group.endsOn)].filter(Boolean);
-    return pezzi.length > 0 ? pezzi.join(' · ') : null;
-  })();
+  // Ogni fumetto si ridisegna solo quando cambia qualcosa che mostra.
+  // Prima ogni lettera scritta nel campo in basso, ogni secondo di
+  // registrazione e ogni "sta scrivendo" degli altri ridisegnavano tutti i
+  // messaggi caricati: con 150 messaggi, su un telefono economico, un terzo
+  // di secondo per tasto.
+  const disegnaRigaRef = useRef(disegnaRiga);
+  disegnaRigaRef.current = disegnaRiga;
+  const versioneRighe = useMemo<VersioneRighe>(
+    () => ({ disegna: (info) => disegnaRigaRef.current(info) }),
+    // Tutto quello che il disegno di un fumetto legge, anche nei tocchi
+    // (votare, reagire, aprire il menu). Un dato che cambia qui ridisegna
+    // tutte le righe; uno che mancasse le lascerebbe alla versione vecchia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [session, roster, t, colors, groupId, messages, messaggiVisibili, reactionsByMessage, polls, votes, pins, placeCategories, lastReads, searching, searchQuery, currentMatchId, loadGroupStuff],
+  );
+  const renderItem = useCallback(
+    ({ item, index }: RigaInfo) => <RigaMessaggio item={item} index={index} versione={versioneRighe} />,
+    [versioneRighe],
+  );
 
   const selezionato = messaggioSelezionato ?? null;
+  /** Nel gruppo non c'è ancora nessun altro. */
+  const soloIo = !!session && Object.keys(roster).length === 1 && !!roster[session.user.id];
+  /** La prima volta la chat compare tutta insieme: messaggi, nomi e posti.
+   * Arrivavano a pezzi, e per un attimo chi scriveva si chiamava «Utente»
+   * e la scheda di un posto era grigia. Le volte dopo c'è già tutto nelle
+   * copie salvate, e compare subito. */
+  const pronta = letto && nomiPronti && postiLetti;
   const salvabile = saveableOf(messaggioSelezionato);
 
   return (
@@ -1010,14 +1191,17 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
     // (app/group/[id].tsx), che alza insieme chat e barra delle tab: due
     // KeyboardAvoidingView annidati si ostacolerebbero a vicenda.
     <View style={{ flex: 1 }}>
-      {/* La stessa riga di Link e Mappa: la ricerca, e il modo di guardare —
-          qui la conversazione o l'archivio di ciò che vi è passato. */}
+      {/* La ricerca compare quando la si apre con la lente in alto, e
+          nell'archivio. Sempre in vista toglieva ai messaggi una riga
+          intera, per una cosa che si fa ogni tanto. */}
+      {strumento !== 'chat' ? (
       <View style={styles.topBar}>
         <View style={[styles.search, { backgroundColor: colors.surface, borderColor: searching ? colors.amber : 'transparent' }]}>
           <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
             placeholder={mode === 'chat' ? t.chat.cerca : t.chat.cercaArchivio}
+            autoFocus={strumento === 'cerca'}
             placeholderTextColor={colors.textFaint}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -1030,15 +1214,16 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
             </Text>
           ) : null}
           {searchQuery ? (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.cancellaRicerca} onPress={() => setSearchQuery('')} hitSlop={8}>
               <CloseIcon size={13} color={colors.textFaint} />
             </Pressable>
           ) : null}
         </View>
         {searching ? (
           <>
-            <Pressable
+            <Pressable accessibilityRole="button"
               onPress={goToOlderMatch}
+              hitSlop={4}
               disabled={matches.length === 0}
               style={[styles.viewBtn, { backgroundColor: colors.surface, opacity: matches.length === 0 ? 0.4 : 1 }]}
               accessibilityLabel={t.chat.precedente}
@@ -1047,8 +1232,9 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
                 <ChevronIcon size={16} color={colors.textDim} />
               </View>
             </Pressable>
-            <Pressable
+            <Pressable accessibilityRole="button"
               onPress={goToNewerMatch}
+              hitSlop={4}
               disabled={matches.length === 0}
               style={[styles.viewBtn, { backgroundColor: colors.surface, opacity: matches.length === 0 ? 0.4 : 1 }]}
               accessibilityLabel={t.chat.successivo}
@@ -1058,40 +1244,24 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
               </View>
             </Pressable>
           </>
-        ) : (
-          <Pressable
-            onPress={() => {
-              setSearchQuery('');
-              setMode((m) => (m === 'chat' ? 'archive' : 'chat'));
-            }}
-            style={[styles.viewBtn, { backgroundColor: mode === 'archive' ? colors.amber : colors.surface }]}
-            accessibilityLabel={mode === 'chat' ? t.chat.apriArchivio : t.chat.tornaChat}
+        ) : mode === 'archive' ? (
+          <Pressable accessibilityRole="button"
+            onPress={() => onStrumento('chat')}
+            hitSlop={4}
+            style={[styles.viewBtn, { backgroundColor: colors.amber }]}
+            accessibilityLabel={t.chat.tornaChat}
           >
-            {mode === 'chat' ? <GridIcon size={17} color={colors.textDim} /> : <ChatIcon size={17} color={colors.inkOnAmber} />}
+            <ChatIcon size={17} color={colors.inkOnAmber} />
           </Pressable>
-        )}
+        ) : null}
       </View>
-
-      {/* Le info del gruppo in una riga sola: dove si va e quanto manca.
-          Tocca e si apre Info gruppo, dove si scrivono. Compare solo se
-          c'è qualcosa da dire — la chat deve restare la chat. */}
-      {infoLabel && mode === 'chat' ? (
-        <Pressable onPress={onOpenInfo} style={[styles.infoStrip, { backgroundColor: colors.surface }]}>
-          {/* Lo spillo solo quando c'è davvero una meta: senza, è il
-              calendario a dire di che informazione si tratta. */}
-          {infoHasPlace ? (
-            <MapIcon size={15} color={colors.teal} strokeWidth={1.9} />
-          ) : (
-            <CalendarIcon size={15} color={colors.amber} strokeWidth={1.9} />
-          )}
-          <Text style={[styles.infoStripText, { color: colors.text }]} numberOfLines={1}>
-            {infoLabel}
-          </Text>
-          <ChevronIcon size={14} color={colors.textFaint} />
-        </Pressable>
       ) : null}
 
-      {loadError ? <LoadError what={t.erroreCaricamento.messaggi} onRetry={loadAll} /> : null}
+      {offlineDal ? (
+        <SenzaRete dal={offlineDal} onRetry={loadAll} />
+      ) : loadError ? (
+        <LoadError what={t.erroreCaricamento.messaggi} onRetry={loadAll} />
+      ) : null}
 
       {mode === 'archive' ? (
         <ChatArchive
@@ -1102,15 +1272,35 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
           onOpen={(id) => {
             setSearchQuery('');
             setJumpTo(id);
-            setMode('chat');
+            onStrumento('chat');
           }}
         />
       ) : (
         <>
-          {messages.length === 0 ? (
+          {!pronta && !loadError ? (
+            <View style={styles.empty}>
+              <InCaricamento />
+            </View>
+          ) : messages.length === 0 ? (
             <View style={styles.empty}>
               {/* Con l’avviso d’errore sopra, «non c’è niente» sarebbe falso. */}
-              {loadError ? null : (
+              {loadError ? null : soloIo ? (
+                // Un gruppo con una persona sola non è ancora un gruppo: la
+                // prima cosa da fare è far entrare qualcuno, non scrivere.
+                <>
+                  <View style={[styles.soloIcona, { backgroundColor: colors.surface }]}>
+                    <UsersIcon size={28} color={colors.textDim} strokeWidth={1.8} />
+                  </View>
+                  <Text style={[styles.soloTitolo, { color: colors.text }]}>{t.chat.soloTuTitolo}</Text>
+                  <Text style={[styles.emptyText, styles.soloTesto, { color: colors.textDim }]}>{t.chat.soloTuTesto}</Text>
+                  {onInvita ? (
+                    <Pressable accessibilityRole="button" onPress={onInvita} style={[styles.soloBtn, { backgroundColor: colors.amber }]}>
+                      <ShareIcon size={16} color={colors.inkOnAmber} />
+                      <Text style={[styles.soloBtnText, { color: colors.inkOnAmber }]}>{t.chat.soloTuInvita}</Text>
+                    </Pressable>
+                  ) : null}
+                </>
+              ) : (
                 <>
                   <ChatIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
                   <Text style={[styles.emptyText, { color: colors.textFaint }]}>
@@ -1147,16 +1337,19 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
 
           {replyingTo ? (
             <View style={[styles.replyBar, { backgroundColor: colors.surface }]}>
-              <View style={[styles.replyBarStripe, { backgroundColor: colors.teal }]} />
+              <View style={[styles.replyBarStripe, { backgroundColor: colorForUser(roster[replyingTo.userId] ?? t.segnaposto.utente) }]} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.replyBarAuthor, { color: colors.teal }]} numberOfLines={1}>
+                <Text
+                  style={[styles.replyBarAuthor, { color: inchiostroPersona(roster[replyingTo.userId] ?? t.segnaposto.utente, colors.surface) }]}
+                  numberOfLines={1}
+                >
                   {roster[replyingTo.userId] ?? t.segnaposto.utente}
                 </Text>
                 <Text style={[styles.replyBarText, { color: colors.textDim }]} numberOfLines={1}>
                   {parsePlaceMessage(replyingTo.text)?.name ?? replyingTo.text ?? t.segnaposto.allegato}
                 </Text>
               </View>
-              <Pressable onPress={() => setReplyingTo(null)} hitSlop={8} style={{ padding: 4 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.annullaRisposta} onPress={() => setReplyingTo(null)} hitSlop={8} style={{ padding: 4 }}>
                 <CloseIcon size={14} color={colors.textFaint} />
               </Pressable>
             </View>
@@ -1168,24 +1361,49 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
             </View>
           ) : null}
 
+          {vocaleNonInviato && !recording ? (
+            <View style={[styles.replyBar, { backgroundColor: colors.surface }]}>
+              <MicIcon size={16} color={colors.danger} />
+              <Text style={[styles.vocaleFermo, { color: colors.text }]} numberOfLines={1}>
+                {t.chat.vocaleNonInviato(formatSeconds(vocaleNonInviato.durationSeconds))}
+              </Text>
+              <Pressable accessibilityRole="button" onPress={() => setVocaleNonInviato(null)} hitSlop={8}>
+                <Text style={[styles.vocaleAzione, { color: colors.textDim }]}>{t.comune.elimina}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button"
+                disabled={uploading}
+                onPress={() => void inviaVocale(vocaleNonInviato.uri, vocaleNonInviato.durationSeconds, vocaleNonInviato.replyToId)}
+                hitSlop={8}
+              >
+                <Text style={[styles.vocaleAzione, { color: colors.amberText }]}>{t.comune.riprova}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           {recording ? (
             <View style={[styles.inputBar, { backgroundColor: colors.surface }]}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.eliminaVocale} hitSlop={5} onPress={annullaRegistrazione} style={[styles.attachBtn, { backgroundColor: colors.surface2 }]}>
+                <TrashIcon size={17} color={colors.danger} />
+              </Pressable>
               <View style={styles.recordingRow}>
                 <View style={styles.recordingDot} />
                 <Text style={{ fontSize: 14, color: colors.text }}>{t.chat.registrazione(formatSeconds(recordingSeconds))}</Text>
               </View>
-              <Pressable onPress={toggleRecording} style={[styles.sendBtn, { backgroundColor: colors.amber }]}>
-                <StopIcon size={17} color={colors.inkOnAmber} />
+              {/* Lo stesso tasto che lo ha fatto partire, ora con la freccia:
+                  si vede che fermandolo il vocale parte. */}
+              <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.inviaVocale} hitSlop={5} onPress={toggleRecording} style={[styles.sendBtn, { backgroundColor: colors.amber }]}>
+                <SendIcon size={18} color={colors.inkOnAmber} />
               </Pressable>
             </View>
           ) : (
             <View style={[styles.inputBar, { backgroundColor: colors.surface }]}>
-              <Pressable
+              <Pressable accessibilityRole="button"
                 onPress={() => {
                   loadGroupStuff();
                   setAttachMenuOpen(true);
                 }}
                 disabled={uploading}
+                hitSlop={5}
                 style={[styles.attachBtn, { backgroundColor: colors.surface2, opacity: uploading ? 0.5 : 1 }]}
                 accessibilityLabel={t.chat.allega}
               >
@@ -1202,7 +1420,10 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
                 onSubmitEditing={send}
               />
               <Pressable
-                onPress={draft.trim() ? send : toggleRecording}
+                accessibilityRole="button"
+                accessibilityLabel={draft.trim() ? t.accessibilita.invia : t.accessibilita.registra}
+                hitSlop={5}
+                onPress={inviaORegistra}
                 disabled={uploading}
                 style={[styles.sendBtn, { backgroundColor: colors.amber, opacity: uploading ? 0.5 : 1 }]}
               >
@@ -1227,7 +1448,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
       />
 
       <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-        <Pressable style={styles.previewBackdrop} onPress={() => setPreviewImage(null)}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.chiudiFoto} style={styles.previewBackdrop} onPress={() => setPreviewImage(null)}>
           {previewImage ? <Image source={{ uri: previewImage }} style={styles.previewImage} resizeMode="contain" /> : null}
         </Pressable>
       </Modal>
@@ -1253,6 +1474,11 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
         onReport={segnala}
         onBlock={blocca}
         onCopied={() => toast.show(t.chat.testoCopiato)}
+        onDelete={
+          selezionato && selezionato.userId === session?.user.id && !selezionato.pollId && !selezionato.id.startsWith('temp-')
+            ? () => eliminaMessaggio(selezionato)
+            : undefined
+        }
       />
 
       <ChatAttachSheet
@@ -1261,8 +1487,7 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
         pins={pins}
         categoryFor={placeCategoryFor}
         links={links}
-        onPhoto={() => pickAttachment('images')}
-        onVideo={() => pickAttachment('videos')}
+        onMedia={pickAttachment}
         onDocument={pickDocument}
         onPlace={sendPlace}
         onLink={sendSavedLink}
@@ -1275,8 +1500,6 @@ export function ChatTab({ groupId, roster, group, onOpenInfo }: ChatTabProps) {
 
 const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
-  infoStrip: { flexDirection: 'row', alignItems: 'center', gap: 9, marginHorizontal: 16, marginBottom: 8, height: 42, borderRadius: RADIUS.sm, paddingHorizontal: 12 },
-  infoStripText: { flex: 1, fontSize: 13, fontWeight: '700' },
   search: { flex: 1, height: 40, borderRadius: RADIUS.sm, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11 },
   searchInput: { flex: 1, fontSize: 13.5, paddingVertical: 0 },
   searchCounter: { fontSize: 11.5, fontWeight: '700' },
@@ -1323,8 +1546,15 @@ const styles = StyleSheet.create({
   reactionChipText: { fontSize: 11.5, fontWeight: '700' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
   emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 240, lineHeight: 18 },
+  soloIcona: { width: 60, height: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  soloTitolo: { fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  soloTesto: { maxWidth: 280, fontSize: 13.5, lineHeight: 19 },
+  soloBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 46, paddingHorizontal: 22, borderRadius: 999, marginTop: 8 },
+  soloBtnText: { fontSize: 14.5, fontWeight: '800' },
   replyBar: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 14, marginBottom: 6, borderRadius: RADIUS.sm },
   replyBarStripe: { width: 3, alignSelf: 'stretch', borderRadius: 2 },
+  vocaleFermo: { flex: 1, fontSize: 13, fontWeight: '700' },
+  vocaleAzione: { fontSize: 13, fontWeight: '800' },
   replyBarAuthor: { fontSize: 12, fontWeight: '700' },
   replyBarText: { fontSize: 12.5, marginTop: 1 },
   typingRow: { paddingHorizontal: 16, paddingTop: 6 },
@@ -1347,7 +1577,6 @@ const styles = StyleSheet.create({
   sendBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   previewBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' },
   previewImage: { width: '100%', height: '80%' },
-  sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 14, textAlign: 'center' },
   emojiRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 10 },
   emojiBtn: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
   emojiBtnText: { fontSize: 28 },

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Share, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Share, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { StarIcon, MapIcon, ShareIcon, TrashIcon, BackIcon, CheckIcon, ChatIcon } from '@/components/Icon';
@@ -70,7 +71,7 @@ export function LinkActionsSheet({
     danger?: boolean;
     onPress: () => void;
   }) => (
-    <Pressable onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
       {icon}
       <Text style={[styles.itemText, { color: danger ? colors.danger : colors.text }]}>{label}</Text>
     </Pressable>
@@ -89,7 +90,7 @@ export function LinkActionsSheet({
     return (
       <BottomSheet visible onClose={onClose}>
         <View style={styles.stepTitleRow}>
-          <Pressable onPress={() => setStep('menu')} hitSlop={10}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setStep('menu')} hitSlop={10}>
             <BackIcon size={20} color={colors.textDim} />
           </Pressable>
           <Text style={[styles.stepTitle, { color: colors.text }]}>{t.menuLink.spostaIn}</Text>
@@ -97,7 +98,7 @@ export function LinkActionsSheet({
         {categories.map((c) => {
           const current = c.id === link.categoryId;
           return (
-            <Pressable
+            <Pressable accessibilityRole="button"
               key={c.id}
               onPress={() => (current ? setStep('menu') : run(() => onMove(link, c.id)))}
               style={[styles.item, { borderTopColor: colors.border }]}
@@ -125,7 +126,7 @@ export function LinkActionsSheet({
     return (
       <BottomSheet visible onClose={onClose}>
         <View style={styles.stepTitleRow}>
-          <Pressable onPress={() => setStep('menu')} hitSlop={10}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setStep('menu')} hitSlop={10}>
             <BackIcon size={20} color={colors.textDim} />
           </Pressable>
           <Text style={[styles.stepTitle, { color: colors.text }]}>{t.menuLink.mandaInChat}</Text>
@@ -141,7 +142,7 @@ export function LinkActionsSheet({
           maxLength={500}
           autoFocus
         />
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={send}
           disabled={sending}
           style={[styles.sendBtn, { backgroundColor: colors.amber, opacity: sending ? 0.6 : 1 }]}
@@ -164,10 +165,10 @@ export function LinkActionsSheet({
           {t.menuLink.eliminaTesto}
         </Text>
         <View style={styles.actions}>
-          <Pressable onPress={() => setStep('menu')} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
+          <Pressable accessibilityRole="button" onPress={() => setStep('menu')} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
-          <Pressable onPress={() => run(() => onDelete(link))} style={[styles.btn, { backgroundColor: colors.danger }]}>
+          <Pressable accessibilityRole="button" onPress={() => run(() => onDelete(link))} style={[styles.btn, { backgroundColor: colors.danger }]}>
             <Text style={{ color: '#fff', fontWeight: '700' }}>{t.comune.elimina}</Text>
           </Pressable>
         </View>
@@ -179,7 +180,7 @@ export function LinkActionsSheet({
     <BottomSheet visible onClose={onClose}>
       {header}
       <Item
-        icon={<StarIcon size={18} color={colors.amber} filled={link.isFavorite} />}
+        icon={<StarIcon size={18} color={colors.amberText} filled={link.isFavorite} />}
         label={link.isFavorite ? t.menuLink.togliPreferiti : t.menuLink.aggiungiPreferiti}
         onPress={() => run(() => onToggleFavorite(link))}
       />

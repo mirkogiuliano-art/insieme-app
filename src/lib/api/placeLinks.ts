@@ -21,7 +21,7 @@ interface PlaceLinkRow {
 
 const SELECT_COLUMNS = 'id, pin_id, link_id, created_by, created_at';
 
-function toRaw(row: PlaceLinkRow): RawPlaceLink {
+export function toRaw(row: PlaceLinkRow): RawPlaceLink {
   return {
     id: row.id,
     pinId: row.pin_id,

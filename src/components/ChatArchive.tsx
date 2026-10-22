@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, SectionList, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, SectionList, ScrollView, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme } from '@/theme/theme';
 import { FilterChip } from '@/components/FilterChip';
 import { PlayIcon, FileIcon, MicIcon, PollIcon } from '@/components/Icon';
@@ -59,7 +60,7 @@ function Tile({ message, onPress }: { message: RawMessage; onPress: () => void }
   const kind = archiveKindOf(message)!;
   const url = message.text ? firstUrl(message.text) : null;
   return (
-    <Pressable onPress={onPress} style={[styles.tile, { backgroundColor: colors.surface2 }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.tile, { backgroundColor: colors.surface2 }]}>
       {kind === 'media' && message.attachmentType === 'image' ? (
         <Image source={{ uri: message.attachmentUrl! }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       ) : kind === 'media' ? (

@@ -16,7 +16,7 @@ interface ReactionRow {
 
 const SELECT_COLUMNS = 'id, message_id, user_id, emoji';
 
-function toRaw(row: ReactionRow): RawReaction {
+export function toRaw(row: ReactionRow): RawReaction {
   return { id: row.id, messageId: row.message_id, userId: row.user_id, emoji: row.emoji };
 }
 

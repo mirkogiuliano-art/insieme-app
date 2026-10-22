@@ -23,7 +23,7 @@
 
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { dizionario } from '@/i18n';
+import { dizionario, messaggioAuth } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
 
 /** L'id OAuth «Web» di Google Cloud: è quello che Supabase conosce, e il
@@ -83,7 +83,7 @@ async function accediNativo(): Promise<EsitoGoogle> {
     const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
     if (error) {
       segnalaErrore(error, 'accesso.google');
-      return { esito: 'errore', messaggio: error.message || e.generico };
+      return { esito: 'errore', messaggio: messaggioAuth(error) };
     }
     return { esito: 'dentro' };
   } catch (err) {
@@ -110,7 +110,7 @@ async function accediWeb(): Promise<EsitoGoogle> {
   });
   // Se è andata, la pagina è già partita verso Google: quello che succede
   // dopo lo raccoglie il client al ritorno.
-  if (error) return { esito: 'errore', messaggio: error.message || dizionario().erroriAuth.generico };
+  if (error) return { esito: 'errore', messaggio: messaggioAuth(error) };
   return { esito: 'dentro' };
 }
 

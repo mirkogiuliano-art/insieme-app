@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { groupColor } from '@/lib/appStore';
 import { listRoster } from '@/lib/api/groupMembers';
 import { fitFontSize } from '@/lib/fitText';
@@ -10,11 +11,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme, FONT_ROUNDED } from '@/theme/theme';
 import { useAuth } from '@/lib/authStore';
 import { useAppStore } from '@/lib/appStore';
-import { BrokenLinkIcon } from '@/components/Icon';
+import { BrokenLinkIcon, CloudOffIcon } from '@/components/Icon';
 import { redeemInvite } from '@/lib/api/invites';
 import { withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { useT } from '@/i18n';
+import { eProblemaDiRete } from '@/lib/errori';
 
 /**
  * Schermata di atterraggio di un link d'invito — l'unico modo per entrare
@@ -34,7 +36,11 @@ export default function InviteScreen() {
   const { session, ready: authReady, profile, setPendingInviteToken } = useAuth();
   const { addGroup } = useAppStore();
 
-  const [error, setError] = useState<string | null>(null);
+  /** Perché l'invito non è andato. Senza rete l'invito resta valido e si
+   * riprova; «non vale più» solo quando lo dice il server. */
+  const [error, setError] = useState<'rete' | 'scaduto' | null>(null);
+  /** Ogni «Riprova» rifà il riscatto. */
+  const [tentativo, setTentativo] = useState(0);
   /** Il gruppo appena raggiunto, e chi c'è già: si mostra un attimo di
    * benvenuto invece di saltare dritti dentro senza dire niente. */
   const [joined, setJoined] = useState<{ group: Group; others: string[] } | null>(null);
@@ -72,11 +78,18 @@ export default function InviteScreen() {
         setJoined({ group, others });
       })
       .catch((err) => {
+        // Con la rete debole l'invito non si butta: prima ogni errore
+        // diventava «non vale più», e la causa detta era falsa.
+        if (eProblemaDiRete(err)) {
+          redeeming.current = false;
+          setError('rete');
+          return;
+        }
         setPendingInviteToken(null);
-        setError((err as { message?: string })?.message || t.invito.nonValido);
+        setError('scaduto');
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authReady, session, profile?.displayName, inviteToken]);
+  }, [authReady, session, profile?.displayName, inviteToken, tentativo]);
 
   if (joined) {
     const tint = groupColor(joined.group);
@@ -102,17 +115,53 @@ export default function InviteScreen() {
             <View style={[styles.card, { backgroundColor: tint }]}>
               <View style={styles.cardBlob} />
               <View style={{ flex: 1 }} onLayout={(e) => setCardWidth(e.nativeEvent.layout.width)}>
-                <Text style={{ fontFamily: FONT_ROUNDED, fontSize: size, lineHeight: Math.round(size * 1.2), color: ink }} numberOfLines={1}>
+                <Text maxFontSizeMultiplier={1} style={{ fontFamily: FONT_ROUNDED, fontSize: size, lineHeight: Math.round(size * 1.2), color: ink }} numberOfLines={1}>
                   {joined.group.name}
                 </Text>
               </View>
             </View>
             <Text style={[styles.sub, { color: colors.textDim }]}>{who}</Text>
-            <Pressable
+            <Pressable accessibilityRole="button"
               onPress={() => router.replace(`/group/${joined.group.id}`)}
               style={[styles.btn, { backgroundColor: colors.amber }]}
             >
               <Text style={[styles.btnText, { color: colors.inkOnAmber }]}>{t.invito.apriGruppo}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error === 'rete') {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+        <ScreenGlow />
+        <View style={styles.center}>
+          <View style={styles.column}>
+            <View style={[styles.bigIcon, { backgroundColor: colors.surface }]}>
+              <CloudOffIcon size={32} color={colors.textDim} />
+            </View>
+            <Text style={[styles.title, { color: colors.text }]}>{t.invito.reteTitolo}</Text>
+            <Text style={[styles.sub, { color: colors.textDim }]}>{t.invito.reteTesto}</Text>
+            <Pressable accessibilityRole="button"
+              onPress={() => {
+                setError(null);
+                setTentativo((n) => n + 1);
+              }}
+              style={[styles.btn, { backgroundColor: colors.amber }]}
+            >
+              <Text style={[styles.btnText, { color: colors.inkOnAmber }]}>{t.comune.riprova}</Text>
+            </Pressable>
+            {/* Tornando ai gruppi l'invito si lascia: tenendolo da parte,
+                la home riporterebbe subito qui. */}
+            <Pressable accessibilityRole="button"
+              onPress={() => {
+                setPendingInviteToken(null);
+                router.replace('/');
+              }}
+            >
+              <Text style={[styles.link, { color: colors.textDim }]}>{t.invito.tornaAiGruppi}</Text>
             </Pressable>
           </View>
         </View>
@@ -133,13 +182,13 @@ export default function InviteScreen() {
             <Text style={[styles.sub, { color: colors.textDim }]}>
               {t.invito.scadutoTesto}
             </Text>
-            <Pressable
+            <Pressable accessibilityRole="button"
               onPress={() => router.replace({ pathname: '/', params: { nuovo: 'invito' } })}
               style={[styles.btn, { backgroundColor: colors.surface }]}
             >
               <Text style={[styles.btnText, { color: colors.text }]}>{t.invito.incollaAltro}</Text>
             </Pressable>
-            <Pressable onPress={() => router.replace('/')}>
+            <Pressable accessibilityRole="button" onPress={() => router.replace('/')}>
               <Text style={[styles.link, { color: colors.textDim }]}>{t.invito.tornaAiGruppi}</Text>
             </Pressable>
           </View>
@@ -152,7 +201,7 @@ export default function InviteScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <ScreenGlow />
       <View style={styles.center}>
-        <ActivityIndicator color={colors.amber} />
+        <ActivityIndicator color={colors.amberText} />
         <Text style={[styles.sub, { color: colors.textDim }]}>{t.invito.apertura}</Text>
       </View>
     </SafeAreaView>

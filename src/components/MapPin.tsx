@@ -39,11 +39,11 @@ type Icona = keyof typeof ICONE | 'punto';
  * dal nome e, quando non si capisce, si ripiega su un punto — che è
  * meglio di un'icona sbagliata. */
 const PAROLE: [Icona, string[]][] = [
-  ['mangiare', ['ristorant', 'trattoria', 'pizzer', 'osteria', 'cena', 'pranzo', 'mangiare', 'cibo', 'sushi', 'food']],
-  ['bere', ['bar', 'aperitiv', 'drink', 'cocktail', 'pub', 'caff', 'birr', 'vino', 'vini', 'enotec']],
-  ['dormire', ['dormire', 'hotel', 'albergo', 'ostello', 'alloggio', 'appartament', 'casa', 'case']],
-  ['comprare', ['negoz', 'shopping', 'spesa', 'mercat', 'outlet', 'compr']],
-  ['vedere', ['visitar', 'vedere', 'muse', 'monument', 'chies', 'parco', 'parchi', 'panoram', 'attrazion', 'spiagg']],
+  ['mangiare', ['ristorant', 'trattoria', 'pizzer', 'osteria', 'cena', 'pranzo', 'mangiare', 'cibo', 'sushi', 'food', 'restaurant', 'eat', 'dinner', 'lunch', 'breakfast', 'brunch', 'pizza']],
+  ['bere', ['bar', 'aperitiv', 'drink', 'cocktail', 'pub', 'caff', 'birr', 'vino', 'vini', 'enotec', 'coffee', 'cafe', 'café', 'wine', 'beer', 'brewer']],
+  ['dormire', ['dormire', 'hotel', 'albergo', 'ostello', 'alloggio', 'appartament', 'casa', 'case', 'hostel', 'apartment', 'sleep', 'stay', 'lodging']],
+  ['comprare', ['negoz', 'shopping', 'spesa', 'mercat', 'outlet', 'compr', 'shop', 'market', 'store', 'buy']],
+  ['vedere', ['visitar', 'vedere', 'muse', 'monument', 'chies', 'parco', 'parchi', 'panoram', 'attrazion', 'spiagg', 'visit', 'see', 'museum', 'church', 'park', 'view', 'beach', 'sight', 'attraction']],
 ];
 
 /**

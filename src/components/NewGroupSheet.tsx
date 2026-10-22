@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import * as Clipboard from 'expo-clipboard';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
@@ -93,7 +94,7 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
       <Text style={[styles.title, { color: colors.text }]}>{t.nuovoGruppo.titolo}</Text>
       <View style={[styles.seg, { backgroundColor: colors.surface2 }]}>
         {(['create', 'join'] as const).map((k) => (
-          <Pressable key={k} onPress={() => setTab(k)} style={[styles.segBtn, tab === k && { backgroundColor: colors.amber }]}>
+          <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: tab === k }} onPress={() => setTab(k)} style={[styles.segBtn, tab === k && { backgroundColor: colors.amber }]}>
             <Text style={[styles.segText, { color: tab === k ? colors.inkOnAmber : colors.textDim }]}>
               {k === 'create' ? t.nuovoGruppo.crea : t.nuovoGruppo.entra}
             </Text>
@@ -115,9 +116,13 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
           />
           <Text style={[styles.label, { color: colors.textFaint }]}>{t.nuovoGruppo.colore}</Text>
           <View style={styles.swatches}>
-            {GROUP_PALETTE.map((c) => (
+            {GROUP_PALETTE.map((c, i) => (
               <Pressable
                 key={c}
+                accessibilityRole="button"
+                accessibilityLabel={t.accessibilita.colore(i + 1, GROUP_PALETTE.length)}
+                accessibilityState={{ selected: color === c }}
+                hitSlop={6}
                 onPress={() => setColor(c)}
                 style={[styles.swatch, { backgroundColor: c, borderColor: color === c ? colors.text : 'transparent' }]}
               >
@@ -130,6 +135,7 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
             <View style={styles.previewBlob} />
             <View style={{ flex: 1 }} onLayout={(e) => setPreviewWidth(e.nativeEvent.layout.width)}>
               <Text
+                maxFontSizeMultiplier={1}
                 style={{ fontFamily: FONT_ROUNDED, fontSize, lineHeight: Math.round(fontSize * 1.2), color: ink, opacity: name.trim() ? 1 : 0.55 }}
                 numberOfLines={1}
               >
@@ -138,7 +144,7 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
             </View>
           </View>
           {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={create}
             disabled={!name.trim() || creating}
             style={[styles.primary, { backgroundColor: colors.amber, opacity: !name.trim() || creating ? 0.5 : 1 }]}
@@ -156,7 +162,7 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
       ) : (
         <>
           {copiedToken ? (
-            <Pressable
+            <Pressable accessibilityRole="button"
               onPress={() => {
                 onClose();
                 onJoin(copiedToken);
@@ -164,10 +170,10 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
               style={[styles.copied, { borderColor: colors.amber, backgroundColor: colors.amber + '14' }]}
             >
               <View style={[styles.copiedIcon, { backgroundColor: colors.surface2 }]}>
-                <UsersIcon size={20} color={colors.amber} strokeWidth={2} />
+                <UsersIcon size={20} color={colors.amberText} strokeWidth={2} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.copiedLabel, { color: colors.amber }]}>{t.nuovoGruppo.hoCopiato}</Text>
+                <Text style={[styles.copiedLabel, { color: colors.amberText }]}>{t.nuovoGruppo.hoCopiato}</Text>
                 <Text style={[styles.copiedText, { color: colors.text }]}>{t.nuovoGruppo.toccaPerEntrare}</Text>
               </View>
             </Pressable>
@@ -189,7 +195,7 @@ export function NewGroupSheet({ visible, onClose, onCreate, onJoin, startOn }: N
             />
           </View>
           {pasteError ? <Text style={[styles.error, { color: colors.danger }]}>{pasteError}</Text> : null}
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={() => join(pasted)}
             disabled={!pasted.trim()}
             style={[styles.primary, { backgroundColor: colors.amber, opacity: pasted.trim() ? 1 : 0.5 }]}

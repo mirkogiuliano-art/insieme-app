@@ -32,7 +32,7 @@ interface LinkRow {
 
 const SELECT_COLUMNS = 'id, user_id, url, title, platform, label, thumb, category_id, is_favorite, created_at';
 
-function toRaw(row: LinkRow): RawLink {
+export function toRaw(row: LinkRow): RawLink {
   return {
     id: row.id,
     userId: row.user_id,

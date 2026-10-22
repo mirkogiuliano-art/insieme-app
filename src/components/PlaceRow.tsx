@@ -1,6 +1,8 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme } from '@/theme/theme';
+import { useT } from '@/i18n';
 import { LinkIcon, MoreIcon } from '@/components/Icon';
 import { PlaceTile } from '@/components/MapPin';
 import type { RawPin } from '@/lib/api/pins';
@@ -32,6 +34,7 @@ export function PlaceRow({
   onOpenMenu: () => void;
 }) {
   const { colors } = useTheme();
+  const t = useT();
   return (
     <Pressable onPress={onPress} onLongPress={onOpenMenu} style={styles.row}>
       <PlaceTile color={categoryColor} categoryName={categoryName} size={52} />
@@ -61,6 +64,8 @@ export function PlaceRow({
         }}
         hitSlop={10}
         style={styles.more}
+        accessibilityRole="button"
+        accessibilityLabel={t.accessibilita.altreAzioni}
       >
         <View style={{ transform: [{ rotate: '90deg' }] }}>
           <MoreIcon size={16} color={colors.textFaint} />

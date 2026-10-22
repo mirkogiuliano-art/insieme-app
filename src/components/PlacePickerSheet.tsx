@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { BottomSheet } from '@/components/BottomSheet';
 import { SearchIcon, CheckIcon } from '@/components/Icon';
@@ -76,7 +77,7 @@ export function PlacePickerSheet({
                 const cat = categoryFor(p);
                 const attached = linkedPinIds.includes(p.id);
                 return (
-                  <Pressable
+                  <Pressable accessibilityRole="button"
                     key={p.id}
                     onPress={() => onToggle(p.id, attached)}
                     style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
@@ -104,7 +105,7 @@ export function PlacePickerSheet({
         </>
       )}
 
-      <Pressable onPress={onClose} style={[styles.done, { backgroundColor: colors.amber }]}>
+      <Pressable accessibilityRole="button" onPress={onClose} style={[styles.done, { backgroundColor: colors.amber }]}>
         <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14.5 }}>{t.posto.fatto}</Text>
       </Pressable>
     </BottomSheet>

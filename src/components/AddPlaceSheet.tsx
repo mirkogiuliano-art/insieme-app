@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import * as Location from 'expo-location';
 import { BottomSheet } from '@/components/BottomSheet';
 import { PlaceTile } from '@/components/MapPin';
@@ -180,7 +181,7 @@ export function AddPlaceSheet({
       <BottomSheet visible={visible} onClose={onClose}>
         <View style={styles.titleRow}>
           {fromSearch ? (
-            <Pressable onPress={() => setStep('search')} hitSlop={10}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setStep('search')} hitSlop={10}>
               <BackIcon size={20} color={colors.textDim} />
             </Pressable>
           ) : null}
@@ -206,7 +207,7 @@ export function AddPlaceSheet({
           {categories.map((c) => {
             const on = categoryId === c.id;
             return (
-              <Pressable
+              <Pressable accessibilityRole="button"
                 key={c.id}
                 onPress={() => setCategoryId(c.id)}
                 style={[styles.cat, { backgroundColor: on ? c.color + '2E' : colors.surface2, borderColor: on ? c.color : 'transparent' }]}
@@ -217,7 +218,7 @@ export function AddPlaceSheet({
             );
           })}
         </View>
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={save}
           disabled={saving}
           style={[styles.save, { backgroundColor: colors.amber, opacity: saving ? 0.6 : 1 }]}
@@ -251,7 +252,7 @@ export function AddPlaceSheet({
           returnKeyType="search"
         />
         {query ? (
-          <Pressable onPress={() => setQuery('')} hitSlop={8}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.cancellaRicerca} onPress={() => setQuery('')} hitSlop={8}>
             <CloseIcon size={13} color={colors.textFaint} />
           </Pressable>
         ) : null}
@@ -268,7 +269,7 @@ export function AddPlaceSheet({
       ) : search.status === 'done' ? (
         <View style={[styles.results, { backgroundColor: colors.surface2 }]}>
           {search.results.map((r, i) => (
-            <Pressable
+            <Pressable accessibilityRole="button"
               key={r.placeId}
               onPress={() => openForm({ lat: r.lat, lng: r.lng, name: r.name, placeId: r.placeId, address: r.address }, true)}
               style={[styles.result, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
@@ -292,17 +293,17 @@ export function AddPlaceSheet({
 
       <Text style={[styles.label, { color: colors.textFaint }]}>{t.nuovoPosto.oppure}</Text>
       <View style={styles.ways}>
-        <Pressable onPress={pickMyPosition} disabled={locating} style={[styles.way, { backgroundColor: colors.surface2, opacity: locating ? 0.6 : 1 }]}>
+        <Pressable accessibilityRole="button" onPress={pickMyPosition} disabled={locating} style={[styles.way, { backgroundColor: colors.surface2, opacity: locating ? 0.6 : 1 }]}>
           {locating ? <ActivityIndicator size="small" color={colors.textDim} /> : <LocateIcon size={20} color={colors.textDim} />}
           <Text style={[styles.wayText, { color: colors.textDim }]}>{t.nuovoPosto.doveSono}</Text>
         </Pressable>
         {onPickOnMap ? (
-          <Pressable onPress={onPickOnMap} style={[styles.way, { backgroundColor: colors.surface2 }]}>
+          <Pressable accessibilityRole="button" onPress={onPickOnMap} style={[styles.way, { backgroundColor: colors.surface2 }]}>
             <MapIcon size={20} color={colors.textDim} />
             <Text style={[styles.wayText, { color: colors.textDim }]}>{t.nuovoPosto.toccaMappa}</Text>
           </Pressable>
         ) : null}
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={() => setPasting((v) => !v)}
           style={[styles.way, { backgroundColor: pasting ? colors.amber + '26' : colors.surface2 }]}
         >
@@ -327,7 +328,7 @@ export function AddPlaceSheet({
               autoCorrect={false}
               onSubmitEditing={applyPasted}
             />
-            <Pressable
+            <Pressable accessibilityRole="button"
               onPress={applyPasted}
               disabled={!pasted.trim()}
               style={[styles.pasteBtn, { backgroundColor: colors.amber, opacity: pasted.trim() ? 1 : 0.45 }]}

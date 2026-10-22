@@ -37,7 +37,10 @@ export async function listRoster(code: string): Promise<Record<string, string>> 
     .from('group_members')
     .select('user_id')
     .eq('group_id', code);
-  if (membersError || !members || members.length === 0) return {};
+  // Un errore si solleva invece di passare per «nessun membro»: chi
+  // chiama può mostrare la copia salvata sul telefono.
+  if (membersError) throw membersError;
+  if (!members || members.length === 0) return {};
 
   const userIds = members.map((m) => m.user_id);
   const { data: profiles, error: profilesError } = await supabase
@@ -45,9 +48,11 @@ export async function listRoster(code: string): Promise<Record<string, string>> 
     .select('id, display_name')
     .in('id', userIds);
 
+  if (profilesError) throw profilesError;
+
   const roster: Record<string, string> = {};
   for (const id of userIds) roster[id] = dizionario().segnaposto.utente;
-  if (!profilesError && profiles) {
+  if (profiles) {
     for (const p of profiles) {
       if (p.display_name) roster[p.id] = p.display_name;
     }
@@ -71,13 +76,18 @@ export async function listLastReads(code: string): Promise<Record<string, number
 
 /** Segna "letto fino ad ora" per l'utente corrente in questo gruppo. */
 export async function updateLastRead(code: string): Promise<void> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return;
+  // La sessione che il telefono ha già, invece di chiedere l'utente al
+  // server: era una richiesta in più a ogni apertura della chat, in coda
+  // davanti ai messaggi. Quale riga si può scrivere lo decide comunque
+  // il database.
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) return;
   const { error } = await supabase
     .from('group_members')
     .update({ last_read_at: new Date().toISOString() })
     .eq('group_id', code)
-    .eq('user_id', auth.user.id);
+    .eq('user_id', userId);
   if (error) throw error;
 }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import Constants from 'expo-constants';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS } from '@/theme/theme';
@@ -26,6 +27,7 @@ import { useDocumenti } from '@/lib/legal';
 import { useLingua, LINGUE, NOMI_LINGUA } from '@/i18n';
 import type { ThemePreference, LanguageName } from '@/types';
 import { segnalaErrore } from '@/lib/sentry';
+import { messaggioErrore } from '@/lib/errori';
 
 /**
  * Le pagine del foglio. Le impostazioni vere sono poche (aspetto e persone
@@ -128,7 +130,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
       await signOut();
     } catch (err) {
       segnalaErrore(err, 'eliminaAccount.errore');
-      setConfirmError((err as { message?: string })?.message || t.eliminaAccount.errore);
+      setConfirmError(messaggioErrore(err, t.eliminaAccount.errore));
     } finally {
       setBusy(false);
     }
@@ -155,7 +157,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
   const PageTitle = ({ title, back }: { title: string; back?: Page }) => (
     <View style={styles.titleRow}>
       {back ? (
-        <Pressable onPress={() => setPage(back)} hitSlop={10} style={styles.backBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setPage(back)} hitSlop={10} style={styles.backBtn}>
           <BackIcon size={20} color={colors.textDim} />
         </Pressable>
       ) : null}
@@ -188,7 +190,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     first?: boolean;
     onPress: () => void;
   }) => (
-    <Pressable
+    <Pressable accessibilityRole="button"
       onPress={onPress}
       style={[styles.row, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}
     >
@@ -223,14 +225,14 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
           <Text style={[styles.confirmError, { color: colors.danger }]}>{confirmError}</Text>
         ) : null}
         <View style={styles.confirmActions}>
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={() => setConfirm(null)}
             disabled={busy}
             style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}
           >
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={c.onConfirm}
             disabled={busy}
             style={[styles.btnPrimary, { backgroundColor: colors.danger, opacity: busy ? 0.6 : 1 }]}
@@ -257,7 +259,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
 
         <View style={styles.profileHero}>
           <View style={[styles.bigAvatar, { backgroundColor: colors.amber }]}>
-            <Text style={[styles.bigAvatarText, { color: colors.inkOnAmber }]}>{initials(displayName)}</Text>
+            <Text maxFontSizeMultiplier={1} style={[styles.bigAvatarText, { color: colors.inkOnAmber }]}>{initials(displayName)}</Text>
           </View>
           <Text style={[styles.heroName, { color: colors.text }]}>{displayName}</Text>
           {session?.user.email ? (
@@ -268,7 +270,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
         <Block>
           <Row
             first
-            icon={<EditIcon size={15} color={colors.amber} strokeWidth={2} />}
+            icon={<EditIcon size={15} color={colors.amberText} strokeWidth={2} />}
             tint={colors.amber}
             label={t.profilo.nome}
             value={displayName}
@@ -346,7 +348,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
           autoFocus
           returnKeyType="done"
         />
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={saveName}
           disabled={!changed || savingName}
           style={[styles.saveBtn, { backgroundColor: colors.amber, opacity: !changed || savingName ? 0.5 : 1 }]}
@@ -381,7 +383,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
                   <Text style={[styles.rowLabel, { color: colors.text }]} numberOfLines={1}>
                     {p.name}
                   </Text>
-                  <Pressable
+                  <Pressable accessibilityRole="button"
                     onPress={async () => {
                       await unblockUser(p.id);
                       setBloccati((prev) => (prev ?? []).filter((x) => x.id !== p.id));
@@ -409,6 +411,8 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     const tone = active ? colors.inkOnAmber : colors.textDim;
     return (
       <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
         onPress={() => setPreference(value)}
         style={[styles.themeOpt, active && { backgroundColor: colors.amber }]}
       >
@@ -430,6 +434,8 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     const active = lingua === value;
     return (
       <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
         onPress={() => {
           if (!active) setLingua(value);
         }}
@@ -449,9 +455,9 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     <BottomSheet visible={visible} onClose={closeSheet}>
       <PageTitle title={t.impostazioni.titolo} />
 
-      <Pressable onPress={() => setPage('profile')} style={[styles.profileCard, { backgroundColor: colors.surface2 }]}>
+      <Pressable accessibilityRole="button" onPress={() => setPage('profile')} style={[styles.profileCard, { backgroundColor: colors.surface2 }]}>
         <View style={[styles.avatar, { backgroundColor: colors.amber }]}>
-          <Text style={[styles.avatarText, { color: colors.inkOnAmber }]}>{initials(displayName)}</Text>
+          <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: colors.inkOnAmber }]}>{initials(displayName)}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>
@@ -534,7 +540,7 @@ const styles = StyleSheet.create({
   themeLabel: { fontSize: 12, fontWeight: '700' },
 
   input: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 },
-  saveBtn: { marginTop: 12, paddingVertical: 13, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  saveBtn: { marginTop: 12, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   unblockBtn: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
   version: { textAlign: 'center', fontSize: 11.5, marginTop: 18, marginBottom: 4 },
 

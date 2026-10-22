@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Share, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Share, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
 import { PlaceTile } from '@/components/MapPin';
 import { useTheme, RADIUS } from '@/theme/theme';
@@ -65,7 +66,7 @@ export function PlaceActionsSheet({
   };
 
   const Item = ({ icon, label, danger, onPress }: { icon: React.ReactNode; label: string; danger?: boolean; onPress: () => void }) => (
-    <Pressable onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
       {icon}
       <Text style={[styles.itemText, { color: danger ? colors.danger : colors.text }]}>{label}</Text>
     </Pressable>
@@ -87,7 +88,7 @@ export function PlaceActionsSheet({
 
   const StepTitle = ({ title }: { title: string }) => (
     <View style={styles.stepTitleRow}>
-      <Pressable onPress={() => setStep('menu')} hitSlop={10}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setStep('menu')} hitSlop={10}>
         <BackIcon size={20} color={colors.textDim} />
       </Pressable>
       <Text style={[styles.stepTitle, { color: colors.text }]}>{title}</Text>
@@ -101,7 +102,7 @@ export function PlaceActionsSheet({
         {categories.map((c) => {
           const current = c.id === pin.categoryId;
           return (
-            <Pressable
+            <Pressable accessibilityRole="button"
               key={c.id}
               onPress={() => (current ? setStep('menu') : run(() => onMove(pin, c.id)))}
               style={[styles.item, { borderTopColor: colors.border }]}
@@ -140,7 +141,7 @@ export function PlaceActionsSheet({
           maxLength={500}
           autoFocus
         />
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={send}
           disabled={sending}
           style={[styles.sendBtn, { backgroundColor: colors.amber, opacity: sending ? 0.6 : 1 }]}
@@ -163,10 +164,10 @@ export function PlaceActionsSheet({
           {t.posto.eliminaConLinkBreve}
         </Text>
         <View style={styles.actions}>
-          <Pressable onPress={() => setStep('menu')} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
+          <Pressable accessibilityRole="button" onPress={() => setStep('menu')} style={[styles.btn, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
-          <Pressable onPress={() => run(() => onDelete(pin))} style={[styles.btn, { backgroundColor: colors.danger }]}>
+          <Pressable accessibilityRole="button" onPress={() => run(() => onDelete(pin))} style={[styles.btn, { backgroundColor: colors.danger }]}>
             <Text style={{ color: '#fff', fontWeight: '700' }}>{t.comune.elimina}</Text>
           </Pressable>
         </View>
@@ -177,7 +178,7 @@ export function PlaceActionsSheet({
   return (
     <BottomSheet visible onClose={onClose}>
       {header}
-      <Item icon={<SendIcon size={17} color={colors.amber} />} label={t.posto.portamiLi} onPress={() => run(() => onNavigate(pin))} />
+      <Item icon={<SendIcon size={17} color={colors.amberText} />} label={t.posto.portamiLi} onPress={() => run(() => onNavigate(pin))} />
       {onShowOnMap ? (
         <Item
           icon={<MapIcon size={18} color={colors.teal} strokeWidth={2} />}

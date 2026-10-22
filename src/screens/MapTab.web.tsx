@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, SectionList } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, ScrollView, SectionList } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import * as Location from 'expo-location';
 import { useTabBarSpace } from '@/lib/tabBarSpace';
 import { useTheme, RADIUS } from '@/theme/theme';
@@ -11,6 +12,7 @@ import { PlaceActionsSheet } from '@/components/PlaceActionsSheet';
 import { AddPlaceSheet, type PlaceCandidate } from '@/components/AddPlaceSheet';
 import { PlaceRow } from '@/components/PlaceRow';
 import { LoadError } from '@/components/LoadError';
+import { InCaricamento } from '@/components/InCaricamento';
 import {
   MapIcon,
   SearchIcon,
@@ -53,6 +55,10 @@ import {
 } from '@/lib/api/placeCategories';
 import { useT, dizionario } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
+import { messaggioErrore, eProblemaDiRete } from '@/lib/errori';
+import { leggiCopia, salvaCopia, useRiprovaDaSola } from '@/lib/copiaLocale';
+import type { CopiaMappa } from '@/lib/precarica';
+import { SenzaRete } from '@/components/SenzaRete';
 
 /**
  * Versione WEB della sezione mappa.
@@ -118,6 +124,11 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   /** Il posto di cui è aperto il menu delle azioni. */
   const [actionsFor, setActionsFor] = useState<RawPin | null>(null);
   const [loadError, setLoadError] = useState(false);
+  /** Da quando si vede la copia salvata, se il server non ha risposto. */
+  const [offlineDal, setOfflineDal] = useState<number | null>(null);
+  /** Finita la prima lettura, dal server o dalla copia. Prima, una
+   * sezione senza niente sta ancora leggendo, non è vuota. */
+  const [letto, setLetto] = useState(false);
 
   const [addOpen, setAddOpen] = useState(false);
   /** Il punto da cui parte l'aggiunta: pieno quando si è toccata la mappa,
@@ -133,6 +144,14 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   /** Un solo caricamento per tutta la schermata: se una qualsiasi delle
    * letture fallisce si mostra l'avviso invece di elenchi vuoti. Link e
    * collegamenti servono alla scheda del posto e al suo selettore. */
+  /** Arrivati i dati veri, la copia non deve più sovrascriverli. */
+  const daServer = useRef(false);
+  const mostraCopia = (c: CopiaMappa) => {
+    setCategories((p) => (p.length > 0 ? p : c.cats));
+    setPins((p) => (p.length > 0 ? p : c.pinList));
+    setLinks((p) => (p.length > 0 ? p : c.linkList));
+    setPlaceLinks((p) => (p.length > 0 ? p : c.pl));
+  };
   const loadAll = useCallback(async () => {
     try {
       const [cats, pinList, linkList, pl] = await withTimeout(Promise.all([
@@ -146,13 +165,38 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       setLinks(linkList);
       setPlaceLinks(pl);
       setLoadError(false);
+      daServer.current = true;
+      setOfflineDal(null);
+      salvaCopia<CopiaMappa>(session?.user.id, `mappa:${groupId}`, { cats, pinList, linkList, pl });
     } catch (err) {
-      segnalaErrore(err, 'caricamento.posti');
-      setLoadError(true);
+      if (!eProblemaDiRete(err)) segnalaErrore(err, 'caricamento.posti');
+      // Senza rete i posti dell'ultima volta: fuori casa servono proprio quelli.
+      const copia = await leggiCopia<CopiaMappa>(session?.user.id, `mappa:${groupId}`);
+      if (copia) {
+        mostraCopia(copia.dati);
+        setOfflineDal(copia.ts);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
+      }
     }
-  }, [groupId]);
+    setLetto(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, session?.user.id]);
+
+  useRiprovaDaSola(loadError || offlineDal !== null, loadAll);
 
   useEffect(() => {
+    daServer.current = false;
+    // La copia dell'ultima volta compare subito; i dati veri la
+    // sostituiscono appena arrivano. Con la rete lenta o assente si vede
+    // comunque qualcosa.
+    leggiCopia<CopiaMappa>(session?.user.id, `mappa:${groupId}`).then((copia) => {
+      if (copia && !daServer.current) {
+        mostraCopia(copia.dati);
+        setLetto(true);
+      }
+    });
     loadAll();
 
     const unsubCategories = subscribeToCategories(groupId, {
@@ -324,7 +368,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       setManageCat(null);
     } catch (err) {
       segnalaErrore(err, 'mappa.erroreEliminaCategoria');
-      toast.show((err as { message?: string })?.message || t.mappa.erroreEliminaCategoria, 'error');
+      toast.show(messaggioErrore(err, t.mappa.erroreEliminaCategoria), 'error');
     }
   };
 
@@ -368,9 +412,17 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       ? people.map((name) => ({ key: 'p:' + name, heading: { name, color: colorForUser(name) }, data: sorted.filter((p) => authorOf(p) === name) }))
       : effectiveSort === 'near'
         ? [{ key: 'vicini', heading: null, data: sorted }]
-        : categories
-            .map((c) => ({ key: c.id, heading: { name: c.name, color: c.color }, data: sorted.filter((p) => p.categoryId === c.id) }))
-            .filter((s) => s.data.length > 0);
+        : [
+            ...categories.map((c) => ({ key: c.id, heading: { name: c.name, color: c.color }, data: sorted.filter((p) => p.categoryId === c.id) })),
+            // I posti la cui categoria non c'è più (eliminata mentre qualcuno
+            // ne aggiungeva uno, e il database li lascia senza): senza questa
+            // sezione sparirebbero dall'elenco pur restando sulla mappa.
+            {
+              key: 'senza-categoria',
+              heading: { name: t.segnaposto.altro, color: '#75828C' },
+              data: sorted.filter((p) => !categories.some((c) => c.id === p.categoryId)),
+            },
+          ].filter((s) => s.data.length > 0);
 
   // Arrivo dalla targhetta di un link nella sezione Link: centra il posto e
   // ne apre la scheda. I posti possono non essere ancora caricati quando la
@@ -403,12 +455,12 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
             returnKeyType="search"
           />
           {query ? (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.cancellaRicerca} onPress={() => setQuery('')} hitSlop={8}>
               <CloseIcon size={13} color={colors.textFaint} />
             </Pressable>
           ) : null}
         </View>
-        <Pressable onPress={() => openAdd(null)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
+        <Pressable accessibilityRole="button" onPress={() => openAdd(null)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
           <PlusIcon size={13} color={colors.inkOnAmber} />
           <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.mappa.aggiungi}</Text>
         </Pressable>
@@ -430,18 +482,25 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
               dotColor={c.color}
               active={filter === c.id}
               onPress={() => setFilter(c.id)}
-              onEdit={() => setManageCat(c)}
+              // La matita solo sulla categoria scelta: su tutte era rumore.
+              onEdit={filter === c.id ? () => setManageCat(c) : undefined}
             />
           ))}
         </ScrollView>
       </View>
 
-      {loadError ? <LoadError what={t.erroreCaricamento.posti} onRetry={loadAll} /> : null}
+      {offlineDal ? (
+        <SenzaRete dal={offlineDal} onRetry={loadAll} />
+      ) : loadError ? (
+        <LoadError what={t.erroreCaricamento.posti} onRetry={loadAll} />
+      ) : null}
 
       {sorted.length === 0 ? (
         <View style={styles.empty}>
           {/* Con l’avviso d’errore sopra, «non c’è niente» sarebbe falso. */}
-          {loadError ? null : (
+          {loadError ? null : !letto ? (
+            <InCaricamento />
+          ) : (
             <>
               {term ? (
                 <>
@@ -508,6 +567,11 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         onDelete={() => openPin && removePin(openPin.id)}
         startPicking={openPinPicking}
         distance={openPin ? distanceOf(openPin) : null}
+        onMenu={() => {
+          const p = openPin;
+          setOpenPin(null);
+          setActionsFor(p);
+        }}
         onClose={() => setOpenPin(null)}
       />
 
@@ -540,13 +604,13 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       <BottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
         <Text style={[styles.sheetTitle, { color: colors.text }]}>{t.mappa.ordinaPer}</Text>
         {sortOptions.map((k, i) => (
-          <Pressable
+          <Pressable accessibilityRole="button"
             key={k}
             onPress={() => chooseSort(k)}
             style={[styles.sortRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
           >
             <Text style={[styles.sortLabel, { color: colors.text, fontWeight: effectiveSort === k ? '800' : '600' }]}>{SORT_LABELS[k]}</Text>
-            {effectiveSort === k ? <CheckIcon size={17} color={colors.amber} /> : null}
+            {effectiveSort === k ? <CheckIcon size={17} color={colors.amberText} /> : null}
           </Pressable>
         ))}
       </BottomSheet>
@@ -581,7 +645,7 @@ const styles = StyleSheet.create({
   sectionTitle: { flex: 1, fontSize: 11.5, fontWeight: '800', letterSpacing: 0.6 },
   sectionCount: { fontSize: 11.5, fontWeight: '700' },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  sheetTitle: { fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  sheetTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 8 },
   sortRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
   sortLabel: { flex: 1, fontSize: 15 },
 });

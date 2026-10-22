@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { genGroupCode } from '@/lib/utils';
-import { GROUP_PALETTE, type Group } from '@/types';
+import { GROUP_PALETTE, type Group, type MetaLibera } from '@/types';
 import { dizionario } from '@/i18n';
 
 interface GroupRow {
@@ -13,12 +13,16 @@ interface GroupRow {
   starts_on: string | null;
   ends_on: string | null;
   place_pin_id: string | null;
+  meta_nome: string | null;
+  meta_lat: number | null;
+  meta_lng: number | null;
+  meta_maps_url: string | null;
   info_updated_by: string | null;
   info_updated_at: string | null;
 }
 
 const SELECT_COLUMNS =
-  'id, name, color, created_by, created_at, description, starts_on, ends_on, place_pin_id, info_updated_by, info_updated_at';
+  'id, name, color, created_by, created_at, description, starts_on, ends_on, place_pin_id, meta_nome, meta_lat, meta_lng, meta_maps_url, info_updated_by, info_updated_at';
 
 function toGroup(row: GroupRow, joinedAt?: number): Group {
   return {
@@ -32,6 +36,10 @@ function toGroup(row: GroupRow, joinedAt?: number): Group {
     startsOn: row.starts_on,
     endsOn: row.ends_on,
     placePinId: row.place_pin_id,
+    metaLibera:
+      row.meta_nome && row.meta_lat != null && row.meta_lng != null && row.meta_maps_url
+        ? { nome: row.meta_nome, lat: row.meta_lat, lng: row.meta_lng, mapsUrl: row.meta_maps_url }
+        : null,
     infoUpdatedBy: row.info_updated_by,
     infoUpdatedAt: row.info_updated_at ? new Date(row.info_updated_at).getTime() : null,
   };
@@ -91,7 +99,14 @@ export async function setGroupColor(groupId: string, color: string): Promise<voi
  */
 export async function setGroupInfo(
   groupId: string,
-  info: { description: string | null; startsOn: string | null; endsOn: string | null; placePinId: string | null },
+  info: {
+    description: string | null;
+    startsOn: string | null;
+    endsOn: string | null;
+    /** La meta è un posto della mappa o una fuori dalla mappa, mai tutte e due. */
+    placePinId: string | null;
+    metaLibera: MetaLibera | null;
+  },
 ): Promise<void> {
   const { error } = await supabase.rpc('aggiorna_info_gruppo', {
     p_group_id: groupId,
@@ -99,6 +114,10 @@ export async function setGroupInfo(
     p_starts_on: info.startsOn,
     p_ends_on: info.endsOn,
     p_place_pin_id: info.placePinId,
+    p_meta_nome: info.metaLibera?.nome ?? null,
+    p_meta_lat: info.metaLibera?.lat ?? null,
+    p_meta_lng: info.metaLibera?.lng ?? null,
+    p_meta_maps_url: info.metaLibera?.mapsUrl ?? null,
   });
   if (error) throw error;
 }
@@ -120,12 +139,15 @@ export function subscribeToGroup(groupId: string, onChange: (group: Group) => vo
 }
 
 export async function listMyGroups(): Promise<Group[]> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return [];
+  // La sessione salvata sul telefono: con getUser, senza rete sembrava
+  // che non ci fosse nessuno collegato, e quindi nessun gruppo.
+  const { data: sessione } = await supabase.auth.getSession();
+  const user = sessione.session?.user;
+  if (!user) return [];
   const { data, error } = await supabase
     .from('group_members')
     .select(`joined_at, groups(${SELECT_COLUMNS})`)
-    .eq('user_id', auth.user.id)
+    .eq('user_id', user.id)
     .order('joined_at', { ascending: false });
   // Un elenco vuoto per errore è indistinguibile da un elenco davvero
   // vuoto: chi chiama deve poter distinguere i due casi e riprovare.

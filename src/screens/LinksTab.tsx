@@ -1,13 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   TextInput,
-  Pressable,
   StyleSheet,
   ScrollView,
   SectionList,
 } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTabBarSpace } from '@/lib/tabBarSpace';
@@ -20,6 +20,7 @@ import { AddLinkSheet } from '@/components/AddLinkSheet';
 import { LinkActionsSheet } from '@/components/LinkActionsSheet';
 import { LinkRow, LinkTile, type LinkedPlace } from '@/components/LinkCard';
 import { LoadError } from '@/components/LoadError';
+import { InCaricamento } from '@/components/InCaricamento';
 import { PlacePickerSheet } from '@/components/PlacePickerSheet';
 import {
   platformInfo,
@@ -73,6 +74,10 @@ import { colorForUser } from '@/lib/utils';
 import { CATEGORY_PALETTE } from '@/types';
 import { useT, dizionario } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
+import { messaggioErrore, eProblemaDiRete } from '@/lib/errori';
+import { leggiCopia, salvaCopia, useRiprovaDaSola } from '@/lib/copiaLocale';
+import type { CopiaLink } from '@/lib/precarica';
+import { SenzaRete } from '@/components/SenzaRete';
 
 interface LinksTabProps {
   groupId: string;
@@ -139,6 +144,11 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   const [manageCat, setManageCat] = useState<RawLinkCategory | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  /** Da quando si vede la copia salvata, se il server non ha risposto. */
+  const [offlineDal, setOfflineDal] = useState<number | null>(null);
+  /** Finita la prima lettura, dal server o dalla copia. Prima, una
+   * sezione senza niente sta ancora leggendo, non è vuota. */
+  const [letto, setLetto] = useState(false);
 
   // Collegamenti con i posti della mappa.
   const [pins, setPins] = useState<RawPin[]>([]);
@@ -152,6 +162,15 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
 
   /** Un solo caricamento per tutta la schermata: se una qualsiasi delle
    * letture fallisce si mostra l'avviso invece di elenchi vuoti. */
+  /** Arrivati i dati veri, la copia non deve più sovrascriverli. */
+  const daServer = useRef(false);
+  const mostraCopia = (c: CopiaLink) => {
+    setCategories((p) => (p.length > 0 ? p : c.cats));
+    setItems((p) => (p.length > 0 ? p : c.links));
+    setPins((p) => (p.length > 0 ? p : c.pinList));
+    setPlaceCategories((p) => (p.length > 0 ? p : c.placeCats));
+    setPlaceLinks((p) => (p.length > 0 ? p : c.pl));
+  };
   const loadAll = useCallback(async () => {
     try {
       const [cats, links, pinList, placeCats, pl] = await withTimeout(Promise.all([
@@ -167,11 +186,25 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       setPlaceCategories(placeCats);
       setPlaceLinks(pl);
       setLoadError(false);
+      daServer.current = true;
+      setOfflineDal(null);
+      salvaCopia<CopiaLink>(session?.user.id, `link:${groupId}`, { cats, links, pinList, placeCats, pl });
     } catch (err) {
-      segnalaErrore(err, 'caricamento.link');
-      setLoadError(true);
+      if (!eProblemaDiRete(err)) segnalaErrore(err, 'caricamento.link');
+      const copia = await leggiCopia<CopiaLink>(session?.user.id, `link:${groupId}`);
+      if (copia) {
+        mostraCopia(copia.dati);
+        setOfflineDal(copia.ts);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
+      }
     }
-  }, [groupId]);
+    setLetto(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, session?.user.id]);
+
+  useRiprovaDaSola(loadError || offlineDal !== null, loadAll);
 
   useEffect(() => {
     storage.get<LinksView>(VIEW_KEY).then((v) => {
@@ -232,6 +265,16 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   };
 
   useEffect(() => {
+    daServer.current = false;
+    // La copia dell'ultima volta compare subito; i dati veri la
+    // sostituiscono appena arrivano. Con la rete lenta o assente si vede
+    // comunque qualcosa.
+    leggiCopia<CopiaLink>(session?.user.id, `link:${groupId}`).then((copia) => {
+      if (copia && !daServer.current) {
+        mostraCopia(copia.dati);
+        setLetto(true);
+      }
+    });
     loadAll();
 
     const unsubCategories = subscribeToCategories(groupId, {
@@ -523,7 +566,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       closeManageCat();
     } catch (err) {
       segnalaErrore(err, 'link.erroreEliminaCategoria');
-      toast.show((err as { message?: string })?.message || t.link.erroreEliminaCategoria, 'error');
+      toast.show(messaggioErrore(err, t.link.erroreEliminaCategoria), 'error');
     }
   };
 
@@ -578,9 +621,17 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
           heading: { name, color: colorForUser(name) },
           items: filtered.filter((it) => authorOf(it) === name),
         }))
-      : categories
-          .map((c) => ({ key: c.id, heading: { name: c.name, color: c.color }, items: filtered.filter((it) => it.categoryId === c.id) }))
-          .filter((s) => s.items.length > 0);
+      : [
+          ...categories.map((c) => ({ key: c.id, heading: { name: c.name, color: c.color }, items: filtered.filter((it) => it.categoryId === c.id) })),
+          // I link la cui categoria non c'è più (il database li lascia senza
+          // quando una categoria sparisce mentre qualcuno ci salvava un
+          // link): senza questa sezione non si vedrebbero da nessuna parte.
+          {
+            key: 'senza-categoria',
+            heading: categoriaSenzaNome(),
+            items: filtered.filter((it) => !categories.some((c) => c.id === it.categoryId)),
+          },
+        ].filter((s) => s.items.length > 0);
   const listSections = sections.map((s) => ({
     key: s.key,
     heading: s.heading,
@@ -632,12 +683,12 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
             returnKeyType="search"
           />
           {query ? (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.cancellaRicerca} onPress={() => setQuery('')} hitSlop={8}>
               <CloseIcon size={13} color={colors.textFaint} />
             </Pressable>
           ) : null}
         </View>
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={toggleView}
           hitSlop={4}
           style={[styles.viewBtn, { backgroundColor: colors.surface }]}
@@ -645,7 +696,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         >
           {view === 'list' ? <GridIcon size={17} color={colors.textDim} /> : <ListIcon size={17} color={colors.textDim} />}
         </Pressable>
-        <Pressable onPress={() => setAddOpen(true)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
+        <Pressable accessibilityRole="button" onPress={() => setAddOpen(true)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
           <PlusIcon size={13} color={colors.inkOnAmber} />
           <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.link.aggiungi}</Text>
         </Pressable>
@@ -662,7 +713,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
           <FilterChip label={t.link.tutti} active={filter === 'all'} onPress={() => setFilter('all')} />
           <FilterChip
             label={t.link.preferiti}
-            icon={<StarIcon size={12} color={colors.amber} filled={filter === 'favorites'} />}
+            icon={<StarIcon size={12} color={colors.amberText} filled={filter === 'favorites'} />}
             active={filter === 'favorites'}
             onPress={() => setFilter('favorites')}
           />
@@ -673,19 +724,26 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
               dotColor={c.color}
               active={filter === c.id}
               onPress={() => setFilter(c.id)}
-              onEdit={() => openManageCat(c)}
+              // La matita solo sulla categoria scelta: su tutte era rumore.
+              onEdit={filter === c.id ? () => openManageCat(c) : undefined}
             />
           ))}
           <FilterChip label={t.link.nuovaCategoriaChip} dashed onPress={() => setCatModalOpen(true)} />
         </ScrollView>
       </View>
 
-      {loadError ? <LoadError what={t.erroreCaricamento.link} onRetry={loadAll} /> : null}
+      {offlineDal ? (
+        <SenzaRete dal={offlineDal} onRetry={loadAll} />
+      ) : loadError ? (
+        <LoadError what={t.erroreCaricamento.link} onRetry={loadAll} />
+      ) : null}
 
       {filtered.length === 0 ? (
         <View style={styles.empty}>
           {/* Con l’avviso d’errore sopra, «non c’è niente» sarebbe falso. */}
-          {loadError ? null : (
+          {loadError ? null : !letto ? (
+            <InCaricamento />
+          ) : (
             <>
               {term ? (
                 <>
@@ -752,10 +810,10 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
           onSubmitEditing={createCat}
         />
         <View style={styles.sheetActions}>
-          <Pressable onPress={() => setCatModalOpen(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
+          <Pressable accessibilityRole="button" onPress={() => setCatModalOpen(false)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
             <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
           </Pressable>
-          <Pressable onPress={createCat} style={[styles.btnPrimary, { backgroundColor: colors.amber }]}>
+          <Pressable accessibilityRole="button" onPress={createCat} style={[styles.btnPrimary, { backgroundColor: colors.amber }]}>
             <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>{t.link.crea}</Text>
           </Pressable>
         </View>
@@ -766,7 +824,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         itemCount={manageCat ? items.filter((x) => x.categoryId === manageCat.id).length : 0}
         itemLabel={t.categoria.link}
         fallbackName={categories.find((x) => x.id !== manageCat?.id)?.name ?? ''}
-        canDelete={!!manageCat && manageCat.name !== 'Generale' && categories.length > 1}
+        canDelete={!!manageCat && !manageCat.predefinita && categories.length > 1}
         onSave={saveRename}
         onDelete={runDeleteCategory}
         onClose={closeManageCat}
@@ -797,7 +855,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
                 {placeCategories.map((c) => {
                   const sel = mapsPromptCat === c.id;
                   return (
-                    <Pressable
+                    <Pressable accessibilityRole="button"
                       key={c.id}
                       onPress={() => setMapsPromptCat(c.id)}
                       style={[
@@ -813,10 +871,10 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
               </View>
             ) : null}
             <View style={styles.sheetActions}>
-              <Pressable onPress={() => setMapsPrompt(null)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
+              <Pressable accessibilityRole="button" onPress={() => setMapsPrompt(null)} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
                 <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.link.noGrazie}</Text>
               </Pressable>
-              <Pressable
+              <Pressable accessibilityRole="button"
                 onPress={savePlaceFromMaps}
                 disabled={savingPlace}
                 style={[styles.btnPrimary, { backgroundColor: colors.amber, opacity: savingPlace ? 0.6 : 1 }]}
@@ -853,13 +911,13 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       <BottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
         <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 8 }]}>{t.link.ordinaPer}</Text>
         {(Object.keys(SORT_LABELS) as LinksSort[]).map((k, i) => (
-          <Pressable
+          <Pressable accessibilityRole="button"
             key={k}
             onPress={() => chooseSort(k)}
             style={[styles.sortRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
           >
             <Text style={[styles.sortLabel, { color: colors.text, fontWeight: sort === k ? '800' : '600' }]}>{SORT_LABELS[k]}</Text>
-            {sort === k ? <CheckIcon size={17} color={colors.amber} /> : null}
+            {sort === k ? <CheckIcon size={17} color={colors.amberText} /> : null}
           </Pressable>
         ))}
       </BottomSheet>
@@ -888,7 +946,7 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
   emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 260, lineHeight: 18 },
-  sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
+  sheetTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 2 },
   sheetSub: { fontSize: 12.5, marginBottom: 12, lineHeight: 18 },
   mInput: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 13, fontSize: 14.5, marginBottom: 10 },
   sheetActions: { flexDirection: 'row', gap: 10, marginTop: 4 },

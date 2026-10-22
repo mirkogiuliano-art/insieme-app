@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { supabase } from '@/lib/supabase';
+import { rimpicciolisciFoto } from '@/lib/foto';
 
 export type AttachmentKind = 'image' | 'video' | 'audio' | 'file';
 
@@ -43,11 +44,16 @@ async function uploadToStorage(groupId: string, blob: Blob, contentType: string,
  * e ritorna l'URL pubblico pronto da salvare (in messages.attachment_url o
  * in links.url). Il tipo MIME reale del file (`blob.type`) è la fonte più
  * affidabile per l'estensione — su web `localUri` è spesso un `blob:`/`data:`
- * senza nome file riconoscibile. */
+ * senza nome file riconoscibile.
+ *
+ * Le foto partono rimpicciolite (vedi lib/foto.ts); video e audio così
+ * come sono. */
 export async function uploadGroupMedia(groupId: string, localUri: string): Promise<string> {
   const response = await fetch(localUri);
-  const blob = await response.blob();
-  const contentType = blob.type || 'application/octet-stream';
+  const originale = await response.blob();
+  const ridotta = await rimpicciolisciFoto(localUri, originale);
+  const blob = ridotta?.blob ?? originale;
+  const contentType = ridotta?.contentType ?? (originale.type || 'application/octet-stream');
   const ext = EXT_FROM_MIME[contentType] ?? extensionFromUri(localUri) ?? 'bin';
   return uploadToStorage(groupId, blob, contentType, ext);
 }

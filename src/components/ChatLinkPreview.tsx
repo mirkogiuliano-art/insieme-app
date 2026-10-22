@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, Linking } from 'react-native';
+import { View, Text, StyleSheet, Image, Linking } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { PlayIcon } from '@/components/Icon';
 import { LinkFallbackThumb } from '@/components/LinkCard';
@@ -59,7 +60,7 @@ export function ChatLinkPreview({ url, onMenu }: { url: string; own?: boolean; o
   useEffect(() => setBroken(false), [image]);
 
   return (
-    <Pressable
+    <Pressable accessibilityRole="button"
       onPress={(e) => {
         // Senza questo il tocco arriverebbe anche al fumetto e aprirebbe il menu.
         e.stopPropagation?.();

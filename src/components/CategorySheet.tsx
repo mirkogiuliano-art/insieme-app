@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { CheckIcon, TrashIcon } from '@/components/Icon';
@@ -115,10 +116,10 @@ export function CategorySheet({
             {t.categoria.contiene(itemCount, itemLabel, fallbackName)}
           </Text>
           <View style={styles.actions}>
-            <Pressable onPress={() => setConfirming(false)} disabled={busy} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
+            <Pressable accessibilityRole="button" onPress={() => setConfirming(false)} disabled={busy} style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}>
               <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
             </Pressable>
-            <Pressable onPress={remove} disabled={busy} style={[styles.btnPrimary, { backgroundColor: colors.danger, opacity: busy ? 0.6 : 1 }]}>
+            <Pressable accessibilityRole="button" onPress={remove} disabled={busy} style={[styles.btnPrimary, { backgroundColor: colors.danger, opacity: busy ? 0.6 : 1 }]}>
               <Text style={{ color: '#fff', fontWeight: '700' }}>{t.comune.elimina}</Text>
             </Pressable>
           </View>
@@ -137,11 +138,15 @@ export function CategorySheet({
           {/* La stessa tavolozza dei gruppi. Il colore è quello delle
               etichette, dei filtri e — per i posti — dei segnaposto. */}
           <View style={styles.swatches}>
-            {CATEGORY_PALETTE.map((c) => {
+            {CATEGORY_PALETTE.map((c, i) => {
               const on = c.toUpperCase() === color.toUpperCase();
               return (
                 <Pressable
                   key={c}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.accessibilita.colore(i + 1, CATEGORY_PALETTE.length)}
+                  accessibilityState={{ selected: on }}
+                  hitSlop={5}
                   onPress={() => setColor(c)}
                   style={[styles.swatch, { backgroundColor: c, borderColor: on ? colors.text : 'transparent' }]}
                 >
@@ -150,7 +155,7 @@ export function CategorySheet({
               );
             })}
           </View>
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={save}
             disabled={busy || !draft.trim()}
             style={[styles.saveBtn, { backgroundColor: colors.amber, opacity: busy || !draft.trim() ? 0.5 : 1 }]}
@@ -158,7 +163,7 @@ export function CategorySheet({
             <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 14.5 }}>{t.comune.salva}</Text>
           </Pressable>
           {canDelete ? (
-            <Pressable onPress={askDelete} disabled={busy} style={styles.deleteBtn}>
+            <Pressable accessibilityRole="button" onPress={askDelete} disabled={busy} style={styles.deleteBtn}>
               <TrashIcon size={15} color={colors.danger} />
               <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
                 {t.categoria.elimina}

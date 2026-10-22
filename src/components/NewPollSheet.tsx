@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Switch } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
-import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
+import { useTheme, RADIUS } from '@/theme/theme';
 import { PollIcon, CloseIcon, PlusIcon } from '@/components/Icon';
 import { useT } from '@/i18n';
 
@@ -124,7 +125,7 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
                 maxLength={80}
               />
               {options.length > MIN_OPZIONI ? (
-                <Pressable
+                <Pressable accessibilityRole="button"
                   hitSlop={8}
                   onPress={() => setOptions((prev) => prev.filter((_, k) => k !== i))}
                   accessibilityLabel={t.sondaggio.togliRisposta(i + 1)}
@@ -135,7 +136,7 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
             </View>
           ))}
           {options.length < MAX_OPZIONI ? (
-            <Pressable onPress={() => setOptions((prev) => [...prev, ''])} style={styles.addRow}>
+            <Pressable accessibilityRole="button" onPress={() => setOptions((prev) => [...prev, ''])} style={styles.addRow}>
               <PlusIcon size={14} color={colors.lilac} />
               <Text style={{ color: colors.lilac, fontSize: 13.5, fontWeight: '800' }}>{t.sondaggio.aggiungiRisposta}</Text>
             </Pressable>
@@ -160,7 +161,7 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
         {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
       </View>
 
-      <Pressable
+      <Pressable accessibilityRole="button"
         onPress={manda}
         disabled={!pronto || busy}
         style={[styles.primary, { backgroundColor: colors.amber, opacity: !pronto || busy ? 0.5 : 1 }]}
@@ -178,7 +179,7 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
 const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   badge: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: FONT_ROUNDED, fontSize: 21, letterSpacing: -0.3 },
+  title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 14, marginBottom: 8 },
   question: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 14, fontSize: 16, fontWeight: '700' },
   optionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: RADIUS.sm, paddingHorizontal: 14, height: 48 },
@@ -189,5 +190,5 @@ const styles = StyleSheet.create({
   switchLabel: { fontSize: 14.5, fontWeight: '700' },
   switchSub: { fontSize: 12, marginTop: 2 },
   error: { fontSize: 12.5, lineHeight: 18, marginTop: 12 },
-  primary: { marginTop: 16, height: 50, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  primary: { marginTop: 16, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 });

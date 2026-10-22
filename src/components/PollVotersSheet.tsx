@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, FONT_ROUNDED } from '@/theme/theme';
-import { initials, inkOn } from '@/lib/utils';
+import { initials, inkOn, colorForUser } from '@/lib/utils';
 import type { RawPoll, RawVote } from '@/lib/api/polls';
 import { useT } from '@/i18n';
 
@@ -27,6 +28,11 @@ export function PollVotersSheet({ poll, votes, myId, roster, onClose, onCloseePo
   const { colors } = useTheme();
   const t = useT();
   const [closing, setClosing] = useState(false);
+  // Chiudere un sondaggio non si annulla: prima si chiede.
+  const [conferma, setConferma] = useState(false);
+  useEffect(() => {
+    setConferma(false);
+  }, [poll?.id]);
 
   if (!poll) return <BottomSheet visible={false} onClose={onClose}>{null}</BottomSheet>;
 
@@ -65,11 +71,15 @@ export function PollVotersSheet({ poll, votes, myId, roster, onClose, onCloseePo
                   <Text style={[styles.empty, { color: colors.textFaint }]}>{t.sondaggio.nessuno}</Text>
                 ) : (
                   chi.map((v) => {
-                    const nome = v.userId === myId ? t.segnaposto.tu : (roster[v.userId] ?? t.segnaposto.qualcuno);
+                    // Sulla propria riga il nome è "Tu", ma l'avatar resta
+                    // quello di sempre: iniziali e colore come in chat.
+                    const vero = roster[v.userId] ?? t.segnaposto.qualcuno;
+                    const nome = v.userId === myId ? t.segnaposto.tu : vero;
+                    const colore = colorForUser(vero);
                     return (
                       <View key={v.userId} style={styles.person}>
-                        <View style={[styles.avatar, { backgroundColor: colors.lilac }]}>
-                          <Text style={[styles.avatarText, { color: inkOn(colors.lilac) }]}>{initials(nome)}</Text>
+                        <View style={[styles.avatar, { backgroundColor: colore }]}>
+                          <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: inkOn(colore) }]}>{initials(vero)}</Text>
                         </View>
                         <Text style={[styles.personName, { color: colors.text }]}>{nome}</Text>
                       </View>
@@ -83,29 +93,47 @@ export function PollVotersSheet({ poll, votes, myId, roster, onClose, onCloseePo
       </ScrollView>
 
       {mio && !poll.closed ? (
-        <>
-          <Pressable
-            onPress={async () => {
-              setClosing(true);
-              try {
-                await onCloseePoll(poll);
-              } finally {
-                setClosing(false);
-              }
-            }}
-            disabled={closing}
-            style={[styles.close, { backgroundColor: colors.surface2, opacity: closing ? 0.6 : 1 }]}
-          >
-            {closing ? (
-              <ActivityIndicator size="small" color={colors.textDim} />
-            ) : (
+        conferma ? (
+          <View style={[styles.confirm, { backgroundColor: colors.surface2 }]}>
+            <Text style={[styles.confirmTitle, { color: colors.text }]}>{t.sondaggio.chiudereTitolo}</Text>
+            <Text style={[styles.confirmText, { color: colors.textDim }]}>{t.sondaggio.notaChiusura}</Text>
+            <View style={styles.confirmRow}>
+              <Pressable accessibilityRole="button" onPress={() => setConferma(false)} disabled={closing} style={[styles.confirmBtn, { backgroundColor: colors.surface }]}>
+                <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.comune.annulla}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button"
+                onPress={async () => {
+                  setClosing(true);
+                  try {
+                    await onCloseePoll(poll);
+                  } finally {
+                    setClosing(false);
+                  }
+                }}
+                disabled={closing}
+                style={[styles.confirmBtn, { backgroundColor: colors.amber, opacity: closing ? 0.6 : 1 }]}
+              >
+                {closing ? (
+                  <ActivityIndicator size="small" color={colors.inkOnAmber} />
+                ) : (
+                  <Text style={{ color: colors.inkOnAmber, fontWeight: '800' }}>{t.sondaggio.chiudiConferma}</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <>
+            <Pressable accessibilityRole="button"
+              onPress={() => setConferma(true)}
+              style={[styles.close, { backgroundColor: colors.surface2 }]}
+            >
               <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>{t.sondaggio.chiudi}</Text>
-            )}
-          </Pressable>
-          <Text style={[styles.note, { color: colors.textFaint }]}>
-            {t.sondaggio.notaChiusura}
-          </Text>
-        </>
+            </Pressable>
+            <Text style={[styles.note, { color: colors.textFaint }]}>
+              {t.sondaggio.notaChiusura}
+            </Text>
+          </>
+        )
       ) : null}
     </BottomSheet>
   );
@@ -116,6 +144,11 @@ const styles = StyleSheet.create({
   question: { fontFamily: FONT_ROUNDED, fontSize: 21, lineHeight: 25, letterSpacing: -0.3, marginTop: 4 },
   sub: { fontSize: 12.5, marginTop: 4 },
   body: { maxHeight: 420, marginTop: 14 },
+  confirm: { marginTop: 14, borderRadius: 16, padding: 14 },
+  confirmTitle: { fontSize: 15, fontWeight: '800' },
+  confirmText: { fontSize: 12.5, lineHeight: 17, marginTop: 4 },
+  confirmRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  confirmBtn: { flex: 1, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   block: { borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
   blockTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   blockName: { flex: 1, fontSize: 13.5, fontWeight: '800' },

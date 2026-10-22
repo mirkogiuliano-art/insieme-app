@@ -49,7 +49,11 @@ export async function getInviteToken(groupId: string): Promise<string | null> {
     .select('token')
     .eq('group_id', groupId)
     .maybeSingle();
-  if (error || !data) return null;
+  // Un errore non vuol dire «nessun link»: senza rete Info diceva che non
+  // poteva entrare nessuno, e condividendo se ne creava uno nuovo al posto
+  // di quello buono.
+  if (error) throw error;
+  if (!data) return null;
   return (data as { token: string }).token;
 }
 

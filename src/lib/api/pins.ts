@@ -27,7 +27,7 @@ interface PinRow {
 
 const SELECT_COLUMNS = 'id, user_id, lat, lng, name, category_id, maps_url, created_at';
 
-function toRaw(row: PinRow): RawPin {
+export function toRaw(row: PinRow): RawPin {
   return {
     id: row.id,
     userId: row.user_id,

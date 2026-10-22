@@ -1,7 +1,8 @@
 import '@/lib/polyfills';
 import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
-import { Platform, View, Text, Pressable } from 'react-native';
+import { Platform, View, Text } from 'react-native';
+import { Pressable } from '@/components/Tocco';
 import { Stack, router, useNavigationContainerRef, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -146,13 +147,13 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
         {t.testo}
         {sentryAttivo ? `\n${t.arrivato}` : ''}
       </Text>
-      <Pressable
+      <Pressable accessibilityRole="button"
         onPress={retry}
         style={{ marginTop: 10, height: 50, alignSelf: 'stretch', borderRadius: 999, backgroundColor: '#E9A23B', alignItems: 'center', justifyContent: 'center' }}
       >
         <Text style={{ color: '#23190A', fontSize: 15, fontWeight: '800' }}>{t.riprova}</Text>
       </Pressable>
-      <Pressable
+      <Pressable accessibilityRole="button"
         onPress={() => {
           router.replace('/');
           retry();

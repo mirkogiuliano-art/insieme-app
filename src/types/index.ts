@@ -15,6 +15,15 @@ export interface Profile {
   displayName: string | null;
 }
 
+/** Una meta trovata cercando per nome, fuori dalla mappa del gruppo: al
+ * tocco si apre la sua scheda su Google Maps. */
+export interface MetaLibera {
+  nome: string;
+  lat: number;
+  lng: number;
+  mapsUrl: string;
+}
+
 export interface Group {
   id: string; // codice invito a 6 caratteri
   name: string;
@@ -27,8 +36,10 @@ export interface Group {
   description?: string | null;
   startsOn?: string | null; // 'AAAA-MM-GG'
   endsOn?: string | null;
-  /** La meta: un posto gia' salvato nella mappa del gruppo. */
+  /** La meta: un posto gia' salvato nella mappa del gruppo... */
   placePinId?: string | null;
+  /** ...oppure uno trovato cercando, che nella mappa non c'e'. */
+  metaLibera?: MetaLibera | null;
   infoUpdatedBy?: string | null;
   infoUpdatedAt?: number | null;
 }

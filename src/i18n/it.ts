@@ -33,6 +33,35 @@ export const it = {
     elimina: 'Elimina',
   },
 
+  /** Quello che il lettore di schermo (TalkBack) dice dei tasti fatti di
+   * sola icona: senza, li annuncia come «pulsante» e basta. */
+  accessibilita: {
+    menuGruppo: 'Menu del gruppo',
+    profilo: 'Profilo',
+    impostazioni: 'Impostazioni',
+    chiudi: 'Chiudi',
+    cancellaRicerca: 'Cancella la ricerca',
+    altreAzioni: 'Altre azioni',
+    colore: (n: number, totale: number) => `Colore ${n} di ${totale}`,
+    modificaCategoria: (nome: string) => `Modifica «${nome}»`,
+    scollega: 'Togli il collegamento',
+    salvaRiga: 'Salva la riga',
+    invia: 'Invia',
+    registra: 'Registra un messaggio vocale',
+    inviaVocale: 'Invia il vocale',
+    eliminaVocale: 'Elimina il vocale',
+    chiudiRicerca: 'Chiudi la ricerca',
+    annullaRisposta: 'Annulla la risposta',
+    apriFoto: 'Apri la foto',
+    chiudiFoto: 'Chiudi la foto',
+    miaPosizione: 'Mostra dove sono',
+    sezioni: 'Sezioni del gruppo',
+    caricamento: 'Sto caricando',
+    dataInizio: 'Data di inizio',
+    dataFine: 'Data di fine',
+    togliData: 'Togli la data',
+  },
+
   erroreCaricamento: {
     titolo: (cosa: string) => `Non sono riuscito a caricare ${cosa}`,
     sottotitolo: 'Probabilmente è la connessione. I dati non sono andati persi.',
@@ -45,7 +74,7 @@ export const it = {
 
   accesso: {
     slogan: 'Tutto quello che vuoi vivere,\nin un posto solo.',
-    sloganSub: 'Organizza un viaggio con i tuoi amici,\no salva i posti dove vuoi andare.',
+    sloganSub: 'Un viaggio con gli amici, le cene del giovedì,\nun progetto di famiglia: ognuno nel suo gruppo.',
     accedi: 'Accedi',
     registrati: 'Registrati',
     creaAccount: 'Crea l’account',
@@ -66,6 +95,7 @@ export const it = {
     passwordCorta: (n: number) => `La password deve avere almeno ${n} caratteri.`,
     passwordDiverse: 'Le due password non coincidono.',
     accountCreato: 'Account creato! Controlla la tua email per confermarlo, poi accedi qui sotto.',
+    invitoInSospeso: 'Hai un invito per un gruppo: ci entri appena hai fatto l’accesso.',
     // La frase legale è spezzata perché due pezzi sono collegamenti.
     legale1: 'Creando un account accetti le ',
     legaleCondizioni: 'condizioni d’uso',
@@ -87,7 +117,7 @@ export const it = {
 
   recupero: {
     titolo: 'Password dimenticata',
-    sottotitolo: 'Scrivi l’email con cui ti sei registrato: ti mandiamo un link per sceglierne una nuova.',
+    sottotitolo: 'Scrivi l’email del tuo account: ti mandiamo un link per sceglierne una nuova.',
     mandaLink: 'Mandami il link',
     postaTitolo: 'Controlla la posta',
     postaPrima: 'Abbiamo mandato un link a',
@@ -117,6 +147,7 @@ export const it = {
     continua: 'Continua',
     accessoCome: (email: string) => `Accesso come ${email}`,
     nonSeiTu: 'Non sei tu? Esci',
+    errore: 'Non sono riuscito a salvare il nome, riprova.',
   },
 
   home: {
@@ -140,7 +171,7 @@ export const it = {
     invitoTesto: (nome: string, url: string) => `Entra nel gruppo "${nome}" su Insieme:\n${url}`,
     creatoTitolo: 'Gruppo creato',
     creatoTesto: (nome: string) =>
-      `Per far entrare qualcuno in "${nome}" mandagli il link di invito: è l’unico modo per accedere al gruppo. ` +
+      `Per far entrare qualcuno in «${nome}» mandagli il link di invito: è l’unico modo per accedere al gruppo. ` +
       'Puoi disattivarlo quando vuoi da Info gruppo.',
     condividiInvito: 'Condividi invito',
     vaiAlGruppo: 'Vai al gruppo',
@@ -160,33 +191,34 @@ export const it = {
   },
 
   nuovoGruppo: {
-    titolo: 'Nuovo',
+    titolo: 'Nuovo gruppo',
     crea: 'Crea un gruppo',
     entra: 'Entra con un invito',
-    esempioNome: 'Es. Weekend a Lisbona',
+    esempioNome: 'Es. Weekend a Lisbona, Cene del giovedì',
     colore: 'COLORE',
     nomeSegnaposto: 'Nome del gruppo',
     creaBottone: 'Crea il gruppo',
-    notaCrea: 'Dopo avrai il link d’invito da mandare a chi vuoi far entrare.',
+    notaCrea: 'Dopo avrai il link di invito da mandare a chi vuoi far entrare.',
     hoCopiato: 'HAI COPIATO UN INVITO',
     toccaPerEntrare: 'Tocca per entrare nel gruppo',
-    incolla: 'Incolla il link d’invito',
+    incolla: 'Incolla il link di invito',
     incollaAltro: '…oppure incolla un altro link',
     entraBottone: 'Entra nel gruppo',
     notaEntra: 'Il link te lo manda chi è già nel gruppo, da Info gruppo.',
-    nonUnInvito: 'Non sembra un link d’invito di Insieme. Fattelo rimandare da chi è nel gruppo.',
+    nonUnInvito: 'Non sembra un link di invito di Insieme. Fattelo rimandare da chi è nel gruppo.',
   },
 
   menuGruppo: {
     membriN: (n: number) => `${n} ${n === 1 ? 'membro' : 'membri'}`,
     invita: 'Invita qualcuno',
     info: 'Info gruppo e membri',
+    archivio: 'Archivio della chat',
     cambiaColore: 'Cambia colore',
     segnaLetto: 'Segna tutto come letto',
     lascia: 'Lascia il gruppo',
     coloreTitolo: 'Colore del gruppo',
     coloreSotto: 'Cambia per tutti nel gruppo.',
-    ultimoTitolo: 'Sei l’ultimo rimasto',
+    ultimoTitolo: 'Nel gruppo ci sei solo tu',
     ultimoTesto: 'Uscendo, il gruppo verrà eliminato per intero: chat, link, posti e categorie. Non si può annullare.',
     lasciaTitolo: 'Lasciare il gruppo?',
     lasciaTesto: 'Non vedrai più chat, link e posti di questo gruppo. Per rientrare ti servirà un nuovo link di invito.',
@@ -197,7 +229,7 @@ export const it = {
   invito: {
     apertura: 'Sto aprendo l’invito…',
     dentro: 'Sei dentro!',
-    benvenuto: 'Benvenuto nel gruppo',
+    benvenuto: 'Ti diamo il benvenuto nel gruppo',
     soloTu: 'Per ora ci sei solo tu: invita qualcuno da Info gruppo.',
     tiAspetta: (chi: string) => `${chi} ti aspetta.`,
     tiAspettanoDue: (a: string, b: string) => `${a} e ${b} ti aspettano.`,
@@ -208,7 +240,8 @@ export const it = {
       'Chi te l’ha mandato l’ha disattivato, o ne ha creato uno nuovo. Chiedigli di rimandartelo: lo trova in Info gruppo.',
     incollaAltro: 'Incolla un altro invito',
     tornaAiGruppi: 'Torna ai tuoi gruppi',
-    nonValido: 'Invito non valido o revocato.',
+    reteTitolo: 'Non riesco a raggiungere Insieme',
+    reteTesto: 'L’invito è ancora valido. Controlla la connessione e riprova, o riapri il link più tardi.',
   },
 
   lingua: {
@@ -239,9 +272,11 @@ export const it = {
     risultatoDi: (n: number, tot: number) => `${n} di ${tot}`,
     precedente: 'Risultato precedente',
     successivo: 'Risultato successivo',
-    apriArchivio: 'Apri l’archivio',
     tornaChat: 'Torna alla chat',
     vuoto: 'Nessun messaggio ancora. Scrivi il primo per iniziare la conversazione.',
+    soloTuTitolo: 'Ci sei solo tu',
+    soloTuTesto: 'Manda il link d’invito: chi lo apre entra nel gruppo e trova chat, link e posti.',
+    soloTuInvita: 'Invita qualcuno',
     scrivi: 'Scrivi un messaggio',
     allega: 'Manda foto, documenti, posti o link',
     registrazione: (durata: string) => `Registrazione… ${durata}`,
@@ -264,12 +299,14 @@ export const it = {
     erroreSegnalazione: 'Non sono riuscito a inviare la segnalazione.',
     erroreBlocco: 'Non sono riuscito a bloccare questa persona.',
     erroreReazione: 'Non sono riuscito a salvare la reazione.',
+    erroreElimina: 'Non sono riuscito a eliminare il messaggio.',
     erroreAllegato: 'Invio dell’allegato non riuscito, riprova.',
     erroreDocumento: 'Invio del documento non riuscito, riprova.',
-    erroreVocale: 'Invio del vocale non riuscito, riprova.',
-    permessoPosizione: 'Serve il permesso di posizione per mandare dove sei.',
-    permessoFoto: 'Serve il permesso per accedere alle foto.',
-    permessoMicrofono: 'Serve il permesso per usare il microfono.',
+    erroreVocale: 'Il vocale non è partito: è rimasto sotto la chat, puoi riprovare.',
+    vocaleNonInviato: (durata: string) => `Vocale non inviato · ${durata}`,
+    permessoPosizione: 'Per mandare dove sei, consenti a Insieme l’accesso alla posizione nelle impostazioni del telefono.',
+    permessoFoto: 'Per mandare una foto, consenti a Insieme l’accesso alle foto nelle impostazioni del telefono.',
+    permessoMicrofono: 'Per registrare un vocale, consenti a Insieme l’uso del microfono nelle impostazioni del telefono.',
   },
 
   archivio: {
@@ -287,8 +324,7 @@ export const it = {
 
   allega: {
     titolo: 'Manda nella chat',
-    foto: 'Foto',
-    video: 'Video',
+    fotoEVideo: 'Foto e video',
     documento: 'Documento',
     unPosto: 'Un posto',
     unLink: 'Un link',
@@ -312,6 +348,9 @@ export const it = {
     segnala: 'Segnala messaggio',
     qualeCategoria: (titolo: string) => `«${titolo}» — in quale categoria?`,
     blocca: (chi: string) => `Blocca ${chi}`,
+    elimina: 'Elimina',
+    eliminare: 'Eliminare il messaggio?',
+    eliminaTesto: 'Sparisce per tutti nel gruppo, insieme alle sue reazioni. Non si può annullare.',
   },
 
   sondaggio: {
@@ -346,7 +385,9 @@ export const it = {
     nessuno: 'Nessuno',
     tu: 'Tu',
     chiudi: 'Chiudi il sondaggio',
-    notaChiusura: 'Dopo non si vota più, e restano i risultati.',
+    notaChiusura: 'Nessuno potrà più votare. I risultati restano visibili.',
+    chiudereTitolo: 'Chiudere il sondaggio?',
+    chiudiConferma: 'Chiudi',
   },
 
   postoInChat: {
@@ -358,11 +399,7 @@ export const it = {
     nomeMancante: 'Gruppo',
     chat: 'Chat',
     link: 'Link',
-    linkEVideo: 'Link e video',
     mappa: 'Mappa',
-    info: 'Info gruppo',
-    condividi: 'Condividi',
-    impostazioni: 'Impostazioni',
     nonDisponibile: 'Gruppo non disponibile',
     nonDisponibileTesto:
       'Non fai parte di questo gruppo. Per entrare serve un link di invito da parte di chi è già dentro.',
@@ -371,29 +408,34 @@ export const it = {
   infoGruppo: {
     descrizione: 'DESCRIZIONE',
     descrizioneVuota: 'Aggiungi una descrizione: a cosa serve questo gruppo.',
+    nessunaDescrizione: 'Nessuna descrizione.',
     aggiornataDa: (chi: string, quando: string) => `Aggiornata da ${chi} · ${quando}`,
     qualcuno: 'qualcuno',
     quandoEDove: 'QUANDO E DOVE',
     aggiungiDate: 'Aggiungi le date',
-    scegliMeta: 'Scegli la meta',
+    nessunaData: 'Nessuna data',
+    scegliMeta: 'Scegli il posto',
+    nessunaMeta: 'Nessun posto scelto',
     coseDaSapere: 'COSE DA SAPERE',
-    bachecaVuota: 'Niente per ora. Qui stanno le informazioni che servono a tutti: hotel, volo, parola d’ordine del wi-fi.',
+    bachecaVuota: 'Niente per ora. Qui stanno le cose che servono a tutti: un indirizzo, un orario, un codice, la password del wi-fi.',
+    bachecaSenzaRete: 'Senza rete non riesco a leggerle: riprovo da solo appena torna.',
     aggiungiRiga: 'Aggiungi una riga',
     togliRiga: 'Togli la riga',
     togli: 'Togli',
-    esempioEtichetta: 'Hotel',
-    esempioValore: 'Gracery Shinjuku · check-in 15:00',
+    esempioEtichetta: 'Indirizzo',
+    esempioValore: 'Via Roma 12 · citofono Bianchi',
     linkInvito: 'LINK DI INVITO',
     invitoAttivo: 'Chiunque abbia il link può entrare nel gruppo. Disattivalo se finisce dove non doveva.',
     invitoSpento: 'Nessun link attivo: al momento non può entrare nessuno. Creane uno per invitare qualcuno.',
+    invitoSenzaRete: 'Il link d’invito si vede e si crea solo con la rete.',
     condividiLink: 'Condividi il link',
     creaLink: 'Crea e condividi il link',
-    generaNuovo: 'Genera nuovo',
+    generaNuovo: 'Nuovo link',
     disattiva: 'Disattiva',
     membriN: (n: number) => `MEMBRI — ${n}`,
     tu: ' (tu)',
     ultimoAccesso: (quando: string) => `Ultimo accesso: ${quando}`,
-    maiAperta: 'Mai aperta',
+    maiAperta: 'mai',
     proprioOra: 'proprio ora',
     minutiFa: (n: number) => `${n} min fa`,
     oreFa: (n: number) => `${n} ${n === 1 ? 'ora' : 'ore'} fa`,
@@ -401,10 +443,9 @@ export const it = {
     aCosaServe: 'A cosa serve questo gruppo',
     quando: 'QUANDO',
     dove: 'DOVE',
-    dal: 'Dal  GG/MM/AAAA',
-    al: 'Al  GG/MM/AAAA',
-    nessunPosto: 'Nessun posto salvato: la meta si sceglie fra i posti della mappa del gruppo.',
-    dateSbagliate: 'Le date si scrivono così: 12/04/2027.',
+    dal: 'Dal',
+    al: 'Al',
+    cercaPosto: 'Cerca un posto per nome',
     erroreInfo: 'Non sono riuscito a salvare le info.',
     erroreRiga: 'Non sono riuscito a salvare la riga.',
     erroreTogliRiga: 'Non sono riuscito a togliere la riga.',
@@ -443,16 +484,16 @@ export const it = {
     postoDaMaps: 'Posto da Google Maps',
     mandato: 'Mandato in chat',
     postoSalvato: 'Posto salvato e collegato al link',
-    postoSenzaLink: 'Posto salvato, ma il collegamento al link non è riuscito.',
-    spostatoIn: (categoria: string) => `Spostato in "${categoria}"`,
+    postoSenzaLink: 'Posto salvato, ma non sono riuscito a collegarlo al link: puoi farlo dalla scheda del posto.',
+    spostatoIn: (categoria: string) => `Spostato in «${categoria}»`,
     spostato: 'Link spostato',
     erroreChat: 'Non sono riuscito a mandarlo in chat, riprova.',
-    urlNonValido: 'Il link non sembra valido.',
+    urlNonValido: 'Questo non sembra un link. Copialo di nuovo e riprova.',
     erroreSalva: 'Non sono riuscito a salvare il link, riprova.',
     erroreCollegamento: 'Non sono riuscito ad aggiornare il collegamento.',
-    serveCategoriaPosti: 'Serve almeno una categoria di posti.',
+    serveCategoriaPosti: 'Per metterlo sulla mappa serve una categoria di posti: creane una nella sezione Mappa.',
     errorePosto: 'Non sono riuscito a salvare il posto.',
-    permessoFile: 'Serve il permesso per accedere ai file.',
+    permessoFile: 'Per salvare una foto o un video, consenti a Insieme l’accesso alle foto nelle impostazioni del telefono.',
     erroreCaricamentoFile: 'Caricamento del file non riuscito, riprova.',
     erroreCaricamentoDoc: 'Caricamento del documento non riuscito, riprova.',
     errorePreferito: 'Non sono riuscito ad aggiornare il preferito.',
@@ -497,11 +538,22 @@ export const it = {
     colore: 'COLORE',
     link: 'link',
     posti: 'posti',
-    eliminare: (nome: string) => `Eliminare "${nome}"?`,
+    eliminare: (nome: string) => `Eliminare «${nome}»?`,
     contiene: (n: number, cosa: string, dove: string) =>
-      `Contiene ancora ${n} ${cosa}. Verranno spostati nella categoria "${dove}".`,
+      `Contiene ancora ${n} ${cosa}. Verranno spostati nella categoria «${dove}».`,
     elimina: 'Elimina categoria',
     passanoIn: (n: number, cosa: string, dove: string) => ` · ${n} ${cosa} passano in «${dove}»`,
+    /** Le categorie che nascono con il gruppo (create_group). Nel database
+     * hanno il nome italiano; a schermo si mostrano nella lingua di chi
+     * guarda, finché qualcuno non le rinomina. */
+    predefinite: {
+      generale: 'Generale',
+      daVisitare: 'Da visitare',
+      ristorante: 'Ristorante',
+      bar: 'Bar',
+      evento: 'Evento',
+      altro: 'Altro',
+    },
   },
 
   condividi: {
@@ -510,7 +562,7 @@ export const it = {
     accediTesto: 'Entra nel tuo account Insieme, poi ricondividi il contenuto.',
     nessunGruppoTesto: 'Crea o entra in un gruppo, poi ricondividi il contenuto.',
     nienteTitolo: 'Niente da salvare',
-    nienteTesto: 'Non è arrivato nessun contenuto condiviso.',
+    nienteTesto: 'Non è arrivato niente da salvare. Riprova a condividerlo dall’altra app.',
     nessunGruppo: 'Nessun gruppo',
     fileCondiviso: 'File condiviso',
     testo: 'Testo',
@@ -531,6 +583,9 @@ export const it = {
     salvato: 'Salvato in Insieme',
     errore: 'Non sono riuscito a salvare, riprova.',
     nessunaCategoria: 'Nessuna categoria disponibile.',
+    ancheSullaMappa: 'Mettilo anche sulla mappa',
+    giaCollegato: (categoria: string | null) =>
+      `${categoria ? `, in «${categoria}»` : ''}, già collegato a questo link.`,
   },
 
   mappa: {
@@ -552,11 +607,11 @@ export const it = {
     nessunoConTesto: (testo: string) => `Nessun posto corrisponde a «${testo}».`,
     vuoto: 'Nessun posto salvato qui. Tocca «Aggiungi» per cercarne uno per nome, o tocca un punto sulla mappa.',
     vuotoWeb: 'Nessun posto salvato qui. Tocca «Aggiungi» per cercarne uno per nome.',
-    spostatoIn: (categoria: string) => `Spostato in "${categoria}"`,
+    spostatoIn: (categoria: string) => `Spostato in «${categoria}»`,
     toccaPunto: 'Tocca il punto sulla mappa dove vuoi il posto.',
     postoSalvato: 'Posto salvato',
     mandato: 'Mandato in chat',
-    permessoPosizione: 'Serve il permesso di posizione per sapere dove sei.',
+    permessoPosizione: 'Per vedere dove sei, consenti a Insieme l’accesso alla posizione nelle impostazioni del telefono.',
     errorePosizione: 'Non sono riuscito a leggere la tua posizione.',
     erroreSalva: 'Non sono riuscito a salvare il posto, riprova.',
     erroreElimina: 'Non sono riuscito a eliminare il posto.',
@@ -570,18 +625,19 @@ export const it = {
 
   posto: {
     collegaLink: 'Collega un link',
-    cercaLink: 'Cerca tra i link salvati',
-    nessunLinkSalvato: 'Non ci sono ancora link salvati nel gruppo.',
+    collegaA: (posto: string) => `a «${posto}»`,
+    cercaLink: 'Cerca fra i link salvati',
+    nessunLinkSalvato: 'Il gruppo non ha ancora link salvati: aggiungili dalla sezione Link.',
     nessunLinkTrovato: 'Nessun link corrisponde alla ricerca.',
     tuttiCollegati: 'Tutti i link del gruppo sono già collegati a questo posto.',
-    eliminare: (nome: string) => `Eliminare "${nome}"?`,
+    eliminare: (nome: string) => `Eliminare «${nome}»?`,
     eliminaConLink: (n: number) =>
       `Il posto sparisce dalla mappa per tutti. I ${n} link collegati restano nella sezione Link, perdono solo il collegamento.`,
     eliminaSemplice: 'Il posto sparisce dalla mappa per tutti nel gruppo.',
     sullaMappa: 'Sulla mappa',
     portamiLi: 'Portami lì',
     linkCollegati: 'LINK COLLEGATI',
-    nessunCollegato: 'Nessun link collegato. Aggancia qui il video, la foto o la recensione di questo posto.',
+    nessunCollegato: 'Nessun link collegato. Collega qui il video, la foto o la recensione di questo posto.',
     aggiuntoDa: 'Aggiunto da',
     eliminaPosto: 'Elimina posto',
     mostraSullaMappa: 'Mostra sulla mappa',
@@ -590,7 +646,7 @@ export const it = {
     spostaCategoria: 'Sposta in un’altra categoria',
     condividiFuori: 'Condividi fuori da Insieme',
     collegaAPosto: 'Collega a un posto',
-    cercaPosti: 'Cerca tra i posti salvati',
+    cercaPosti: 'Cerca fra i posti salvati',
     nessunPostoTrovato: 'Nessun posto corrisponde alla ricerca.',
     nessunPostoSalvato: 'Non ci sono ancora posti salvati. Aggiungine uno dalla sezione Mappa, poi torna qui.',
     eliminaConLinkBreve: 'Il posto sparisce dalla mappa per tutti nel gruppo. I link collegati restano nella sezione Link, perdono solo il collegamento.',
@@ -641,7 +697,45 @@ export const it = {
     inviaMessaggio: 'Invio del messaggio non riuscito.',
     salvaPosto: 'Salvataggio del posto non riuscito.',
     collegamento: 'Collegamento non riuscito.',
-    tempoScaduto: 'La richiesta ha impiegato troppo tempo.',
+    eliminaMessaggio: 'Eliminazione del messaggio non riuscita.',
+    tempoScaduto: 'Ci sta mettendo troppo. Controlla la connessione e riprova.',
+    rete: 'Non riesco a raggiungere Insieme. Controlla la connessione e riprova.',
+  },
+
+  /** I messaggi che le funzioni del database mandano indietro, nella lingua
+   * di chi usa l'app. La corrispondenza con il testo del database è in
+   * src/lib/errori.ts. */
+  erroriServer: {
+    nonMembro: 'Non fai parte di questo gruppo.',
+    nonAutenticato: 'Devi rifare l’accesso.',
+    permesso: 'Non puoi farlo: forse non fai più parte di questo gruppo.',
+    gruppoNonTrovato: 'Il gruppo non esiste più.',
+    sondaggioNonTrovato: 'Il sondaggio non esiste più.',
+    postoNonTrovato: 'Il posto non esiste più.',
+    categoriaNonTrovata: 'La categoria non esiste più.',
+    messaggioInesistente: 'Il messaggio non esiste più.',
+    categoriaNonValida: 'Questa categoria non è di questo gruppo.',
+    postoAltroGruppo: 'Questo posto non è di questo gruppo.',
+    unicaCategoria: 'Non puoi eliminare l’unica categoria del gruppo.',
+    serveDomanda: 'Serve una domanda.',
+    dueRisposte: 'Servono almeno due risposte diverse.',
+    dieciRisposte: 'Al massimo dieci risposte.',
+    rispostaNonValida: 'Questa risposta non è valida.',
+    sondaggioChiuso: 'Questo sondaggio è chiuso.',
+    rispostaSola: 'Questo sondaggio accetta una risposta sola.',
+    soloChiLoApre: 'Può chiuderlo solo chi l’ha aperto.',
+    descrizioneLunga: 'La descrizione è troppo lunga.',
+    dateInvertite: 'La data di fine viene prima di quella di inizio.',
+    invitoNonValido: 'Questo invito non vale più: chiedine uno nuovo.',
+    coloreNonValido: 'Questo colore non si può usare.',
+  },
+
+  /** La riga che prende il posto dell'avviso d'errore quando si mostra
+   * l'ultima copia salvata sul telefono. */
+  senzaRete: {
+    titolo: 'Senza connessione',
+    aggiornatoAlle: (ora: string) => `Aggiornato alle ${ora}`,
+    aggiornatoIl: (giorno: string, ora: string) => `Aggiornato il ${giorno} alle ${ora}`,
   },
 
   avvisi: {
@@ -685,7 +779,7 @@ export const it = {
 
   uscita: {
     titolo: 'Uscire da Insieme?',
-    corpo: 'Dovrai accedere di nuovo con email e password. I tuoi gruppi e i messaggi restano dove sono.',
+    corpo: 'Per rientrare dovrai accedere di nuovo. I tuoi gruppi e i messaggi restano dove sono.',
     azione: 'Esci',
   },
 
@@ -693,10 +787,10 @@ export const it = {
     titolo: 'Eliminare il tuo account?',
     corpo:
       'Spariscono per sempre il tuo profilo, i tuoi messaggi, i link e i posti che hai aggiunto, in tutti i gruppi. ' +
-      'I gruppi in cui resta qualcun altro continuano a esistere senza di te; quelli in cui eri solo vengono eliminati per intero. ' +
+      'I gruppi in cui resta qualcun altro continuano a esistere senza di te; quelli in cui c’eri solo tu vengono eliminati per intero. ' +
       'Non si può annullare e non serve altro: la cancellazione è immediata.',
     azione: 'Elimina tutto',
-    errore: 'Non sono riuscito a eliminare l’account. Riprova, o scrivici se il problema resta.',
+    errore: 'Non sono riuscito a eliminare l’account. Controlla la connessione e riprova.',
   },
 };
 

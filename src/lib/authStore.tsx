@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { getMyProfile } from '@/lib/api/profiles';
@@ -7,6 +7,8 @@ import { esciDaGoogle } from '@/lib/api/googleAuth';
 import { useLingua } from '@/i18n';
 import { utenteSentry, linguaSentry } from '@/lib/sentry';
 import type { Profile } from '@/types';
+import { storage } from '@/lib/storage';
+import { svuotaCopie, leggiCopia, salvaCopia } from '@/lib/copiaLocale';
 
 interface AuthStoreValue {
   ready: boolean;
@@ -30,11 +32,22 @@ const AuthStoreContext = createContext<AuthStoreValue>({
   signOut: async () => {},
 });
 
+const CHIAVE_INVITO = 'invitoInSospeso';
+/** Dopo una settimana un invito lasciato a metà non si ripropone. */
+const INVITO_VALE_MS = 7 * 24 * 60 * 60 * 1000;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
+  const [pendingInviteToken, setPendingState] = useState<string | null>(null);
+  // L'invito aspetta anche se Android chiude l'app nel frattempo, per
+  // esempio mentre si conferma l'email: resta salvato sul telefono finché
+  // non lo si usa.
+  const setPendingInviteToken = useCallback((token: string | null) => {
+    setPendingState(token);
+    void storage.set(CHIAVE_INVITO, token ? { token, ts: Date.now() } : null);
+  }, []);
   const { lingua, pronta: linguaPronta } = useLingua();
 
   // Supabase tiene la lingua dell'utente fra i suoi dati, perché i modelli
@@ -64,8 +77,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session?.user.id, linguaSalvata, lingua, linguaPronta]);
 
   const loadProfile = async () => {
-    const p = await getMyProfile();
-    setProfile(p);
+    const { data } = await supabase.auth.getSession();
+    const utente = data.session?.user.id;
+    try {
+      const p = await getMyProfile();
+      setProfile(p);
+      if (p) salvaCopia(utente, 'profilo', p);
+    } catch {
+      // Senza rete, il profilo dell'ultima volta.
+      const copia = await leggiCopia<Profile>(utente, 'profilo');
+      setProfile(copia?.dati ?? null);
+    }
   };
 
   useEffect(() => {
@@ -73,11 +95,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data } = await supabase.auth.getSession();
       setSession(data.session);
       if (data.session) {
-        await loadProfile();
+        // Con la copia del profilo l'app si apre subito, anche senza rete;
+        // quello del server arriva dopo e la sostituisce.
+        const copia = await leggiCopia<Profile>(data.session.user.id, 'profilo');
+        if (copia) {
+          setProfile(copia.dati);
+          void loadProfile();
+        } else {
+          await loadProfile();
+        }
         // Non si aspetta: il permesso per le notifiche può richiedere un
         // dialogo di sistema, e nel frattempo l'app deve essere già usabile.
         registraDispositivo();
       }
+      const invito = await storage.get<{ token: string; ts: number }>(CHIAVE_INVITO);
+      if (invito && Date.now() - invito.ts < INVITO_VALE_MS) setPendingState(invito.token);
       setReady(true);
     })();
 
@@ -103,6 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Google» il telefono rientrerebbe da solo con l'ultimo account usato.
     await esciDaGoogle();
     await supabase.auth.signOut();
+    // Le copie dei gruppi salvate sul telefono sono di chi esce.
+    await svuotaCopie();
   };
 
   return (
