@@ -37,10 +37,10 @@ export function FileAttachmentBubble({
   const kind = fileKindFor(name);
   const badge = fileBadgeColor(kind, colors);
   const bg = own ? 'rgba(0,0,0,0.10)' : colors.surface2;
-  const strong = own ? colors.inkOnAmber : colors.text;
+  const strong = own ? colors.suMio : colors.text;
   // Sul fumetto ambra il colore del tipo di file sparirebbe: lì l'icona
   // prende l'inchiostro del fumetto, su un tassello più scuro.
-  const tint = own ? colors.inkOnAmber : badge;
+  const tint = own ? colors.suMio : badge;
 
   return (
     <Pressable accessibilityRole="button"

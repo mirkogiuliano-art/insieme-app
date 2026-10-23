@@ -13,8 +13,9 @@
 // Una chiamata persa non è un problema: la ripassata successiva rimedia, e
 // l'arretrato accumulato finora viene recuperato alla prima esecuzione.
 //
-// Si invoca con { groupId } per ripulire un solo gruppo, oppure senza
-// argomenti per passare tutto il deposito.
+// Si invoca con { groupId } per ripulire un solo gruppo, da un membro (o da
+// chi ne è appena uscito per ultimo), oppure senza argomenti per passare
+// tutto il deposito: questo solo con la chiave di servizio.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -45,14 +46,18 @@ async function referencedNames(admin: Admin, groupId: string): Promise<Set<strin
     if (i >= 0) names.add(decodeURIComponent(url.slice(i + marker.length)));
   };
 
-  const { data: messages } = await admin
+  // Una lettura fallita non vuol dire «nessun file usato»: si ferma tutto,
+  // altrimenti si cancellerebbero file ancora in chat.
+  const { data: messages, error: errMessaggi } = await admin
     .from('messages')
     .select('attachment_url')
     .eq('group_id', groupId)
     .not('attachment_url', 'is', null);
+  if (errMessaggi) throw errMessaggi;
   for (const m of messages ?? []) add((m as { attachment_url: string }).attachment_url);
 
-  const { data: links } = await admin.from('links').select('url, thumb').eq('group_id', groupId);
+  const { data: links, error: errLink } = await admin.from('links').select('url, thumb').eq('group_id', groupId);
+  if (errLink) throw errLink;
   for (const l of links ?? []) {
     add((l as { url: string }).url);
     add((l as { thumb: string | null }).thumb);
@@ -78,7 +83,9 @@ async function sweepGroup(admin: Admin, groupId: string): Promise<{ deleted: num
   const files = await listFolder(admin, groupId);
   if (files.length === 0) return { deleted: 0, kept: 0 };
 
-  const { data: group } = await admin.from('groups').select('id').eq('id', groupId).maybeSingle();
+  const { data: group, error } = await admin.from('groups').select('id').eq('id', groupId).maybeSingle();
+  // Con un errore il gruppo sembrerebbe sparito, e se ne andrebbero tutti i file.
+  if (error) throw error;
   const groupGone = !group;
   const used = groupGone ? new Set<string>() : await referencedNames(admin, groupId);
 
@@ -114,11 +121,30 @@ Deno.serve(async (req: Request) => {
     groupId = null;
   }
 
-  const admin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    { auth: { persistSession: false } },
-  );
+  const chiaveServizio = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, chiaveServizio, { auth: { persistSession: false } });
+
+  // Chi chiama. La chiave pubblica dell'app sta in ogni telefono: senza
+  // questi controlli chiunque potrebbe far ripassare tutto il deposito.
+  const authHeader = req.headers.get('Authorization') ?? '';
+  if (authHeader !== `Bearer ${chiaveServizio}`) {
+    const asCaller = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+    const { data: auth } = await asCaller.auth.getUser();
+    const userId = auth?.user?.id;
+    if (!userId) return new Response(JSON.stringify({ error: 'Non autenticato.' }), { status: 401, headers: JSON_HEADERS });
+    // Dall'app si ripulisce un gruppo solo: il proprio, oppure uno appena
+    // eliminato (uscendo per ultimi), che non ha più membri da controllare.
+    if (!groupId) return new Response(JSON.stringify({ error: 'Gruppo mancante.' }), { status: 403, headers: JSON_HEADERS });
+    const [{ data: gruppo, error: errGruppo }, { count, error: errMembro }] = await Promise.all([
+      admin.from('groups').select('id').eq('id', groupId).maybeSingle(),
+      admin.from('group_members').select('user_id', { count: 'exact', head: true }).eq('group_id', groupId).eq('user_id', userId),
+    ]);
+    if (errGruppo || errMembro) return new Response(JSON.stringify({ error: 'Riprova più tardi.' }), { status: 503, headers: JSON_HEADERS });
+    if (gruppo && !count) return new Response(JSON.stringify({ error: 'Gruppo non trovato.' }), { status: 403, headers: JSON_HEADERS });
+  }
 
   try {
     // Senza gruppo indicato si passa tutto il deposito: è il modo per

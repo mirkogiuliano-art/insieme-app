@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   where: { fontSize: 12.5, marginTop: 4, marginBottom: 12, lineHeight: 17 },
   input: { borderRadius: RADIUS.sm, paddingHorizontal: 13, paddingVertical: 13, fontSize: 14, marginBottom: 8 },
   error: { fontSize: 12, marginTop: -4, marginBottom: 6, lineHeight: 17 },
-  label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 14, marginBottom: 8 },
+  label: { fontSize: 10.5, fontWeight: '800', marginTop: 14, marginBottom: 8 },
   cats: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   cat: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1.5, borderRadius: 999, paddingLeft: 6, paddingRight: 12, paddingVertical: 5 },
   save: { marginTop: 18, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },

@@ -102,15 +102,23 @@ Deno.serve(async (req: Request) => {
 
   const msg = message as MessageRow;
 
-  const [{ data: gruppo }, { data: profilo }, { data: membri }] = await Promise.all([
+  const [{ data: gruppo }, { data: profilo }, { data: membri }, { data: bloccanti, error: errBlocchi }] = await Promise.all([
     admin.from('groups').select('name').eq('id', msg.group_id).maybeSingle(),
     admin.from('profiles').select('display_name').eq('id', callerId).maybeSingle(),
     admin.from('group_members').select('user_id').eq('group_id', msg.group_id),
+    admin.from('blocked_users').select('blocker_id').eq('blocked_id', callerId),
   ]);
+  // Chi ha bloccato chi scrive non riceve l'avviso: in chat i suoi messaggi
+  // non compaiono, e l'avviso li metterebbe sullo schermo bloccato. Senza
+  // sapere chi l'ha bloccato, meglio nessun avviso che uno a chi non lo vuole.
+  if (errBlocchi) {
+    return new Response(JSON.stringify({ error: 'Riprova più tardi.' }), { status: 503, headers: JSON_HEADERS });
+  }
+  const escluso = new Set([callerId, ...(bloccanti ?? []).map((r) => (r as { blocker_id: string }).blocker_id)]);
 
   const destinatari = (membri ?? [])
     .map((r) => (r as { user_id: string }).user_id)
-    .filter((id) => id !== callerId);
+    .filter((id) => !escluso.has(id));
   if (destinatari.length === 0) {
     return new Response(JSON.stringify({ inviati: 0, motivo: 'nessun altro membro' }), { headers: JSON_HEADERS });
   }

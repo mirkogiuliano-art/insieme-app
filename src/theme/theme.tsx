@@ -17,6 +17,17 @@ export interface ThemeColors {
    * perché l'ambra piena su bianco non si legge (2,2:1). */
   amberText: string;
   inkOnAmber: string;
+  /** I propri messaggi. Non sono l'ambra dei tasti: un fumetto è un blocco
+   * grande, e l'ambra piena su tanti fumetti di fila, accanto al fondo
+   * grigio azzurro che ne è l'opposto, pesava troppo (soprattutto nel
+   * chiaro). Nel chiaro è un miele chiaro — schiarita, non spenta: spenta
+   * diventava ottone — nello scuro un'ambra un tono più bassa. */
+  mio: string;
+  suMio: string;
+  /** Ora, spunta e testo citato dentro un proprio messaggio. */
+  tenueSuMio: string;
+  citazioneMio: string;
+  lineaCitazioneMio: string;
   teal: string;
   coral: string;
   lilac: string;
@@ -51,6 +62,11 @@ const DARK: ThemeColors = {
   amber: '#E9A23B',
   amberText: '#E9A23B',
   inkOnAmber: '#23190A',
+  mio: '#D49C4E',
+  suMio: '#23190A',
+  tenueSuMio: '#4A3412',
+  citazioneMio: '#E6B46C',
+  lineaCitazioneMio: '#5C4214',
   teal: '#4FB3A5',
   coral: '#E4707A',
   lilac: '#9A8BEA',
@@ -85,6 +101,11 @@ const LIGHT: ThemeColors = {
   amber: '#E9A23B',
   amberText: '#88570F',
   inkOnAmber: '#2B2109',
+  mio: '#FBE3BA',
+  suMio: '#2B2109',
+  tenueSuMio: '#74521A',
+  citazioneMio: '#F1CF96',
+  lineaCitazioneMio: '#C98A22',
   // Verde acqua, lilla e rosso servono sia da testo sia da fondo: qui sono
   // il gradino più chiaro che regge 4,5:1 su tutte e tre le superfici del
   // chiaro. Il rosso così porta anche il bianco sopra (5,6:1, prima 3,9).
@@ -97,9 +118,6 @@ const LIGHT: ThemeColors = {
 /** Angoli più larghi di prima: senza contorni la forma è l'unica cosa
  * che distingue una superficie, e una forma morbida si stacca meglio. */
 export const RADIUS = { lg: 26, md: 18, sm: 12 };
-/** Le pastiglie: pulsante principale, barra delle sezioni, campo di
- * scrittura. */
-export const RADIUS_PILL = 999;
 
 /** Carattere arrotondato per i titoli che devono avere presenza, come il
  * nome del gruppo sulla sua scheda. Va usato **senza** `fontWeight`: il

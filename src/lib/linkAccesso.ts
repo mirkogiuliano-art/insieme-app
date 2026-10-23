@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { leggiLinkAccesso } from '@/lib/parametriLink';
+import { leggiLinkAccesso, utenteDelLink } from '@/lib/parametriLink';
 
 /**
  * - `attesa`: il link iniziale non è ancora stato letto, o la sessione si
@@ -47,6 +47,15 @@ export async function gestisciLink(url: string | null): Promise<void> {
   }
   if (link.tipo === 'errore') {
     imposta('scaduto');
+    return;
+  }
+  // Già dentro: i codici di un link non sostituiscono l'account (un link
+  // qualsiasi, anche un finto invito, faceva entrare in un altro). Il link
+  // della stessa persona va bene così; quello di un'altra non vale, perché
+  // la schermata della password cambierebbe quella di chi è già dentro.
+  const dentro = (await supabase.auth.getSession()).data.session?.user.id;
+  if (dentro) {
+    imposta(dentro === utenteDelLink(link.access_token) ? 'dentro' : 'scaduto');
     return;
   }
   imposta('attesa');

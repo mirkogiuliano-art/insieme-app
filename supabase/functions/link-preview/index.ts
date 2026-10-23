@@ -8,8 +8,8 @@
 //
 // Chiamata dal client con:
 //   supabase.functions.invoke('link-preview', { body: { url } })
-// Il JWT dell'utente viene verificato dalla piattaforma, quindi risponde
-// solo a chi è autenticato.
+// Risponde solo a chi ha fatto l'accesso: lo controlla la funzione stessa,
+// perché la piattaforma accetta anche la chiave pubblica dell'app.
 //
 // L'analisi dell'HTML sta in ./parse.ts, che non usa API di Deno ed è
 // quindi collaudabile da sola.
@@ -124,6 +124,18 @@ async function fetchHead(url: URL): Promise<{ html: string; finalUrl: string } |
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: JSON_HEADERS });
+
+  // La piattaforma accetta anche la chiave pubblica dell'app, che sta in
+  // ogni telefono: senza questo controllo chiunque potrebbe usare la
+  // funzione per scaricare pagine a spese del progetto.
+  const asCaller = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
+    auth: { persistSession: false },
+  });
+  const { data: auth } = await asCaller.auth.getUser();
+  if (!auth?.user?.id) {
+    return new Response(JSON.stringify({ error: 'Non autenticato.' }), { status: 401, headers: JSON_HEADERS });
+  }
 
   let requestedUrl = '';
   try {

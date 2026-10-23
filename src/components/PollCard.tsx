@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   card: { width: 292, borderRadius: 20, padding: 14, gap: 10 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   badge: { width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { fontSize: 10.5, fontWeight: '800', letterSpacing: 1.2 },
+  eyebrow: { fontSize: 10.5, fontWeight: '800' },
   question: { fontFamily: FONT_ROUNDED, fontSize: 19, lineHeight: 23, letterSpacing: -0.2 },
   hint: { fontSize: 12, marginTop: -6 },
   options: { gap: 6 },

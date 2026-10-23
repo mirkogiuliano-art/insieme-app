@@ -108,7 +108,10 @@ export function platformInfo(url: string): PlatformInfo {
   } catch {
     host = url;
   }
-  if (/youtube\.com|youtu\.be/i.test(host)) {
+  // Il sito o un suo sottodominio: «x.com» dentro «dropbox.com» non conta.
+  const h = host.toLowerCase();
+  const su = (...domini: string[]) => domini.some((d) => h === d || h.endsWith('.' + d));
+  if (su('youtube.com', 'youtu.be')) {
     const id = extractYouTubeId(url);
     return {
       platform: 'youtube',
@@ -117,15 +120,15 @@ export function platformInfo(url: string): PlatformInfo {
       host,
     };
   }
-  if (/instagram\.com/i.test(host))
+  if (su('instagram.com'))
     return { platform: 'instagram', label: 'Instagram', thumb: null, host };
-  if (/tiktok\.com/i.test(host))
+  if (su('tiktok.com'))
     return { platform: 'tiktok', label: 'TikTok', thumb: null, host };
-  if (/twitter\.com|x\.com/i.test(host))
+  if (su('twitter.com', 'x.com'))
     return { platform: 'twitter', label: 'X / Twitter', thumb: null, host };
-  if (/vimeo\.com/i.test(host))
+  if (su('vimeo.com'))
     return { platform: 'vimeo', label: 'Vimeo', thumb: null, host };
-  if (/spotify\.com/i.test(host))
+  if (su('spotify.com'))
     return { platform: 'spotify', label: 'Spotify', thumb: null, host };
   return { platform: 'web', label: host || 'Link', thumb: null, host };
 }

@@ -40,7 +40,7 @@ export function ChatPlaceCard({
         <PlaceTile color={tint} categoryName={category?.name ?? ''} size={40} />
         <View style={{ flex: 1 }}>
           <Text style={[styles.cat, { color: testoLeggibile(tint, colors.surface) }]} numberOfLines={1}>
-            {(category?.name ?? t.postoInChat.posizione).toUpperCase()}
+            {category?.name ?? t.postoInChat.posizione}
           </Text>
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
             {name}
@@ -60,7 +60,7 @@ export function ChatPlaceCard({
 const styles = StyleSheet.create({
   card: { width: 240, borderRadius: 18, padding: 11 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cat: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
+  cat: { fontSize: 10, fontWeight: '800' },
   name: { fontSize: 14, fontWeight: '800', lineHeight: 18, marginTop: 1 },
   btn: { marginTop: 10, height: 36, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 });

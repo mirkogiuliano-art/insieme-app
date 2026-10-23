@@ -67,7 +67,7 @@ import { useT, dizionario, localeAttuale } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
 import { messaggioErrore, eProblemaDiRete } from '@/lib/errori';
 import { leggiCopia, salvaCopia, useRiprovaDaSola } from '@/lib/copiaLocale';
-import { leggiLinkEPosti, salvaCopieGruppo, type CopiaChat } from '@/lib/precarica';
+import { leggiLinkEPosti, salvaCopieGruppo, type CopiaChat, type CopiaChatExtra } from '@/lib/precarica';
 import { apriGruppo } from '@/lib/api/apriGruppo';
 import { SenzaRete } from '@/components/SenzaRete';
 
@@ -80,8 +80,11 @@ interface ChatTabProps {
   /** Lo decidono la lente e la griglia nell'intestazione del gruppo. */
   strumento: StrumentoChat;
   onStrumento: (s: StrumentoChat) => void;
-  /** Condivide il link d'invito: lo offre la chat vuota di chi è solo. */
+  /** Apre «Aggiungi persone»: lo offre la chat vuota di chi è solo. */
   onInvita?: () => void;
+  /** La chat è la sezione a schermo. Resta montata anche dietro a Link e
+   * Mappa, e lì non deve segnare come letto né nascondere gli avvisi. */
+  attiva?: boolean;
   /** I nomi dei membri sono arrivati, o non arriveranno: la prima volta
    * la chat li aspetta per comparire. */
   nomiPronti: boolean;
@@ -105,7 +108,8 @@ function dayLabel(ts: number): string {
   if (stesso(d, oggi)) return dizionario().date.oggi;
   if (stesso(d, ieri)) return dizionario().date.ieri;
   const sameYear = d.getFullYear() === oggi.getFullYear();
-  return d.toLocaleDateString(localeAttuale(), { weekday: 'long', day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) });
+  const s = d.toLocaleDateString(localeAttuale(), { weekday: 'long', day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) });
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function sameDay(a: number, b: number): boolean {
@@ -144,7 +148,7 @@ const RigaMessaggio = memo(function RigaMessaggio({ item, index, versione }: Rig
   return versione.disegna({ item, index });
 });
 
-export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nomiPronti }: ChatTabProps) {
+export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nomiPronti, attiva = true }: ChatTabProps) {
   const { colors } = useTheme();
   const t = useT();
   const spazioBarra = useSpazioBarraAnimato();
@@ -199,6 +203,10 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   const [letto, setLetto] = useState(false);
   /** Arrivati i dati veri, la copia non deve più sovrascriverli. */
   const daServer = useRef(false);
+  /** I messaggi arrivati in tempo reale: una lettura dal server li tiene,
+   * se sono più recenti del suo ultimo. Gli altri della copia sul telefono
+   * no, perché nel frattempo possono essere stati eliminati. */
+  const dalVivo = useRef(new Set<string>());
   // Scorrimento all'indietro: `hasMore` diventa falso quando il database
   // restituisce meno messaggi di quanti ne siano stati chiesti, cioè
   // quando si è arrivati all'inizio della conversazione.
@@ -242,9 +250,10 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   // comparire: il messaggio si sta già leggendo, arriva da solo in tempo
   // reale, e una banda che lo annuncia sopra sarebbe solo rumore.
   useEffect(() => {
+    if (!attiva) return;
     setGruppoAperto(groupId);
     return () => setGruppoAperto(null);
-  }, [groupId]);
+  }, [groupId, attiva]);
 
   const markRead = () => {
     const now = Date.now();
@@ -306,15 +315,12 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
         setLinks(l);
         setLinkCategories(lc);
         setPostiLetti(true);
-        salvaCopia(session?.user.id, `chat-extra:${groupId}`, { p, pc, l, lc });
+        salvaCopia<CopiaChatExtra>(session?.user.id, `chat-extra:${groupId}`, { p, pc, l, lc });
       })
       .catch(async () => {
         // Senza rete, posti e categorie dell'ultima volta: servono alle
         // schede dei posti mandati in chat.
-        const copia = await leggiCopia<{ p: RawPin[]; pc: RawPlaceCategory[]; l: RawLink[]; lc: RawLinkCategory[] }>(
-          session?.user.id,
-          `chat-extra:${groupId}`,
-        );
+        const copia = await leggiCopia<CopiaChatExtra>(session?.user.id, `chat-extra:${groupId}`);
         setPostiLetti(true);
         if (!copia) return;
         setPins((x) => (x.length > 0 ? x : copia.dati.p));
@@ -328,10 +334,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   useEffect(() => {
     // Posti e categorie dell'ultima volta subito, per le schede dei posti
     // in chat; il server li aggiorna dopo, insieme ai messaggi.
-    leggiCopia<{ p: RawPin[]; pc: RawPlaceCategory[]; l: RawLink[]; lc: RawLinkCategory[] }>(
-      session?.user.id,
-      `chat-extra:${groupId}`,
-    ).then((copia) => {
+    leggiCopia<CopiaChatExtra>(session?.user.id, `chat-extra:${groupId}`).then((copia) => {
       if (!copia) return;
       setPostiLetti(true);
       setPins((x) => (x.length > 0 ? x : copia.dati.p));
@@ -370,13 +373,29 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     if (bloccatiNellaCopia) setBloccati((prev) => (prev.length > 0 ? prev : bloccatiNellaCopia));
   };
 
+  /** Il messaggio vero al posto del suo segnaposto. Se il tempo reale l'ha
+   * già portato, il segnaposto se ne va e basta: altrimenti il fumetto
+   * compariva due volte. */
+  const sostituisciSegnaposto = (tempId: string, sent: RawMessage) =>
+    setMessages((prev) =>
+      prev.some((m) => m.id === sent.id) ? prev.filter((m) => m.id !== tempId) : prev.map((m) => (m.id === tempId ? sent : m)),
+    );
+
   const loadAll = useCallback(async () => {
     try {
       // Tutto il gruppo in una richiesta sola (vedi apriGruppo): erano una
       // quindicina, e sul telefono partono cinque alla volta.
       const g = await withTimeout(apriGruppo(groupId));
       daServer.current = true;
-      setMessages(g.messaggi);
+      // Restano quelli arrivati in tempo reale mentre si leggeva e quelli
+      // in invio: il resto lo decide il server.
+      const ultimo = g.messaggi[0]?.ts ?? 0;
+      setMessages((prev) => [
+        ...prev.filter(
+          (m) => (m.id.startsWith('temp-') || (dalVivo.current.has(m.id) && m.ts > ultimo)) && !g.messaggi.some((x) => x.id === m.id),
+        ),
+        ...g.messaggi,
+      ]);
       setReactions(g.reazioni);
       setPolls(g.sondaggi);
       setVotes(g.voti);
@@ -417,6 +436,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   useEffect(() => {
     let cancelled = false;
     daServer.current = false;
+    dalVivo.current.clear();
     // Mentre si legge dal server, la copia dell'ultima volta: la chat
     // compare subito anche con la rete lenta o assente.
     leggiCopia<CopiaChat>(utente, `chat:${groupId}`).then((copia) => {
@@ -432,6 +452,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     const unsubscribeMessages = subscribeToMessages(
       groupId,
       (message) => {
+        dalVivo.current.add(message.id);
         setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [message, ...prev]));
       },
       (id) => setMessages((prev) => prev.filter((m) => m.id !== id)),
@@ -473,10 +494,11 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   }, [groupId]);
 
   useEffect(() => {
-    if (messages.length === 0) return;
+    // Anche tornando sulla chat: quello che è arrivato intanto ora si vede.
+    if (messages.length === 0 || !attiva) return;
     markRead();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length]);
+  }, [messages.length, attiva]);
 
   // Rimuove chi non manda un segnale "sta scrivendo" da almeno 3s.
   useEffect(() => {
@@ -505,12 +527,14 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   };
 
   const typingLabel = useMemo(() => {
-    const names = Object.keys(typingUsers).map((uid) => roster[uid] ?? t.segnaposto.qualcuno);
+    const names = Object.keys(typingUsers)
+      .filter((uid) => !bloccati.includes(uid))
+      .map((uid) => roster[uid] ?? t.segnaposto.qualcuno);
     if (names.length === 0) return null;
     if (names.length === 1) return t.chat.staScrivendo(names[0]);
     if (names.length === 2) return t.chat.stannoScrivendoDue(names[0], names[1]);
     return t.chat.stannoScrivendoTanti(names.length);
-  }, [typingUsers, roster, t]);
+  }, [typingUsers, roster, t, bloccati]);
 
   const reactionsByMessage = useMemo(() => {
     const map: Record<string, { emoji: string; count: number; mine: boolean }[]> = {};
@@ -546,7 +570,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     setMessages((prev) => [{ id: tempId, userId: session.user.id, text, ts: Date.now(), replyToId }, ...prev]);
     try {
       const sent = await withTimeout(sendMessage(groupId, session.user.id, text, replyToId), WRITE_TIMEOUT);
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      sostituisciSegnaposto(tempId, sent);
       avvisaDelMessaggio(sent.id);
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -579,7 +603,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     setMessages((prev) => [{ id: tempId, userId: session.user.id, text, ts: Date.now(), replyToId }, ...prev]);
     try {
       const sent = await withTimeout(sendMessage(groupId, session.user.id, text, replyToId), WRITE_TIMEOUT);
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      sostituisciSegnaposto(tempId, sent);
       avvisaDelMessaggio(sent.id);
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -795,7 +819,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     try {
       const url = await withTimeout(uploadGroupMedia(groupId, asset.uri), UPLOAD_TIMEOUT);
       const sent = await withTimeout(sendMessage(groupId, session.user.id, null, replyToId, { url, type: kind }), WRITE_TIMEOUT);
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      sostituisciSegnaposto(tempId, sent);
       avvisaDelMessaggio(sent.id);
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -844,7 +868,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
         }),
         WRITE_TIMEOUT,
       );
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      sostituisciSegnaposto(tempId, sent);
       avvisaDelMessaggio(sent.id);
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -905,7 +929,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     try {
       const url = await withTimeout(uploadGroupMedia(groupId, uri), UPLOAD_TIMEOUT);
       const sent = await withTimeout(sendMessage(groupId, session.user.id, null, replyToId, { url, type: 'audio', durationSeconds }), WRITE_TIMEOUT);
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      sostituisciSegnaposto(tempId, sent);
       avvisaDelMessaggio(sent.id);
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -953,7 +977,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   const currentMatchId = matches[Math.min(currentMatchIndex, matches.length - 1)]?.message.id;
 
   const renderText = (text: string, own: boolean, term: string) => (
-    <Text style={[styles.text, { color: own ? colors.inkOnAmber : colors.text }]}>
+    <Text style={[styles.text, { color: own ? colors.suMio : colors.text }]}>
       {splitTextByUrls(text).map((seg, segIdx) => {
         const inner = term
           ? highlightSegments(seg.text, term).map((s, idx) =>
@@ -970,7 +994,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
         return (
           <Text
             key={segIdx}
-            style={[styles.link, { color: own ? colors.inkOnAmber : colors.teal }]}
+            style={[styles.link, { color: own ? colors.suMio : colors.teal }]}
             onPress={(e) => {
               // Altrimenti il tocco prosegue fino al fumetto e al posto del
               // link si aprirebbe il menu del messaggio.
@@ -1025,7 +1049,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
 
     const timeRow = (
       <View style={styles.timeRow}>
-        <Text style={[styles.time, { color: own && hasBubble ? '#6B5730' : colors.textFaint }]}>{timeLabel(item.ts)}</Text>
+        <Text style={[styles.time, { color: own && hasBubble ? colors.tenueSuMio : colors.textFaint }]}>{timeLabel(item.ts)}</Text>
         {own ? (
           isReadByOthers(item.ts) ? (
             <View style={styles.ticks}>
@@ -1035,7 +1059,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
               </View>
             </View>
           ) : (
-            <CheckIcon size={11} color={hasBubble ? '#6B5730' : colors.textFaint} />
+            <CheckIcon size={11} color={hasBubble ? colors.tenueSuMio : colors.textFaint} />
           )
         ) : null}
       </View>
@@ -1071,7 +1095,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
                   own && sameAsOlder && { borderTopRightRadius: 8 },
                   !own && sameAsOlder && { borderTopLeftRadius: 8 },
                   {
-                    backgroundColor: own ? colors.amber : colors.surface,
+                    backgroundColor: own ? colors.mio : colors.surface,
                     // Il contorno c'è sempre ma si vede solo sul risultato di
                     // ricerca corrente: così evidenziandolo il fumetto non
                     // cambia di dimensione e la lista non sobbalza.
@@ -1082,11 +1106,11 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
                 {item.replyToId ? (
                   // Nei messaggi degli altri la citazione prende il colore di
                   // chi viene citato, come il suo nome e le sue iniziali.
-                  <View style={[styles.quoteBox, { borderLeftColor: own ? '#6B5730' : colorForUser(nomeCitato), backgroundColor: own ? '#C98A22' : colors.surface2 }]}>
-                    <Text style={[styles.quoteAuthor, { color: own ? '#3D2E10' : inchiostroPersona(nomeCitato, colors.surface2) }]} numberOfLines={1}>
+                  <View style={[styles.quoteBox, { borderLeftColor: own ? colors.lineaCitazioneMio : colorForUser(nomeCitato), backgroundColor: own ? colors.citazioneMio : colors.surface2 }]}>
+                    <Text style={[styles.quoteAuthor, { color: own ? colors.suMio : inchiostroPersona(nomeCitato, colors.surface2) }]} numberOfLines={1}>
                       {quoted ? nomeCitato : ''}
                     </Text>
-                    <Text style={[styles.quoteText, { color: own ? '#4A3A18' : colors.textDim }]} numberOfLines={2}>
+                    <Text style={[styles.quoteText, { color: own ? colors.tenueSuMio : colors.textDim }]} numberOfLines={2}>
                       {quoted ? (parsePlaceMessage(quoted.text)?.name ?? quoted.text ?? t.segnaposto.allegato) : t.chat.messaggioSparito}
                     </Text>
                   </View>
@@ -1505,7 +1529,7 @@ const styles = StyleSheet.create({
   searchCounter: { fontSize: 11.5, fontWeight: '700' },
   viewBtn: { width: 40, height: 40, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
   dayWrap: { alignItems: 'center', marginTop: 6, marginBottom: 12 },
-  day: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
+  day: { fontSize: 10.5, fontWeight: '800', paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
   avatarSpacer: { width: 26 },
   olderLoader: { paddingVertical: 14, alignItems: 'center' },
   list: { paddingHorizontal: 14, paddingVertical: 10 },

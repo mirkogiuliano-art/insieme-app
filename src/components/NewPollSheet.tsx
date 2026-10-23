@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   badge: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 14, marginBottom: 8 },
+  label: { fontSize: 10.5, fontWeight: '800', marginTop: 14, marginBottom: 8 },
   question: { borderRadius: RADIUS.sm, paddingHorizontal: 14, paddingVertical: 14, fontSize: 16, fontWeight: '700' },
   optionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: RADIUS.sm, paddingHorizontal: 14, height: 48 },
   optionInput: { flex: 1, fontSize: 14.5, paddingVertical: 0 },

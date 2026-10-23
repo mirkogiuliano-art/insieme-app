@@ -212,12 +212,12 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 12 },
   copied: { flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: RADIUS.md, padding: 11, marginBottom: 12 },
   copiedIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  copiedLabel: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.6 },
+  copiedLabel: { fontSize: 9.5, fontWeight: '800' },
   copiedTitle: { fontSize: 13.5, fontWeight: '700', lineHeight: 18, marginTop: 2 },
   input: { borderRadius: RADIUS.sm, paddingHorizontal: 13, paddingVertical: 13, fontSize: 14, marginBottom: 8 },
   // Più spazio sopra un'etichetta che sotto: appartiene a quello che
   // segue, non a quello che la precede.
-  label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 18, marginBottom: 8 },
+  label: { fontSize: 10.5, fontWeight: '800', marginTop: 18, marginBottom: 8 },
   cat: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7, marginRight: 7 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   files: { flexDirection: 'row', gap: 8 },

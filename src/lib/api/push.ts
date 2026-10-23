@@ -58,6 +58,18 @@ let codiceDispositivo: string | null = null;
  * c'è la richiesta fallisce e viene ignorata — il giorno che l'account
  * arriverà, funzionerà senza toccare questo file.
  */
+/** Il codice delle notifiche di questo telefono, chiesto a Expo. */
+async function chiediCodice(): Promise<string | null> {
+  // L'identificativo del progetto EAS non è deducibile a runtime: senza,
+  // Expo non sa a quale applicazione appartiene il codice.
+  const projectId =
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    (Constants as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+  if (!projectId) return null;
+  const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
+  return data || null;
+}
+
 export async function registraDispositivo(): Promise<void> {
   if (Platform.OS === 'web') return;
 
@@ -80,14 +92,7 @@ export async function registraDispositivo(): Promise<void> {
     }
     if (!concesso) return;
 
-    // L'identificativo del progetto EAS non è deducibile a runtime: senza,
-    // Expo non sa a quale applicazione appartiene il codice.
-    const projectId =
-      Constants.expoConfig?.extra?.eas?.projectId ??
-      (Constants as { easConfig?: { projectId?: string } }).easConfig?.projectId;
-    if (!projectId) return;
-
-    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
+    const token = await chiediCodice();
     if (!token) return;
 
     codiceDispositivo = token;
@@ -102,9 +107,13 @@ export async function registraDispositivo(): Promise<void> {
  * verrebbe rifiutata, lasciando il dispositivo agganciato a un account
  * che su questo telefono non è più in uso. */
 export async function dimenticaDispositivo(): Promise<void> {
-  if (!codiceDispositivo) return;
+  if (Platform.OS === 'web') return;
   try {
-    await supabase.rpc('forget_push_token', { p_token: codiceDispositivo });
+    // Se all'avvio mancava la rete il codice non c'è ancora: lo si chiede
+    // adesso, altrimenti il telefono resterebbe agganciato all'account e
+    // continuerebbe a mostrarne i messaggi.
+    const token = codiceDispositivo ?? (await chiediCodice());
+    if (token) await supabase.rpc('forget_push_token', { p_token: token });
   } catch {
     // ignorato
   }

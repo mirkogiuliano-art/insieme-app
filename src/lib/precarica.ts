@@ -19,6 +19,7 @@ import { listPins } from '@/lib/api/pins';
 import { listCategories as listPlaceCategories } from '@/lib/api/placeCategories';
 import { listPlaceLinks } from '@/lib/api/placeLinks';
 import { leggiCopia, salvaCopia } from '@/lib/copiaLocale';
+import { supabase } from '@/lib/supabase';
 import { apriGruppo, type Gruppo } from '@/lib/api/apriGruppo';
 import type { GroupPreview } from '@/lib/api/groupPreviews';
 import type { RawMessage } from '@/lib/api/messages';
@@ -120,6 +121,9 @@ export async function precaricaGruppi(
       const ultima = anteprime[gruppo.id]?.lastAt ?? 0;
       if (copia && copia.ts >= ultima) continue;
       const g = await apriGruppo(gruppo.id);
+      // Uscito dall'account mentre scaricava: le copie sono già state
+      // cancellate, e questa resterebbe sul telefono.
+      if ((await supabase.auth.getSession()).data.session?.user.id !== utente) return;
       salvaCopieGruppo(utente, gruppo.id, g, gruppo.placePinId);
     }
   } catch {

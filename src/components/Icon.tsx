@@ -98,14 +98,6 @@ export function CloseIcon({ size = 14, color = '#000', strokeWidth = 2 }: IconPr
   );
 }
 
-export function AttachIcon({ size = 19, color = '#000', strokeWidth = 1.8 }: IconProps) {
-  return (
-    <Svg {...base(size)} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M21.44 11.05 12.25 20.24a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.67 3.67 0 0 1 5.19 5.19l-9.2 9.19a1.83 1.83 0 0 1-2.6-2.6l8.49-8.48" />
-    </Svg>
-  );
-}
-
 export function PlayIcon({ size = 22, color = '#000' }: IconProps) {
   return (
     <Svg {...base(size)} viewBox="0 0 24 24">
@@ -121,14 +113,6 @@ export function MicIcon({ size = 19, color = '#000', strokeWidth = 1.8 }: IconPr
       <Path d="M5 10a7 7 0 0 0 14 0" />
       <Line x1="12" y1="17" x2="12" y2="22" />
       <Line x1="8" y1="22" x2="16" y2="22" />
-    </Svg>
-  );
-}
-
-export function StopIcon({ size = 19, color = '#000' }: IconProps) {
-  return (
-    <Svg {...base(size)} viewBox="0 0 24 24">
-      <Rect x="6" y="6" width="12" height="12" rx="2" fill={color} />
     </Svg>
   );
 }

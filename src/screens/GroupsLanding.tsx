@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Share,
 } from 'react-native';
 import { Pressable } from '@/components/Tocco';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +18,7 @@ import { SettingsSheet, type SettingsPage } from '@/components/SettingsSheet';
 import { LoadError } from '@/components/LoadError';
 import { InCaricamento } from '@/components/InCaricamento';
 import { SenzaRete } from '@/components/SenzaRete';
-import { SettingsIcon, PlusIcon, UsersIcon, SearchIcon, CloseIcon, SortIcon, CheckIcon, MoreIcon, ShareIcon } from '@/components/Icon';
+import { SettingsIcon, PlusIcon, UsersIcon, SearchIcon, CloseIcon, SortIcon, CheckIcon, MoreIcon } from '@/components/Icon';
 import { FilterChip } from '@/components/FilterChip';
 import { NewGroupSheet } from '@/components/NewGroupSheet';
 import { GroupActionsSheet } from '@/components/GroupActionsSheet';
@@ -29,7 +28,9 @@ import { listRoster, updateLastRead } from '@/lib/api/groupMembers';
 import { storage } from '@/lib/storage';
 import { leggiCopia, salvaCopia } from '@/lib/copiaLocale';
 import { precaricaGruppi } from '@/lib/precarica';
-import { getInviteToken, rotateInvite, inviteUrl } from '@/lib/api/invites';
+import { AddPeopleSheet } from '@/components/AddPeopleSheet';
+import { InvitoInArrivo } from '@/components/InvitoInArrivo';
+import { mieiInviti, rispondiInvito, type InvitoRicevuto } from '@/lib/api/invitiPersona';
 import { listGroupPreviews, type GroupPreview } from '@/lib/api/groupPreviews';
 import { initials, inkOn, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
 import { countdownLabel, rangeLabel } from '@/lib/groupInfo';
@@ -37,6 +38,7 @@ import { fitFontSize, LETTER_SPACING_EM } from '@/lib/fitText';
 import { useFinestra } from '@/lib/finestra';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { Logo } from '@/components/Logo';
 import { useT, dizionario } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
 import { messaggioErrore } from '@/lib/errori';
@@ -143,7 +145,11 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
   }, [nuovo]);
   const [inviteOpen, setInviteOpen] = useState<Group | null>(null);
   const [previews, setPreviews] = useState<Record<string, GroupPreview>>({});
-  const [sharing, setSharing] = useState(false);
+  /** Il gruppo a cui si stanno aggiungendo persone. */
+  const [aggiungiA, setAggiungiA] = useState<Group | null>(null);
+  /** Gli inviti arrivati, in cima alla lista. */
+  const [inviti, setInviti] = useState<InvitoRicevuto[]>([]);
+  const [rispondendo, setRispondendo] = useState<string | null>(null);
 
   const [query, setQuery] = useState('');
   const [onlyNew, setOnlyNew] = useState(false);
@@ -201,6 +207,9 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      mieiInviti()
+        .then((i) => alive && setInviti(i))
+        .catch(() => {});
       listGroupPreviews().then((p) => {
         if (!alive || !tieniAnteprime(p)) return;
         // Intanto si scaricano i gruppi non ancora aperti, o con novità.
@@ -280,17 +289,21 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
       return lb - la;
     });
 
-  const shareInvite = async (g: Group) => {
-    if (sharing) return;
-    setSharing(true);
+  const rispondi = async (invito: InvitoRicevuto, entra: boolean) => {
+    if (rispondendo) return;
+    setRispondendo(invito.id);
     try {
-      const token = await withTimeout(getInviteToken(g.id).then((t) => t ?? rotateInvite(g.id)), WRITE_TIMEOUT);
-      await Share.share({ message: t.home.invitoTesto(g.name, inviteUrl(token)) });
+      const g = await withTimeout(rispondiInvito(invito.id, entra), WRITE_TIMEOUT);
+      setInviti((prev) => prev.filter((i) => i.id !== invito.id));
+      if (g) {
+        addGroup(g);
+        router.push(`/group/${g.id}`);
+      }
     } catch (err) {
-      segnalaErrore(err, 'home.erroreInvito');
-      toast.show(t.home.erroreInvito, 'error');
+      segnalaErrore(err, 'invitoRicevuto.errore');
+      toast.show(t.invitoRicevuto.errore, 'error');
     } finally {
-      setSharing(false);
+      setRispondendo(null);
     }
   };
 
@@ -301,9 +314,9 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
       <ScreenGlow />
       <View style={styles.header}>
-        <View>
-          <Text style={[styles.eyebrow, { color: colors.textFaint }]}>{t.home.eyebrow}</Text>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{t.home.titolo}</Text>
+        <View style={styles.marchio}>
+          <Logo size={28} />
+          <Text style={[styles.nomeApp, { color: colors.text }]}>{t.home.marchio}</Text>
         </View>
         <View style={styles.headerRight}>
           <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.impostazioni} hitSlop={6} onPress={() => setSettingsAt('settings')} style={[styles.iconBtn, { backgroundColor: colors.surface }]}>
@@ -316,6 +329,7 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
           </Pressable>
         </View>
       </View>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>{t.home.titolo}</Text>
 
       {/* La stessa riga di Link, Mappa e Chat: la ricerca e "Nuovo". */}
       <View style={styles.topBar}>
@@ -323,7 +337,7 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
           <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder={myGroups.length > 0 ? t.home.cercaFra(myGroups.length) : t.home.cerca}
+            placeholder={t.home.cerca}
             placeholderTextColor={colors.textFaint}
             value={query}
             onChangeText={setQuery}
@@ -364,6 +378,15 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
       ) : null}
 
       <ScrollView contentContainerStyle={[styles.list, colonne > 1 && styles.griglia]}>
+        {inviti.map((i) => (
+          <InvitoInArrivo
+            key={i.id}
+            invito={i}
+            busy={rispondendo === i.id}
+            onRisposta={(entra) => rispondi(i, entra)}
+            style={larghezzaScheda ? { width: larghezzaScheda } : null}
+          />
+        ))}
         {pronta && myGroups.length > 0 && shownGroups.length === 0 ? (
           <View style={styles.empty}>
             <Text style={[styles.emptyText, { color: colors.textFaint }]}>
@@ -489,12 +512,14 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
         unread={actionsFor ? (previews[actionsFor.id]?.unread ?? 0) : 0}
         activity={actionsFor ? activityLabel(previews[actionsFor.id]?.lastAt) : null}
         onClose={() => setActionsFor(null)}
-        onInvite={shareInvite}
+        onInvite={setAggiungiA}
         onInfo={openInfo}
         onColor={changeColor}
         onMarkRead={markRead}
         onLeave={leave}
       />
+
+      {aggiungiA ? <AddPeopleSheet visible onClose={() => setAggiungiA(null)} group={aggiungiA} /> : null}
 
       {infoFor ? (
         <GroupInfoSheet
@@ -528,7 +553,7 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
             <Text style={[styles.sheetSub, { color: colors.textDim }]}>
               {t.home.creatoTesto(inviteOpen.name)}
             </Text>
-            {/* Prima l'invito: un gruppo con una persona sola non serve
+            {/* Prima le persone: un gruppo con una persona sola non serve
                 ancora a niente. Il gruppo si apre lo stesso, dall'altro tasto. */}
             <View style={styles.sheetActions}>
               <Pressable accessibilityRole="button"
@@ -542,14 +567,15 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
                 <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.home.vaiAlGruppo}</Text>
               </Pressable>
               <Pressable accessibilityRole="button"
-                onPress={() => shareInvite(inviteOpen)}
-                disabled={sharing}
-                style={[styles.btnPrimary, styles.btnConIcona, { backgroundColor: colors.amber, opacity: sharing ? 0.6 : 1 }]}
+                onPress={() => {
+                  const g = inviteOpen;
+                  setInviteOpen(null);
+                  setAggiungiA(g);
+                }}
+                style={[styles.btnPrimary, styles.btnConIcona, { backgroundColor: colors.amber }]}
               >
-                <ShareIcon size={15} color={colors.inkOnAmber} />
-                <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>
-                  {sharing ? t.comune.unAttimo : t.home.condividiInvito}
-                </Text>
+                <PlusIcon size={14} color={colors.inkOnAmber} />
+                <Text style={{ color: colors.inkOnAmber, fontWeight: '700' }}>{t.aggiungiPersone.titolo}</Text>
               </Pressable>
             </View>
           </>
@@ -572,8 +598,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  eyebrow: { fontSize: 10.5, letterSpacing: 1.1, fontWeight: '700' },
-  headerTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.4, marginTop: 1 },
+  marchio: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  nomeApp: { fontFamily: FONT_ROUNDED, fontSize: 20, letterSpacing: -0.3 },
+  headerTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.4, paddingHorizontal: 24, paddingBottom: 10 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   meAvatar: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

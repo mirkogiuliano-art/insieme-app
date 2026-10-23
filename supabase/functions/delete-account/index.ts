@@ -79,16 +79,22 @@ Deno.serve(async (req: Request) => {
   );
 
   // 1. I miei gruppi, e quali resterebbero senza nessuno.
-  const { data: iscrizioni } = await admin.from('group_members').select('group_id').eq('user_id', userId);
+  // Una lettura fallita si ferma qui, prima di cancellare qualunque cosa:
+  // un conteggio vuoto sembrerebbe «ero da solo», e se ne andrebbe un
+  // gruppo che ha ancora altri membri, con tutto quello che c'è dentro.
+  const riprova = () => new Response(JSON.stringify({ error: 'Riprova più tardi.' }), { status: 503, headers: JSON_HEADERS });
+  const { data: iscrizioni, error: errIscrizioni } = await admin.from('group_members').select('group_id').eq('user_id', userId);
+  if (errIscrizioni) return riprova();
   const mieiGruppi = (iscrizioni ?? []).map((r) => (r as { group_id: string }).group_id);
 
   const daEliminare: string[] = [];
   for (const groupId of mieiGruppi) {
-    const { count } = await admin
+    const { count, error } = await admin
       .from('group_members')
       .select('user_id', { count: 'exact', head: true })
       .eq('group_id', groupId);
-    if ((count ?? 0) <= 1) daEliminare.push(groupId);
+    if (error || count === null) return riprova();
+    if (count <= 1) daEliminare.push(groupId);
   }
 
   // 2. I file dei gruppi che spariscono, prima che spariscano le righe

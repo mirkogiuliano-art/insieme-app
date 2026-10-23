@@ -93,9 +93,13 @@ function Tile({ message, onPress }: { message: RawMessage; onPress: () => void }
       )}
       {kind === 'link' && url ? (
         <View style={[styles.badge, { backgroundColor: platformInfo(url).platform === 'youtube' ? '#E23B32' : 'rgba(14,20,27,0.72)' }]}>
-          <Text style={styles.badgeText} numberOfLines={1}>
-            {platformInfo(url).platform === 'youtube' ? '▶' : platformInfo(url).host}
-          </Text>
+          {platformInfo(url).platform === 'youtube' ? (
+            <PlayIcon size={10} color={styles.badgeText.color as string} />
+          ) : (
+            <Text style={styles.badgeText} numberOfLines={1}>
+              {platformInfo(url).host}
+            </Text>
+          )}
         </View>
       ) : null}
     </Pressable>
@@ -173,7 +177,7 @@ export function ChatArchive({
           onEndReached={onLoadOlder}
           onEndReachedThreshold={0.5}
           renderSectionHeader={({ section }) => (
-            <Text style={[styles.month, { color: colors.textFaint }]}>{section.title.toUpperCase()}</Text>
+            <Text style={[styles.month, { color: colors.textFaint }]}>{section.title}</Text>
           )}
           renderItem={({ item: row }) => (
             <View style={styles.row}>
@@ -201,7 +205,7 @@ export function ChatArchive({
 const styles = StyleSheet.create({
   filters: { paddingBottom: 8 },
   content: { paddingHorizontal: 16, paddingBottom: 20 },
-  month: { fontSize: 11, fontWeight: '800', letterSpacing: 0.7, marginTop: 10, marginBottom: 7 },
+  month: { fontSize: 11, fontWeight: '800', marginTop: 10, marginBottom: 7 },
   row: { flexDirection: 'row', gap: 4, marginBottom: 4 },
   tile: { flex: 1, aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
   tileSpacer: { flex: 1 },

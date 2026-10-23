@@ -33,3 +33,16 @@ export function leggiLinkAccesso(url: string | null | undefined): LinkAccesso {
   if (access_token && refresh_token) return { tipo: 'gettoni', access_token, refresh_token };
   return { tipo: 'nessuno' };
 }
+
+/** Di chi è il codice di accesso di un link: la sua parte centrale è un
+ * JSON in base64, e `sub` è l'identificativo della persona. `null` se il
+ * codice non si legge. */
+export function utenteDelLink(accessToken: string): string | null {
+  try {
+    const parte = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const sub = (JSON.parse(atob(parte + '='.repeat((4 - (parte.length % 4)) % 4))) as { sub?: unknown }).sub;
+    return typeof sub === 'string' ? sub : null;
+  } catch {
+    return null;
+  }
+}

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, SectionList } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, SectionList, Platform } from 'react-native';
 import { Pressable } from '@/components/Tocco';
-import MapView, { Marker, type MapPressEvent, type PoiClickEvent, type Region } from 'react-native-maps';
+import { MapView, Marker, type MapPressEvent, type PoiClickEvent, type Region } from '@/components/MappaNativa';
 import * as Location from 'expo-location';
 import { useTabBarSpace } from '@/lib/tabBarSpace';
 import { useTheme, RADIUS } from '@/theme/theme';
@@ -78,6 +78,10 @@ interface MapTabProps {
  * lingua, quindi si calcola al momento e non una volta sola. */
 const categoriaSenzaNome = (): RawPlaceCategory => ({ id: '', name: dizionario().segnaposto.altro, color: '#75828C' });
 
+/** Sul web la mappa non c'è (vedi MappaNativa): solo l'elenco dei posti,
+ * con la stessa barra, le stesse righe e la stessa aggiunta per nome. */
+const soloElenco = Platform.OS === 'web';
+
 const ITALY_REGION: Region = {
   latitude: 43.5,
   longitude: 12.5,
@@ -107,7 +111,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   const toast = useToast();
   const mapRef = useRef<MapView>(null);
 
-  const [mode, setMode] = useState<'map' | 'list'>('map');
+  const [mode, setMode] = useState<'map' | 'list'>(soloElenco ? 'list' : 'map');
   const [pins, setPins] = useState<RawPin[]>([]);
   const [categories, setCategories] = useState<RawPlaceCategory[]>([]);
   const [filter, setFilter] = useState<string>('all');
@@ -256,6 +260,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   }, []);
 
   useEffect(() => {
+    if (soloElenco) return;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
@@ -369,6 +374,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       // Senza la scheda Google (un punto qualsiasi, la propria posizione) la
       // si cerca subito, in sottofondo, così "Portami lì" poi è immediato.
       if (!creato.mapsUrl) void linkPinToGooglePlace(creato.id);
+      if (soloElenco) return true;
       setMode('map');
       setTimeout(() => {
         mapRef.current?.animateToRegion({ latitude: c.lat, longitude: c.lng, latitudeDelta: 0.02, longitudeDelta: 0.02 });
@@ -531,6 +537,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
           ].filter((s) => s.data.length > 0);
 
   const focusPin = (p: RawPin) => {
+    if (soloElenco) return;
     setMode('map');
     setTimeout(() => {
       mapRef.current?.animateToRegion({
@@ -579,17 +586,19 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
             </Pressable>
           ) : null}
         </View>
-        <Pressable accessibilityRole="button"
-          onPress={() => {
-            setMode((m) => (m === 'map' ? 'list' : 'map'));
-            setAnteprima(null);
-          }}
-          hitSlop={4}
-          style={[styles.viewBtn, { backgroundColor: colors.surface }]}
-          accessibilityLabel={mode === 'map' ? t.mappa.elenco : t.mappa.mappa}
-        >
-          {mode === 'map' ? <ListIcon size={17} color={colors.textDim} /> : <MapIcon size={17} color={colors.textDim} />}
-        </Pressable>
+        {soloElenco ? null : (
+          <Pressable accessibilityRole="button"
+            onPress={() => {
+              setMode((m) => (m === 'map' ? 'list' : 'map'));
+              setAnteprima(null);
+            }}
+            hitSlop={4}
+            style={[styles.viewBtn, { backgroundColor: colors.surface }]}
+            accessibilityLabel={mode === 'map' ? t.mappa.elenco : t.mappa.mappa}
+          >
+            {mode === 'map' ? <ListIcon size={17} color={colors.textDim} /> : <MapIcon size={17} color={colors.textDim} />}
+          </Pressable>
+        )}
         <Pressable accessibilityRole="button" onPress={() => openAdd(null)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
           <PlusIcon size={13} color={colors.inkOnAmber} />
           <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.mappa.aggiungi}</Text>
@@ -690,7 +699,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
             <View style={[styles.anteprima, { backgroundColor: colors.surface, bottom: 10 + tabBarSpace }]}>
               <View style={styles.anteprimaTop}>
                 <Text style={[styles.anteprimaCat, { color: catFor(anteprima.categoryId).color }]} numberOfLines={1}>
-                  {catFor(anteprima.categoryId).name.toUpperCase()}
+                  {catFor(anteprima.categoryId).name}
                 </Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.altreAzioni} onPress={() => setActionsFor(anteprima)} hitSlop={10}>
                   <View style={{ transform: [{ rotate: '90deg' }] }}>
@@ -751,7 +760,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
                 <>
                   <MapIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
                   <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-                    {t.mappa.vuoto}
+                    {soloElenco ? t.mappa.vuotoWeb : t.mappa.vuoto}
                   </Text>
                 </>
               )}
@@ -769,7 +778,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
             section.heading ? (
               <View style={styles.sectionHeader}>
                 <View style={[styles.dot, { backgroundColor: section.heading.color }]} />
-                <Text style={[styles.sectionTitle, { color: colors.textDim }]}>{section.heading.name.toUpperCase()}</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textDim }]}>{section.heading.name}</Text>
                 <Text style={[styles.sectionCount, { color: colors.textFaint }]}>{section.data.length}</Text>
               </View>
             ) : null
@@ -805,7 +814,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         onAttach={(linkId) => openPin && attachLink(openPin.id, linkId)}
         onDetach={(linkId) => openPin && detachLink(openPin.id, linkId)}
         onDelete={() => openPin && removePin(openPin.id)}
-        onShowOnMap={() => {
+        onShowOnMap={soloElenco ? undefined : () => {
           const target = openPin;
           setOpenPin(null);
           if (target) focusPin(target);
@@ -827,7 +836,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         addedBy={actionsFor ? authorOf(actionsFor) : ''}
         onClose={() => setActionsFor(null)}
         onNavigate={(p) => void openPinInMaps(p)}
-        onShowOnMap={(p) => {
+        onShowOnMap={soloElenco ? undefined : (p) => {
           setAnteprima(p);
           focusPin(p);
         }}
@@ -846,7 +855,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         initial={addFrom}
         categories={categories}
         near={myPos}
-        onPickOnMap={() => {
+        onPickOnMap={soloElenco ? undefined : () => {
           setAddOpen(false);
           setMode('map');
           toast.show(t.mappa.toccaPunto, 'hint');
@@ -909,7 +918,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   anteprimaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  anteprimaCat: { flex: 1, fontSize: 10.5, fontWeight: '800', letterSpacing: 0.7 },
+  anteprimaCat: { flex: 1, fontSize: 10.5, fontWeight: '800' },
   anteprimaNome: { fontSize: 19, fontWeight: '800', letterSpacing: -0.3, marginTop: 3 },
   anteprimaMeta: { fontSize: 12, marginTop: 2 },
   anteprimaLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 9, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
@@ -934,7 +943,7 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
   emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 260, lineHeight: 18 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14, marginBottom: 6 },
-  sectionTitle: { flex: 1, fontSize: 11.5, fontWeight: '800', letterSpacing: 0.6 },
+  sectionTitle: { flex: 1, fontSize: 11.5, fontWeight: '800' },
   sectionCount: { fontSize: 11.5, fontWeight: '700' },
   dot: { width: 8, height: 8, borderRadius: 4 },
   sheetTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 8 },

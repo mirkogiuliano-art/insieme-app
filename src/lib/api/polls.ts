@@ -39,9 +39,6 @@ export interface RawVote {
   optionIndex: number;
 }
 
-const SELECT_COLUMNS =
-  'id, group_id, created_by, question, options, multi, secret, counts, voters_count, closed_at, created_at';
-
 export function toRaw(row: PollRow): RawPoll {
   return {
     id: row.id,
@@ -55,18 +52,6 @@ export function toRaw(row: PollRow): RawPoll {
     closed: row.closed_at !== null,
     ts: new Date(row.created_at).getTime(),
   };
-}
-
-/** Tutti i sondaggi del gruppo. Sono pochi e piccoli: si caricano insieme
- * alla chat, così la scheda è già pronta quando compare il messaggio. */
-export async function listPolls(groupId: string): Promise<RawPoll[]> {
-  const { data, error } = await supabase
-    .from('polls')
-    .select(SELECT_COLUMNS)
-    .eq('group_id', groupId)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data as PollRow[]).map(toRaw);
 }
 
 /**

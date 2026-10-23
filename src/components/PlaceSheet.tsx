@@ -181,7 +181,7 @@ export function PlaceSheet({
           <View style={styles.hero}>
             <PlaceTile color={categoryColor} categoryName={categoryName} size={52} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.catLabel, { color: testoLeggibile(categoryColor, colors.surface) }]}>{categoryName.toUpperCase()}</Text>
+              <Text style={[styles.catLabel, { color: testoLeggibile(categoryColor, colors.surface) }]}>{categoryName}</Text>
               <Text style={[styles.heroName, { color: colors.text }]}>{pin.name}</Text>
               {distance ? <Text style={[styles.heroSub, { color: colors.textDim }]}>{t.mappa.daTe(distance)}</Text> : null}
             </View>
@@ -246,7 +246,7 @@ export function PlaceSheet({
 const styles = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   menuBtn: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
-  catLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.7 },
+  catLabel: { fontSize: 10.5, fontWeight: '800' },
   heroName: { fontSize: 19, fontWeight: '800', letterSpacing: -0.3, lineHeight: 23, marginTop: 1 },
   heroSub: { fontSize: 12, marginTop: 2 },
   heroActions: { flexDirection: 'row', gap: 8, marginTop: 14, marginBottom: 4 },
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 2 },
   confirmTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.2, marginBottom: 2 },
   sub: { fontSize: 12.5, marginBottom: 12, lineHeight: 18 },
-  sectionLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8 },
+  sectionLabel: { fontSize: 10.5, fontWeight: '800' },
   emptyLinked: { fontSize: 12.5, lineHeight: 18, marginBottom: 4 },
   linkedRow: { flexDirection: 'row', alignItems: 'center' },
   linkedMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },

@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   backBtn: { marginLeft: -2 },
   title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.9, marginTop: 18, marginBottom: 7, marginLeft: 2 },
+  sectionLabel: { fontSize: 11, fontWeight: '700', marginTop: 18, marginBottom: 7, marginLeft: 2 },
   note: { fontSize: 12.5, lineHeight: 18, marginBottom: 12 },
 
   block: { borderRadius: RADIUS.md, overflow: 'hidden' },

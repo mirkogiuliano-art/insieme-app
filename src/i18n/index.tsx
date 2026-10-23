@@ -77,9 +77,6 @@ const LinguaContext = createContext<LinguaContextValue>({
 // Parte già dalla lingua del telefono: i moduli che la leggono prima che
 // il provider abbia disegnato qualcosa non devono vedere un'altra lingua.
 let corrente: LanguageName = linguaDelSistema();
-export function linguaAttuale(): LanguageName {
-  return corrente;
-}
 export function dizionario(): Dizionario {
   return DIZIONARI[corrente];
 }

@@ -25,16 +25,16 @@ export function VoiceBubble({ uri, durationSeconds, own }: { uri: string; durati
   const label = formatSeconds(status.playing || status.currentTime > 0 ? status.currentTime : (durationSeconds ?? status.duration ?? 0));
   const heights = useMemo(() => waveformHeights(uri), [uri]);
   const progress = status.duration > 0 ? status.currentTime / status.duration : 0;
-  const playedColor = own ? colors.inkOnAmber : colors.teal;
+  const playedColor = own ? colors.suMio : colors.teal;
   const unplayedColor = own ? 'rgba(0,0,0,0.3)' : colors.surface2;
   return (
     <Pressable accessibilityRole="button" onPress={toggle} style={styles.voiceRow}>
       {/* Il pulsante pieno, come il play sulle schede video dei link. */}
-      <View style={[styles.voicePlayBtn, { backgroundColor: own ? colors.inkOnAmber : colors.teal }]}>
+      <View style={[styles.voicePlayBtn, { backgroundColor: own ? colors.suMio : colors.teal }]}>
         {status.playing ? (
-          <PauseIcon size={16} color={own ? colors.amber : colors.bg} />
+          <PauseIcon size={16} color={own ? colors.mio : colors.bg} />
         ) : (
-          <PlayIcon size={16} color={own ? colors.amber : colors.bg} />
+          <PlayIcon size={16} color={own ? colors.mio : colors.bg} />
         )}
       </View>
       <View style={styles.waveform}>
@@ -48,7 +48,7 @@ export function VoiceBubble({ uri, durationSeconds, own }: { uri: string; durati
           />
         ))}
       </View>
-      <Text style={[styles.time, { color: own ? colors.inkOnAmber : colors.text }]}>{label}</Text>
+      <Text style={[styles.time, { color: own ? colors.suMio : colors.text }]}>{label}</Text>
     </Pressable>
   );
 }

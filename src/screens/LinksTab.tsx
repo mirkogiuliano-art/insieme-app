@@ -787,7 +787,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
             section.heading ? (
               <View style={styles.sectionHeader}>
                 <View style={[styles.dot, { backgroundColor: section.heading.color }]} />
-                <Text style={[styles.sectionTitle, { color: colors.textDim }]}>{section.heading.name.toUpperCase()}</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textDim }]}>{section.heading.name}</Text>
                 <Text style={[styles.sectionCount, { color: colors.textFaint }]}>{section.count}</Text>
               </View>
             ) : null
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
   gridRow: { flexDirection: 'row', gap: 12 },
   rowSep: { height: 1, marginLeft: 80 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14, marginBottom: 8 },
-  sectionTitle: { flex: 1, fontSize: 11.5, fontWeight: '800', letterSpacing: 0.6 },
+  sectionTitle: { flex: 1, fontSize: 11.5, fontWeight: '800' },
   sectionCount: { fontSize: 11.5, fontWeight: '700' },
   catPick: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7, marginRight: 7 },
   catRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },

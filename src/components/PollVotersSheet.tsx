@@ -140,7 +140,7 @@ export function PollVotersSheet({ poll, votes, myId, roster, onClose, onCloseePo
 }
 
 const styles = StyleSheet.create({
-  eyebrow: { fontSize: 10.5, fontWeight: '800', letterSpacing: 1.2 },
+  eyebrow: { fontSize: 10.5, fontWeight: '800' },
   question: { fontFamily: FONT_ROUNDED, fontSize: 21, lineHeight: 25, letterSpacing: -0.3, marginTop: 4 },
   sub: { fontSize: 12.5, marginTop: 4 },
   body: { maxHeight: 420, marginTop: 14 },

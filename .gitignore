@@ -10,3 +10,7 @@ expo-env.d.ts
 .claude/
 
 .env.local
+
+# Skill degli assistenti installate in locale: restano fuori dal repository.
+.agents/
+skills-lock.json

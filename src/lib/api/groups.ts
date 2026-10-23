@@ -3,7 +3,7 @@ import { genGroupCode } from '@/lib/utils';
 import { GROUP_PALETTE, type Group, type MetaLibera } from '@/types';
 import { dizionario } from '@/i18n';
 
-interface GroupRow {
+export interface GroupRow {
   id: string;
   name: string;
   color: string | null;
@@ -24,7 +24,7 @@ interface GroupRow {
 const SELECT_COLUMNS =
   'id, name, color, created_by, created_at, description, starts_on, ends_on, place_pin_id, meta_nome, meta_lat, meta_lng, meta_maps_url, info_updated_by, info_updated_at';
 
-function toGroup(row: GroupRow, joinedAt?: number): Group {
+export function toGroup(row: GroupRow, joinedAt?: number): Group {
   return {
     id: row.id,
     name: row.name,

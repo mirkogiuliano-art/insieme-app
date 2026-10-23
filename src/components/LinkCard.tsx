@@ -257,9 +257,13 @@ function Thumb({
               { backgroundColor: item.platform === 'file' ? fileColor : badge.bg },
             ]}
           >
-            <Text style={[styles.badgeText, compact && { fontSize: 8 }]} numberOfLines={1}>
-              {compact && item.platform === 'youtube' ? '▶' : badge.text}
-            </Text>
+            {compact && item.platform === 'youtube' ? (
+              <PlayIcon size={9} color={styles.badgeText.color as string} />
+            ) : (
+              <Text style={[styles.badgeText, compact && { fontSize: 8 }]} numberOfLines={1}>
+                {badge.text}
+              </Text>
+            )}
           </View>
           ) : null}
         </>

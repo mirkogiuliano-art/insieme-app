@@ -206,7 +206,11 @@ function RootLayout() {
                       <ShareIntentRouter />
                       {Platform.OS !== 'web' ? <AvvisiRouter /> : null}
                       {Platform.OS !== 'web' ? <LinkAccessoRouter /> : null}
-                      <Stack screenOptions={{ headerShown: false }}>
+                      {/* freezeOnBlur: la schermata coperta (la home sotto un
+                          gruppo) non si ridisegna finché non torna in vista.
+                          Prima si ridisegnava intera all'arrivo dei dati del
+                          gruppo, proprio durante l'animazione d'apertura. */}
+                      <Stack screenOptions={{ headerShown: false, freezeOnBlur: true }}>
                         <Stack.Screen name="index" />
                         <Stack.Screen name="group/[id]" />
                         <Stack.Screen name="reset-password" />

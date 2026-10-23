@@ -179,7 +179,7 @@ export function CategorySheet({
 
 const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 10 },
-  label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 6, marginBottom: 8 },
+  label: { fontSize: 10.5, fontWeight: '800', marginTop: 6, marginBottom: 8 },
   swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   swatch: { width: 38, height: 38, borderRadius: 12, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center' },
   saveBtn: { marginTop: 16, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },

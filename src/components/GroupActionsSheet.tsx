@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
-import { ShareIcon, UsersIcon, CheckIcon, BackIcon, LogoutIcon } from '@/components/Icon';
+import { PlusIcon, UsersIcon, CheckIcon, BackIcon, LogoutIcon } from '@/components/Icon';
 import { groupColor } from '@/lib/appStore';
 import { inkOn, primoSegno } from '@/lib/utils';
 import { GROUP_PALETTE, type Group } from '@/types';
@@ -158,7 +158,7 @@ export function GroupActionsSheet({
         </View>
       </View>
       {extra ? <Item icon={extra.icon} label={extra.label} onPress={() => run(extra.onPress)} /> : null}
-      <Item icon={<ShareIcon size={17} color={colors.amberText} />} label={t.menuGruppo.invita} onPress={() => run(() => onInvite(group))} />
+      <Item icon={<PlusIcon size={17} color={colors.amberText} />} label={t.menuGruppo.invita} onPress={() => run(() => onInvite(group))} />
       <Item icon={<UsersIcon size={18} color={colors.teal} strokeWidth={2} />} label={t.menuGruppo.info} onPress={() => run(() => onInfo(group))} />
       <Item
         icon={<View style={[styles.colorDot, { backgroundColor: tint, borderColor: colors.border }]} />}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Share } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Pressable } from '@/components/Tocco';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
@@ -12,7 +12,7 @@ import { useToast } from '@/components/Toast';
 import { getMyGroup, subscribeToGroup, setGroupColor } from '@/lib/api/groups';
 import { subscribeToRoster } from '@/lib/api/groupMembers';
 import { apriGruppo } from '@/lib/api/apriGruppo';
-import { getInviteToken, rotateInvite, inviteUrl } from '@/lib/api/invites';
+import { AddPeopleSheet } from '@/components/AddPeopleSheet';
 import { GroupActionsSheet } from '@/components/GroupActionsSheet';
 import { GroupInfoSheet } from '@/components/GroupInfoSheet';
 import { ChatTab, type StrumentoChat } from '@/screens/ChatTab';
@@ -34,7 +34,7 @@ import { rangeLabel, countdownLabel } from '@/lib/groupInfo';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { TabBarSpaceContext, TABBAR_SPACE, useBarraAnimata } from '@/lib/tabBarSpace';
-import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { DECELERA } from '@/lib/movimento';
 import { useT } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
@@ -103,7 +103,11 @@ export default function GroupScreen() {
     if (localGroup || !groupsReady) return;
     let cancelled = false;
     getMyGroup(groupId).then((g) => {
-      if (!cancelled) setRemoteGroup(g);
+      if (cancelled) return;
+      setRemoteGroup(g);
+      // Nell'elenco del telefono, così partono anche nomi e aggiornamenti:
+      // senza, la chat aspettava i nomi per sempre.
+      if (g) addGroup(g);
     });
     return () => {
       cancelled = true;
@@ -134,9 +138,9 @@ export default function GroupScreen() {
   const [nomiPronti, setNomiPronti] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  // Le tab si smontano quando si cambia sezione, quindi il "vai a questo
-  // posto" partito da una targhetta nella sezione Link deve passare da qui.
+  const [aggiungendo, setAggiungendo] = useState(false);
+  // La mappa si smonta quando si cambia sezione (vedi Sezione), quindi il
+  // "vai a questo posto" partito da una targhetta in Link passa da qui.
   const [focusPinId, setFocusPinId] = useState<string | null>(null);
   // Con la tastiera aperta la barra delle sezioni sparisce, per lasciare
   // spazio a quello che si sta scrivendo. Il selettore evita di ridisegnare
@@ -156,12 +160,6 @@ export default function GroupScreen() {
     width: larghezzaTab.value,
     transform: [{ translateX: posizioneTab.value * (larghezzaTab.value + 4) }],
   }));
-  // Il contenuto di una sezione nuova compare in dissolvenza; quello che
-  // c'è all'apertura del gruppo no, arriva già con la schermata.
-  const primaSezione = useRef(true);
-  useEffect(() => {
-    primaSezione.current = false;
-  }, []);
 
   useEffect(() => {
     if (!localGroup) return;
@@ -194,23 +192,6 @@ export default function GroupScreen() {
     return unsubscribe;
   }, [groupId, !!localGroup]);
 
-  /** Condivide il link d'invito, creandolo al volo se il gruppo non ne ha
-   * uno attivo (per esempio perché è stato revocato). */
-  const shareInvite = async () => {
-    if (!localGroup || sharing) return;
-    setSharing(true);
-    try {
-      const token = (await getInviteToken(localGroup.id)) ?? (await rotateInvite(localGroup.id));
-      await Share.share({
-        message: t.home.invitoTesto(localGroup.name, inviteUrl(token)),
-      });
-    } catch (err) {
-      segnalaErrore(err, 'home.erroreInvito');
-      toast.show(t.home.erroreInvito, 'error');
-    } finally {
-      setSharing(false);
-    }
-  };
 
   const cambiaColore = async (g: Group, color: string) => {
     try {
@@ -346,36 +327,38 @@ export default function GroupScreen() {
           di essa invece di finirci sotto. L'intestazione resta ferma. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
       <TabBarSpaceContext.Provider value={keyboardOpen ? 0 : TABBAR_SPACE}>
-      <Animated.View key={tab} entering={primaSezione.current ? undefined : FadeIn.duration(200)} style={{ flex: 1 }}>
-        {tab === 'chat' ? (
-          <ChatTab
-            groupId={groupId}
-            roster={roster}
-            strumento={strumentoChat}
-            onStrumento={setStrumentoChat}
-            onInvita={shareInvite}
-            nomiPronti={nomiPronti}
-          />
-        ) : null}
-        {tab === 'links' ? (
-          <LinksTab
-            groupId={groupId}
-            roster={roster}
-            onShowPlaceOnMap={(pinId) => {
-              setFocusPinId(pinId);
-              setTab('map');
-            }}
-          />
-        ) : null}
-        {tab === 'map' ? (
-          <MapTab
-            groupId={groupId}
-            roster={roster}
-            focusPinId={focusPinId}
-            onFocusHandled={() => setFocusPinId(null)}
-          />
-        ) : null}
-      </Animated.View>
+      <Sezione attiva={tab === 'chat'}>
+        <ChatTab
+          groupId={groupId}
+          roster={roster}
+          attiva={tab === 'chat'}
+          strumento={strumentoChat}
+          onStrumento={setStrumentoChat}
+          onInvita={() => setAggiungendo(true)}
+          nomiPronti={nomiPronti}
+        />
+      </Sezione>
+      <Sezione attiva={tab === 'links'}>
+        <LinksTab
+          groupId={groupId}
+          roster={roster}
+          onShowPlaceOnMap={(pinId) => {
+            setFocusPinId(pinId);
+            setTab('map');
+          }}
+        />
+      </Sezione>
+      {/* La mappa invece si rimonta: il posto da mostrare (focusPinId) lo
+          cerca all'arrivo, e una mappa nascosta e poi riapparsa potrebbe
+          non essere pronta a spostarsi. */}
+      <Sezione attiva={tab === 'map'} resta={false}>
+        <MapTab
+          groupId={groupId}
+          roster={roster}
+          focusPinId={focusPinId}
+          onFocusHandled={() => setFocusPinId(null)}
+        />
+      </Sezione>
 
       {/* La barra galleggia davvero sopra il contenuto: le liste e la mappa
           le passano sotto fino al bordo dello schermo, e lei resta leggibile
@@ -445,6 +428,8 @@ export default function GroupScreen() {
         />
       ) : null}
 
+      {localGroup ? <AddPeopleSheet visible={aggiungendo} onClose={() => setAggiungendo(false)} group={localGroup} /> : null}
+
       {/* Lo stesso menu che il gruppo ha nella home (GroupActionsSheet):
           stesse voci, stesso ordine. Qui in più c'è l'archivio della chat;
           le impostazioni dell'app stanno nella home, non nel gruppo. */}
@@ -459,7 +444,7 @@ export default function GroupScreen() {
             : undefined
         }
         onClose={() => setMenuOpen(false)}
-        onInvite={() => void shareInvite()}
+        onInvite={() => setAggiungendo(true)}
         onInfo={() => setGroupInfoOpen(true)}
         onColor={cambiaColore}
         onMarkRead={() => {}}
@@ -514,8 +499,38 @@ function TabButton({
   );
 }
 
+/**
+ * Una sezione del gruppo. Si monta la prima volta che si apre e poi resta,
+ * nascosta quando se ne apre un'altra: rimontarla a ogni cambio rifaceva
+ * disegno, letture e iscrizioni al tempo reale, e il cambio si sentiva.
+ * Tornando compare in dissolvenza, tranne quella aperta col gruppo, che
+ * arriva già con la schermata. Con `resta={false}` si smonta uscendo.
+ */
+function Sezione({ attiva, resta = true, children }: { attiva: boolean; resta?: boolean; children: React.ReactNode }) {
+  const [aperta, setAperta] = useState(attiva);
+  const opacita = useSharedValue(attiva ? 1 : 0);
+  const prima = useRef(true);
+  useEffect(() => {
+    const iniziale = prima.current;
+    prima.current = false;
+    if (!attiva) {
+      // Già trasparente quando torna: niente lampo prima della dissolvenza.
+      opacita.value = 0;
+      return;
+    }
+    setAperta(true);
+    if (iniziale) return;
+    opacita.value = withTiming(1, { duration: 200 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attiva]);
+  const dissolvenza = useAnimatedStyle(() => ({ opacity: opacita.value }));
+  if (!attiva && !(resta && aperta)) return null;
+  return <Animated.View style={[styles.sezione, dissolvenza, !attiva && styles.nascosta]}>{children}</Animated.View>;
+}
 
 const styles = StyleSheet.create({
+  sezione: { flex: 1 },
+  nascosta: { display: 'none' },
   container: { flex: 1 },
   affiancati: { flex: 1, flexDirection: 'row' },
   elenco: { width: 380, borderRightWidth: 1 },

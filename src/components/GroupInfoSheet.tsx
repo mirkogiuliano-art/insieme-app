@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Share, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { Pressable } from '@/components/Tocco';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTheme, RADIUS, FONT_ROUNDED } from '@/theme/theme';
@@ -7,7 +7,7 @@ import { fitFontSize } from '@/lib/fitText';
 import { useAuth } from '@/lib/authStore';
 import { groupColor, useAppStore } from '@/lib/appStore';
 import { useToast } from '@/components/Toast';
-import { ShareIcon, LogoutIcon, EditIcon, CalendarIcon, MapIcon, PlusIcon, CloseIcon, ChevronIcon, CheckIcon, SearchIcon } from '@/components/Icon';
+import { LogoutIcon, EditIcon, CalendarIcon, MapIcon, PlusIcon, CloseIcon, ChevronIcon, CheckIcon, SearchIcon } from '@/components/Icon';
 import { listPins, type RawPin } from '@/lib/api/pins';
 import { searchPlaces, type FoundPlace } from '@/lib/api/places';
 import { CampoData } from '@/components/CampoData';
@@ -15,7 +15,8 @@ import { listFacts, addFact, editFact, removeFact, subscribeToFacts, type RawFac
 import { setGroupInfo } from '@/lib/api/groups';
 import { rangeLabel, countdownLabel } from '@/lib/groupInfo';
 import { listLastReads, subscribeToLastReads, countMembers } from '@/lib/api/groupMembers';
-import { getInviteToken, rotateInvite, revokeInvite, inviteUrl } from '@/lib/api/invites';
+import { AddPeopleContent } from '@/components/AddPeopleSheet';
+import { invitiInAttesa } from '@/lib/api/invitiPersona';
 import { initials, colorForUser, dateLabel, inkOn, googleMapsPlaceUrl, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
 import type { Group, MetaLibera } from '@/types';
 import { useT, dizionario } from '@/i18n';
@@ -355,9 +356,10 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
   const { session } = useAuth();
   const toast = useToast();
   const [lastReads, setLastReads] = useState<Record<string, number | null>>({});
-  // `undefined` = non ancora letto, `null` = nessun invito attivo.
-  const [inviteToken, setInviteToken] = useState<string | null | undefined>(undefined);
-  const [busy, setBusy] = useState(false);
+  /** «Aggiungi persone», mostrato al posto delle info. */
+  const [aggiungendo, setAggiungendo] = useState(false);
+  /** Chi è stato invitato e non ha ancora risposto. */
+  const [inAttesa, setInAttesa] = useState<{ id: string; nome: string }[]>([]);
   const [cardWidth, setCardWidth] = useState(0);
   const { leaveGroup, offlineDal } = useAppStore();
   /** Conferma per l'uscita dal gruppo, mostrata al posto del contenuto
@@ -376,9 +378,6 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
   /** Senza rete: da quando sono i dati a schermo. Intanto le azioni che
    * scrivono si spengono, invece di invitare a fare cose che falliranno. */
   const [senzaRete, setSenzaRete] = useState<number | null>(null);
-  /** Il link d'invito non si è potuto leggere: «nessun link attivo»
-   * sarebbe falso. */
-  const [invitoIrraggiungibile, setInvitoIrraggiungibile] = useState(false);
   /** Ogni giro rilegge tutto: lo fanno «Riprova» e il tentativo da solo. */
   const [giro, setGiro] = useState(0);
   const riprova = () => setGiro((g) => g + 1);
@@ -390,6 +389,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
     if (visible) {
       setConfirmLeave(false);
       setEditingInfo(false);
+      setAggiungendo(false);
       setFactDraft(null);
     }
   }, [visible]);
@@ -493,59 +493,17 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
     }
   };
 
+  // Riletti anche tornando da «Aggiungi persone», dove se ne aggiungono.
   useEffect(() => {
-    if (!visible) return;
-    getInviteToken(group.id)
-      .then((tok) => {
-        setInviteToken(tok);
-        setInvitoIrraggiungibile(false);
-      })
-      .catch(() => setInvitoIrraggiungibile(true));
-  }, [visible, group.id, giro]);
-
-  const shareLink = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const token = inviteToken ?? (await rotateInvite(group.id));
-      setInviteToken(token);
-      await Share.share({ message: t.home.invitoTesto(group.name, inviteUrl(token)) });
-    } catch (err) {
-      segnalaErrore(err, 'infoGruppo.erroreLink');
-      toast.show(t.infoGruppo.erroreLink, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const regenerate = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      setInviteToken(await rotateInvite(group.id));
-      toast.show(t.infoGruppo.linkNuovo);
-    } catch (err) {
-      segnalaErrore(err, 'infoGruppo.erroreLinkNuovo');
-      toast.show(t.infoGruppo.erroreLinkNuovo, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const revoke = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await revokeInvite(group.id);
-      setInviteToken(null);
-      toast.show(t.infoGruppo.linkDisattivato);
-    } catch (err) {
-      segnalaErrore(err, 'infoGruppo.erroreDisattiva');
-      toast.show(t.infoGruppo.erroreDisattiva, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
+    if (!visible || aggiungendo) return;
+    let alive = true;
+    invitiInAttesa(group.id)
+      .then((a) => alive && setInAttesa(a))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [visible, aggiungendo, group.id, giro]);
 
   useEffect(() => {
     if (!visible) return;
@@ -572,6 +530,14 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
         onCancel={() => setEditingInfo(false)}
         onSaved={() => setEditingInfo(false)}
       />
+    );
+  }
+
+  if (aggiungendo) {
+    return (
+      <BottomSheet visible={visible} onClose={onClose}>
+        <AddPeopleContent visible={visible} onClose={onClose} group={group} onBack={() => setAggiungendo(false)} />
+      </BottomSheet>
     );
   }
 
@@ -711,7 +677,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
               style={[styles.factRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
             >
               <View style={{ flex: 1 }}>
-                <Text style={[styles.factLabel, { color: colors.textFaint }]}>{f.label.toUpperCase()}</Text>
+                <Text style={[styles.factLabel, { color: colors.textFaint }]}>{f.label}</Text>
                 <Text style={[styles.factValue, { color: colors.text }]}>{f.value}</Text>
               </View>
               {scrive ? <EditIcon size={14} color={colors.textFaint} /> : null}
@@ -737,46 +703,23 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
         ) : null}
       </View>
 
-      <Text style={[styles.sectionLabel, styles.spacedLabel, { color: colors.textDim }]}>{t.infoGruppo.linkInvito}</Text>
-      <Text style={[styles.inviteNote, { color: colors.textFaint }]}>
-        {invitoIrraggiungibile
-          ? t.infoGruppo.invitoSenzaRete
-          : inviteToken === undefined
-            ? t.comune.unAttimo
-            : inviteToken
-              ? t.infoGruppo.invitoAttivo
-              : t.infoGruppo.invitoSpento}
-      </Text>
-      {/* Senza rete il link non si legge né si crea: niente tasto. */}
-      {invitoIrraggiungibile ? null : (
-      <Pressable accessibilityRole="button"
-        onPress={shareLink}
-        disabled={busy || inviteToken === undefined}
-        style={[styles.inviteBtn, { backgroundColor: colors.amber, opacity: busy || inviteToken === undefined ? 0.6 : 1 }]}
-      >
-        <ShareIcon size={15} color={colors.inkOnAmber} />
-        <Text style={{ color: colors.inkOnAmber, fontWeight: '700', fontSize: 13 }}>
-          {inviteToken ? t.infoGruppo.condividiLink : t.infoGruppo.creaLink}
-        </Text>
-      </Pressable>
-      )}
-      {inviteToken && !invitoIrraggiungibile ? (
-        <View style={styles.inviteActions}>
-          <Pressable accessibilityRole="button" onPress={regenerate} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
-            <Text style={{ color: colors.textDim, fontSize: 12.5, fontWeight: '600' }}>{t.infoGruppo.generaNuovo}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={revoke} disabled={busy} style={[styles.inviteMinor, { backgroundColor: colors.surface2 }]}>
-            <Text style={{ color: colors.danger, fontSize: 12.5, fontWeight: '600' }}>{t.infoGruppo.disattiva}</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
       <Text style={[styles.sectionLabel, styles.membersLabel, { color: colors.textDim }]}>{t.infoGruppo.membriN(members.length)}</Text>
       <View style={[styles.membersBlock, { backgroundColor: colors.surface2 }]}>
+        {/* Per primo, come in ogni elenco di persone: si cerca qui chi
+            manca. Senza rete non c'è, perché invitare non riuscirebbe. */}
+        {scrive ? (
+          <Pressable accessibilityRole="button" onPress={() => setAggiungendo(true)} style={styles.memberRow}>
+            <View style={[styles.memberAvatar, { backgroundColor: colors.amber }]}>
+              <PlusIcon size={16} color={colors.inkOnAmber} />
+            </View>
+            <Text style={[styles.memberName, { flex: 1, color: colors.text }]}>{t.aggiungiPersone.titolo}</Text>
+            <ChevronIcon size={15} color={colors.textFaint} />
+          </Pressable>
+        ) : null}
         {members.map(([userId, name], i) => {
           const isMe = userId === session?.user.id;
           return (
-            <View key={userId} style={[styles.memberRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
+            <View key={userId} style={[styles.memberRow, (i > 0 || scrive) && { borderTopWidth: 1, borderTopColor: colors.border }]}>
               <View style={[styles.memberAvatar, { backgroundColor: colorForUser(name) }]}>
                 <Text maxFontSizeMultiplier={1} style={styles.memberAvatarText}>{initials(name)}</Text>
               </View>
@@ -794,6 +737,17 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
             </View>
           );
         })}
+        {inAttesa.filter((p) => !roster[p.id]).map((p) => (
+          <View key={`attesa-${p.id}`} style={[styles.memberRow, { borderTopWidth: 1, borderTopColor: colors.border }]}>
+            <View style={[styles.memberAvatar, { backgroundColor: colorForUser(p.nome), opacity: 0.45 }]}>
+              <Text maxFontSizeMultiplier={1} style={styles.memberAvatarText}>{initials(p.nome)}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.memberName, { color: colors.textDim }]}>{p.nome}</Text>
+              <Text style={[styles.memberSeen, { color: colors.textFaint }]}>{t.aggiungiPersone.inAttesa}</Text>
+            </View>
+          </View>
+        ))}
       </View>
 
       {/* In fondo e staccata dal resto: è una cosa del gruppo, quindi sta
@@ -818,7 +772,7 @@ const styles = StyleSheet.create({
   infoRowText: { flex: 1, fontSize: 14.5 },
   countdown: { paddingHorizontal: 10, height: 24, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   factRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11 },
-  factLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.7 },
+  factLabel: { fontSize: 10.5, fontWeight: '800' },
   factValue: { fontSize: 14.5, fontWeight: '700', marginTop: 3 },
   factsEmpty: { fontSize: 13, lineHeight: 19, padding: 14 },
   addFact: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 13 },
@@ -846,19 +800,9 @@ const styles = StyleSheet.create({
   senzaRete: { marginHorizontal: 0, marginTop: 0, marginBottom: 18 },
   card: { height: 92, borderRadius: 22, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 18 },
   cardBlob: { position: 'absolute', right: -30, top: -38, width: 110, height: 110, borderRadius: 55, backgroundColor: 'rgba(0,0,0,0.09)' },
-  sectionLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 },
+  sectionLabel: { fontSize: 10.5, fontWeight: '800', marginBottom: 8 },
   membersBlock: { borderRadius: RADIUS.md, overflow: 'hidden' },
-  // Solo qui e non su "LINK DI INVITO": quella etichetta segue già il
-  // margine del blocco con nome e avatar del gruppo, che le dà abbastanza
-  // spazio da sé.
   membersLabel: { marginTop: 20 },
-  inviteNote: { fontSize: 12, lineHeight: 17, marginBottom: 10 },
-  inviteBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    height: 46, borderRadius: 999,
-  },
-  inviteActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  inviteMinor: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: RADIUS.sm },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 12, paddingVertical: 10 },
   memberAvatar: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   memberAvatarText: { fontSize: 13, fontWeight: '700', color: '#1B2530' },

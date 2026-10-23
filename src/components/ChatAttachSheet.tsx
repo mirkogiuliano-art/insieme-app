@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   gridRow: { flexDirection: 'row', gap: 8 },
   tile: { flex: 1, height: 72, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 4 },
   tileText: { fontSize: 11.5, fontWeight: '700' },
-  label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 16, marginBottom: 8 },
+  label: { fontSize: 10.5, fontWeight: '800', marginTop: 16, marginBottom: 8 },
   list: { borderRadius: RADIUS.md, overflow: 'hidden' },
   choice: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 12, paddingVertical: 10 },
   choiceName: { fontSize: 14, fontWeight: '700' },

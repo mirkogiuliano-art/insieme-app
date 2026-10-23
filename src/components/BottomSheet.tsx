@@ -33,16 +33,23 @@ const ACCELERA = Easing.bezier(0.4, 0, 1, 1);
 export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
   const { colors } = useTheme();
   const t = useT();
-  const [montato, setMontato] = useState(visible);
+  const [montato, setMontato] = useState(false);
   const ultimoContenuto = useRef(children);
   if (visible) ultimoContenuto.current = children;
   const p = useSharedValue(0);
   const altezza = useSharedValue(600);
+  const entra = () => {
+    p.value = withTiming(1, { duration: ENTRATA_MS, easing: DECELERA });
+  };
 
   useEffect(() => {
     if (visible) {
-      setMontato(true);
-      p.value = withTiming(1, { duration: ENTRATA_MS, easing: DECELERA });
+      // Su Android la Modal compare qualche istante dopo essere montata: il
+      // foglio sale quando è davvero a schermo (onShow), altrimenti metà della
+      // salita passava prima e se ne vedeva solo la fine, a scatto. Riaperto
+      // mentre scendeva è già a schermo, e risale da dov'è.
+      if (montato) entra();
+      else setMontato(true);
     } else {
       p.value = withTiming(0, { duration: USCITA_MS, easing: ACCELERA }, (finito) => {
         if (finito) scheduleOnRN(setMontato, false);
@@ -55,7 +62,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
   const pannello = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - p.value) * altezza.value }] }));
 
   return (
-    <Modal visible={montato} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={montato} transparent animationType="none" onRequestClose={onClose} onShow={entra}>
       <View style={styles.root}>
         {/* Lo sfondo che chiude il foglio sta DIETRO al foglio, non
             intorno al suo contenuto. Avvolgere la lista in un Pressable

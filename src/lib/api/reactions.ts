@@ -14,19 +14,8 @@ interface ReactionRow {
   emoji: string;
 }
 
-const SELECT_COLUMNS = 'id, message_id, user_id, emoji';
-
 export function toRaw(row: ReactionRow): RawReaction {
   return { id: row.id, messageId: row.message_id, userId: row.user_id, emoji: row.emoji };
-}
-
-export async function listReactions(groupId: string): Promise<RawReaction[]> {
-  const { data, error } = await supabase.from('message_reactions').select(SELECT_COLUMNS).eq('group_id', groupId);
-  // Un elenco vuoto per errore è indistinguibile da un elenco davvero
-  // vuoto: chi chiama deve poter distinguere i due casi e riprovare.
-  if (error) throw error;
-  if (!data) return [];
-  return data.map(toRaw);
 }
 
 /** Se l'utente ha già messo questa reazione la toglie, altrimenti la aggiunge. */

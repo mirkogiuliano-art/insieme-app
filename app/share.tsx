@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
   previewFallback: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   previewTitle: { fontSize: 14, fontWeight: '800', lineHeight: 18 },
   previewSub: { fontSize: 11.5, marginTop: 3 },
-  label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 18, marginBottom: 9 },
+  label: { fontSize: 10.5, fontWeight: '800', marginTop: 18, marginBottom: 9 },
   groups: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   groupPick: { borderRadius: 14, borderWidth: 2, paddingHorizontal: 13, paddingVertical: 9, maxWidth: '100%' },
   groupPickText: { fontFamily: FONT_ROUNDED, fontSize: 15 },
