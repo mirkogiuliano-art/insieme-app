@@ -129,9 +129,13 @@ export default function GroupScreen() {
   const [tab, setTab] = useState<TabName>('chat');
   // La ricerca e l'archivio della chat si aprono dall'intestazione.
   const [strumentoChat, setStrumentoChat] = useState<StrumentoChat>('chat');
-  useEffect(() => {
-    if (tab !== 'chat') setStrumentoChat('chat');
-  }, [tab]);
+  /** Cambiando sezione la chat torna normale (ricerca e archivio chiusi),
+   * nello stesso ridisegno: con un effetto ce n'era un secondo, durante
+   * il passaggio. */
+  const apriSezione = (s: TabName) => {
+    setTab(s);
+    setStrumentoChat('chat');
+  };
   const [roster, setRoster] = useState<Record<string, string>>({});
   /** I nomi sono arrivati, dal server o dalla copia: la prima volta la
    * chat li aspetta, invece di mostrare per un attimo «Utente». */
@@ -344,7 +348,7 @@ export default function GroupScreen() {
           roster={roster}
           onShowPlaceOnMap={(pinId) => {
             setFocusPinId(pinId);
-            setTab('map');
+            apriSezione('map');
           }}
         />
       </Sezione>
@@ -383,10 +387,7 @@ export default function GroupScreen() {
         <TabButton
           label={t.gruppo.chat}
           active={tab === 'chat'}
-          onPress={() => {
-            setTab('chat');
-            setStrumentoChat('chat');
-          }}
+          onPress={() => apriSezione('chat')}
           icon={<ChatIcon size={21} color={tab === 'chat' ? colors.inkOnAmber : colors.textFaint} />}
           activeText={colors.inkOnAmber}
           inactiveText={colors.textFaint}
@@ -394,7 +395,7 @@ export default function GroupScreen() {
         <TabButton
           label={t.gruppo.link}
           active={tab === 'links'}
-          onPress={() => setTab('links')}
+          onPress={() => apriSezione('links')}
           icon={<LinkIcon size={21} color={tab === 'links' ? colors.inkOnAmber : colors.textFaint} />}
           activeText={colors.inkOnAmber}
           inactiveText={colors.textFaint}
@@ -402,7 +403,7 @@ export default function GroupScreen() {
         <TabButton
           label={t.gruppo.mappa}
           active={tab === 'map'}
-          onPress={() => setTab('map')}
+          onPress={() => apriSezione('map')}
           icon={<MapIcon size={21} color={tab === 'map' ? colors.inkOnAmber : colors.textFaint} />}
           activeText={colors.inkOnAmber}
           inactiveText={colors.textFaint}
@@ -423,7 +424,7 @@ export default function GroupScreen() {
           onShowPlace={(pinId) => {
             setGroupInfoOpen(false);
             setFocusPinId(pinId);
-            setTab('map');
+            apriSezione('map');
           }}
         />
       ) : null}

@@ -65,13 +65,6 @@ export function PlaceActionsSheet({
     fn();
   };
 
-  const Item = ({ icon, label, danger, onPress }: { icon: React.ReactNode; label: string; danger?: boolean; onPress: () => void }) => (
-    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
-      {icon}
-      <Text style={[styles.itemText, { color: danger ? colors.danger : colors.text }]}>{label}</Text>
-    </Pressable>
-  );
-
   const header = (
     <View style={styles.header}>
       <PlaceTile color={cat.color} categoryName={cat.name} size={40} />
@@ -86,19 +79,10 @@ export function PlaceActionsSheet({
     </View>
   );
 
-  const StepTitle = ({ title }: { title: string }) => (
-    <View style={styles.stepTitleRow}>
-      <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setStep('menu')} hitSlop={10}>
-        <BackIcon size={20} color={colors.textDim} />
-      </Pressable>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>{title}</Text>
-    </View>
-  );
-
   if (step === 'move') {
     return (
       <BottomSheet visible onClose={onClose}>
-        <StepTitle title={t.menuLink.spostaIn} />
+        <StepTitle title={t.menuLink.spostaIn} onBack={() => setStep('menu')} />
         {categories.map((c) => {
           const current = c.id === pin.categoryId;
           return (
@@ -129,7 +113,7 @@ export function PlaceActionsSheet({
     };
     return (
       <BottomSheet visible onClose={onClose}>
-        <StepTitle title={t.posto.mandaInChat} />
+        <StepTitle title={t.posto.mandaInChat} onBack={() => setStep('menu')} />
         <View style={[styles.chatPreview, { backgroundColor: colors.surface2 }]}>{header}</View>
         <TextInput
           style={[styles.noteInput, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
@@ -206,6 +190,32 @@ export function PlaceActionsSheet({
       />
       <Item icon={<TrashIcon size={18} color={colors.danger} />} label={t.comune.elimina} danger onPress={() => setStep('delete')} />
     </BottomSheet>
+  );
+}
+
+// Fuori dal componente che li usa: dichiarati dentro, a ogni ridisegno React li vedeva
+// come componenti nuovi e ricostruiva da capo tutto quello che contengono.
+
+function Item({ icon, label, danger, onPress }: { icon: React.ReactNode; label: string; danger?: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.item, { borderTopColor: colors.border }]}>
+      {icon}
+      <Text style={[styles.itemText, { color: danger ? colors.danger : colors.text }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function StepTitle({ title, onBack }: { title: string; onBack: () => void }) {
+  const { colors } = useTheme();
+  const t = useT();
+  return (
+    <View style={styles.stepTitleRow}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={onBack} hitSlop={10}>
+        <BackIcon size={20} color={colors.textDim} />
+      </Pressable>
+      <Text style={[styles.stepTitle, { color: colors.text }]}>{title}</Text>
+    </View>
   );
 }
 

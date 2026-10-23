@@ -275,6 +275,21 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     [messages, bloccati],
   );
 
+  // Indici per i fumetti: citazione, sondaggio e posto si trovano qui invece
+  // di scorrere le liste intere per ogni messaggio disegnato.
+  const messaggiPerId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+  const sondaggiPerId = useMemo(() => new Map(polls.map((p) => [p.id, p])), [polls]);
+  const posti = useMemo(() => {
+    const perUrl = new Map<string, RawPin>();
+    const perNome = new Map<string, RawPin>();
+    // Vince il primo nell'ordine della lista, come faceva la ricerca.
+    for (const pin of pins) {
+      for (const url of [pin.mapsUrl, mapsUrlForPlace(pin)]) if (url && !perUrl.has(url)) perUrl.set(url, pin);
+      if (!perNome.has(pin.name)) perNome.set(pin.name, pin);
+    }
+    return { perUrl, perNome };
+  }, [pins]);
+
   const searching = mode === 'chat' && searchQuery.trim().length > 0;
   const matches = useMemo(() => {
     if (!searching) return [];
@@ -760,7 +775,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   const messaggiVisibiliRef = useRef<RawMessage[]>([]);
   messaggiVisibiliRef.current = messaggiVisibili;
 
-  const messaggioSelezionato = reactSheetFor ? messages.find((m) => m.id === reactSheetFor) : undefined;
+  const messaggioSelezionato = reactSheetFor ? messaggiPerId.get(reactSheetFor) : undefined;
 
   /** La segnalazione non cancella niente e non avvisa la persona
    * segnalata: mette una riga da parte per chi gestisce il servizio. Va
@@ -1013,7 +1028,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     const own = session ? item.userId === session.user.id : false;
     const displayName = roster[item.userId] ?? t.segnaposto.utente;
     const chips = reactionsByMessage[item.id] ?? [];
-    const quoted = item.replyToId ? messages.find((m) => m.id === item.replyToId) : null;
+    const quoted = item.replyToId ? (messaggiPerId.get(item.replyToId) ?? null) : null;
 
     // L'elenco è invertito: il messaggio precedente nel tempo sta dopo
     // nell'array, e si vede sopra.
@@ -1026,7 +1041,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     // Il testo del messaggio di un sondaggio è la domanda (serve alla
     // ricerca e alla notifica): a schermo però la dice la scheda, quindi
     // qui il fumetto non ci va.
-    const poll = item.pollId ? (polls.find((p) => p.id === item.pollId) ?? null) : null;
+    const poll = item.pollId ? (sondaggiPerId.get(item.pollId) ?? null) : null;
     const place = poll ? null : parsePlaceMessage(item.text);
     const bodyText = poll ? null : place ? place.note : item.text;
     const linkUrl = !poll && !item.attachmentUrl && !place && item.text ? firstUrl(item.text) : null;
@@ -1036,9 +1051,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     const isMatch = !!term && `${item.text ?? ''} ${item.attachmentName ?? ''}`.toLowerCase().includes(term.toLowerCase());
     const isCurrentMatch = isMatch && item.id === currentMatchId;
 
-    const placePin = place
-      ? pins.find((p) => p.mapsUrl === place.url || mapsUrlForPlace(p) === place.url) ?? pins.find((p) => p.name === place.name) ?? null
-      : null;
+    const placePin = place ? (posti.perUrl.get(place.url) ?? posti.perNome.get(place.name) ?? null) : null;
 
     const openMenu = () => {
       setReactSheetFor(item.id);

@@ -256,8 +256,14 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
   };
 
   const openInfo = async (g: Group) => {
-    const roster = await listRoster(g.id).catch(() => ({}) as Record<string, string>);
-    setInfoFor({ group: g, roster });
+    // Il foglio si apre subito con i nomi salvati sul telefono, e quelli del
+    // server li aggiornano quando arrivano. Prima si aspettava la rete, e
+    // intanto il tocco sembrava non aver fatto niente.
+    const copia = await leggiCopia<Record<string, string>>(utente, `membri:${g.id}`);
+    setInfoFor({ group: g, roster: copia?.dati ?? {} });
+    listRoster(g.id)
+      .then((roster) => setInfoFor((aperto) => (aperto?.group.id === g.id ? { group: g, roster } : aperto)))
+      .catch(() => {});
   };
 
   const leave = async (g: Group) => {

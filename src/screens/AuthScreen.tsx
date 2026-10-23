@@ -142,16 +142,6 @@ export function AuthScreen() {
   const lengthOk = password.length >= MIN_PASSWORD;
   const matchOk = !!confirmPassword && password === confirmPassword;
 
-  /** Un requisito della password che si spunta mentre si scrive. */
-  const Requirement = ({ ok, label }: { ok: boolean; label: string }) => (
-    <View style={styles.req}>
-      <View style={[styles.reqDot, { backgroundColor: ok ? colors.teal : colors.surface2 }]}>
-        {ok ? <CheckIcon size={10} color={colors.bg} /> : null}
-      </View>
-      <Text style={[styles.reqText, { color: ok ? colors.teal : colors.textFaint }]}>{label}</Text>
-    </View>
-  );
-
   const content =
     mode === 'forgot' && sentTo ? (
       // ── Link partito ──
@@ -336,6 +326,22 @@ export function AuthScreen() {
         </ScrollConTastiera>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+// Fuori dal componente che li usa: dichiarati dentro, a ogni ridisegno React li vedeva
+// come componenti nuovi e ricostruiva da capo tutto quello che contengono.
+
+/** Un requisito della password che si spunta mentre si scrive. */
+function Requirement({ ok, label }: { ok: boolean; label: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.req}>
+      <View style={[styles.reqDot, { backgroundColor: ok ? colors.teal : colors.surface2 }]}>
+        {ok ? <CheckIcon size={10} color={colors.bg} /> : null}
+      </View>
+      <Text style={[styles.reqText, { color: ok ? colors.teal : colors.textFaint }]}>{label}</Text>
+    </View>
   );
 }
 

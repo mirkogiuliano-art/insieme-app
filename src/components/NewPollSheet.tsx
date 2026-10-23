@@ -64,31 +64,6 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
     }
   };
 
-  const Interruttore = ({
-    label,
-    sub,
-    value,
-    onChange,
-  }: {
-    label: string;
-    sub: string;
-    value: boolean;
-    onChange: (v: boolean) => void;
-  }) => (
-    <View style={styles.switchRow}>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.switchLabel, { color: colors.text }]}>{label}</Text>
-        <Text style={[styles.switchSub, { color: colors.textFaint }]}>{sub}</Text>
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ false: colors.surface2, true: colors.lilac }}
-        thumbColor="#fff"
-      />
-    </View>
-  );
-
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <View style={styles.titleRow}>
@@ -173,6 +148,37 @@ export function NewPollSheet({ visible, onClose, onCreate }: NewPollSheetProps) 
         )}
       </Pressable>
     </BottomSheet>
+  );
+}
+
+// Fuori dal componente che li usa: dichiarati dentro, a ogni ridisegno React li vedeva
+// come componenti nuovi e ricostruiva da capo tutto quello che contengono.
+
+function Interruttore({
+  label,
+  sub,
+  value,
+  onChange,
+}: {
+  label: string;
+  sub: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.switchRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.switchLabel, { color: colors.text }]}>{label}</Text>
+        <Text style={[styles.switchSub, { color: colors.textFaint }]}>{sub}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: colors.surface2, true: colors.lilac }}
+        thumbColor="#fff"
+      />
+    </View>
   );
 }
 

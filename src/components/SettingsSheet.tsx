@@ -24,8 +24,7 @@ import { deleteMyAccount } from '@/lib/api/account';
 import { listBlockedWithNames, unblockUser } from '@/lib/api/moderation';
 import { initials } from '@/lib/utils';
 import { useDocumenti } from '@/lib/legal';
-import { useLingua, LINGUE, NOMI_LINGUA } from '@/i18n';
-import type { ThemePreference, LanguageName } from '@/types';
+import { useLingua, useT, LINGUE, NOMI_LINGUA } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
 import { messaggioErrore } from '@/lib/errori';
 
@@ -151,64 +150,6 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     },
   };
 
-  // ── Pezzi comuni ────────────────────────────────────────────────
-
-  /** Titolo di una sottopagina, con la freccia per tornare indietro. */
-  const PageTitle = ({ title, back }: { title: string; back?: Page }) => (
-    <View style={styles.titleRow}>
-      {back ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={() => setPage(back)} hitSlop={10} style={styles.backBtn}>
-          <BackIcon size={20} color={colors.textDim} />
-        </Pressable>
-      ) : null}
-      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-    </View>
-  );
-
-  const SectionLabel = ({ children }: { children: string }) => (
-    <Text style={[styles.sectionLabel, { color: colors.textFaint }]}>{children}</Text>
-  );
-
-  /** Una riga di un blocco: icona su un quadratino tinto, nome, e a
-   * destra un valore o una freccia. */
-  const Row = ({
-    icon,
-    tint,
-    label,
-    value,
-    trailing,
-    danger,
-    first,
-    onPress,
-  }: {
-    icon: React.ReactNode;
-    tint: string;
-    label: string;
-    value?: string;
-    trailing?: React.ReactNode;
-    danger?: boolean;
-    first?: boolean;
-    onPress: () => void;
-  }) => (
-    <Pressable accessibilityRole="button"
-      onPress={onPress}
-      style={[styles.row, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}
-    >
-      <View style={[styles.rowIcon, { backgroundColor: tint + '26' }]}>{icon}</View>
-      <Text style={[styles.rowLabel, { color: danger ? colors.danger : colors.text }]} numberOfLines={1}>
-        {label}
-      </Text>
-      <View style={styles.rowRight}>
-        {value ? <Text style={[styles.rowValue, { color: colors.textDim }]}>{value}</Text> : null}
-        {trailing}
-      </View>
-    </Pressable>
-  );
-
-  const Block = ({ children }: { children: React.ReactNode }) => (
-    <View style={[styles.block, { backgroundColor: colors.surface2 }]}>{children}</View>
-  );
-
   const chevron = <ChevronIcon size={15} color={colors.textFaint} />;
   const external = <ExternalIcon size={13} color={colors.textFaint} />;
   const displayName = profile?.displayName ?? '';
@@ -255,7 +196,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
       <BottomSheet visible={visible} onClose={closeSheet}>
         {/* Aperto dalle iniziali, il profilo è la prima pagina: non c'è
             niente a cui tornare, quindi niente freccia. */}
-        <PageTitle title={t.profilo.titolo} back={startAt === 'profile' ? undefined : 'settings'} />
+        <PageTitle title={t.profilo.titolo} onBack={startAt === 'profile' ? undefined : () => setPage('settings')} />
 
         <View style={styles.profileHero}>
           <View style={[styles.bigAvatar, { backgroundColor: colors.amber }]}>
@@ -337,7 +278,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     const changed = nameDraft.trim() !== '' && nameDraft.trim() !== displayName;
     return (
       <BottomSheet visible={visible} onClose={closeSheet}>
-        <PageTitle title={t.nome.titolo} back="profile" />
+        <PageTitle title={t.nome.titolo} onBack={() => setPage('profile')} />
         <Text style={[styles.note, { color: colors.textDim }]}>{t.nome.nota}</Text>
         <TextInput
           style={[styles.input, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.text }]}
@@ -369,7 +310,7 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
     const list = bloccati ?? [];
     return (
       <BottomSheet visible={visible} onClose={closeSheet}>
-        <PageTitle title={t.bloccati.titolo} back="settings" />
+        <PageTitle title={t.bloccati.titolo} onBack={() => setPage('settings')} />
         {list.length === 0 ? (
           <Text style={[styles.note, { color: colors.textDim }]}>{t.bloccati.vuoto}</Text>
         ) : (
@@ -406,51 +347,6 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
 
   // ── Impostazioni ────────────────────────────────────────────────
 
-  const ThemeOpt = ({ value, label, icon }: { value: ThemePreference; label: string; icon: (c: string) => React.ReactNode }) => {
-    const active = preference === value;
-    const tone = active ? colors.inkOnAmber : colors.textDim;
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected: active }}
-        onPress={() => setPreference(value)}
-        style={[styles.themeOpt, active && { backgroundColor: colors.amber }]}
-      >
-        {icon(tone)}
-        <Text style={[styles.themeLabel, { color: tone }]}>{label}</Text>
-      </Pressable>
-    );
-  };
-
-  /** Come i bottoni del tema, ma senza icona: il nome di una lingua si
-   * riconosce da sé, e una bandiera direbbe il paese, non la lingua.
-   *
-   * Non c'è «Automatico»: finché la persona non tocca niente, l'app segue
-   * il telefono, e qui è acceso il bottone della lingua in uso. Toccarne
-   * un altro è la scelta, e da lì vale quella. Toccare quello già acceso
-   * non fa niente — non è un cambio, e non deve staccare l'app dal
-   * telefono di nascosto. */
-  const LangOpt = ({ value, label }: { value: LanguageName; label: string }) => {
-    const active = lingua === value;
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected: active }}
-        onPress={() => {
-          if (!active) setLingua(value);
-        }}
-        style={[styles.themeOpt, styles.langOpt, active && { backgroundColor: colors.amber }]}
-      >
-        <Text
-          style={[styles.themeLabel, { color: active ? colors.inkOnAmber : colors.textDim }]}
-          numberOfLines={1}
-        >
-          {label}
-        </Text>
-      </Pressable>
-    );
-  };
-
   return (
     <BottomSheet visible={visible} onClose={closeSheet}>
       <PageTitle title={t.impostazioni.titolo} />
@@ -470,19 +366,23 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
 
       <SectionLabel>{t.impostazioni.aspetto}</SectionLabel>
       <View style={[styles.themeToggle, { backgroundColor: colors.surface2 }]}>
-        <ThemeOpt value="light" label={t.impostazioni.temaChiaro} icon={(c) => <SunIcon size={18} color={c} />} />
-        <ThemeOpt value="dark" label={t.impostazioni.temaScuro} icon={(c) => <MoonIcon size={18} color={c} />} />
-        <ThemeOpt
-          value="system"
-          label={t.impostazioni.temaAutomatico}
-          icon={(c) => <AutoThemeIcon size={18} color={c} />}
-        />
+        {(
+          [
+            ['light', t.impostazioni.temaChiaro, (c: string) => <SunIcon size={18} color={c} />],
+            ['dark', t.impostazioni.temaScuro, (c: string) => <MoonIcon size={18} color={c} />],
+            ['system', t.impostazioni.temaAutomatico, (c: string) => <AutoThemeIcon size={18} color={c} />],
+          ] as const
+        ).map(([valore, label, icon]) => (
+          <ThemeOpt key={valore} active={preference === valore} label={label} icon={icon} onPress={() => setPreference(valore)} />
+        ))}
       </View>
 
       <SectionLabel>{t.lingua.sezione}</SectionLabel>
       <View style={[styles.themeToggle, { backgroundColor: colors.surface2 }]}>
         {LINGUE.map((l) => (
-          <LangOpt key={l} value={l} label={NOMI_LINGUA[l]} />
+          // Toccare quella già accesa non fa niente: non è un cambio, e non
+          // deve staccare l'app dal telefono di nascosto (vedi LangOpt).
+          <LangOpt key={l} active={lingua === l} label={NOMI_LINGUA[l]} onPress={() => lingua !== l && setLingua(l)} />
         ))}
       </View>
 
@@ -503,6 +403,116 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
         <Text style={[styles.version, { color: colors.textFaint }]}>{t.impostazioni.versione(APP_VERSION)}</Text>
       ) : null}
     </BottomSheet>
+  );
+}
+
+// ── Pezzi comuni ────────────────────────────────────────────────
+// Fuori dal componente che li usa: dichiarati dentro, a ogni ridisegno React li vedeva
+// come componenti nuovi e ricostruiva da capo tutto quello che contengono.
+
+/** Titolo di una sottopagina, con la freccia per tornare indietro. */
+function PageTitle({ title, onBack }: { title: string; onBack?: () => void }) {
+  const { colors } = useTheme();
+  const t = useT();
+  return (
+    <View style={styles.titleRow}>
+      {onBack ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={t.comune.indietro} onPress={onBack} hitSlop={10} style={styles.backBtn}>
+          <BackIcon size={20} color={colors.textDim} />
+        </Pressable>
+      ) : null}
+      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+    </View>
+  );
+}
+
+function SectionLabel({ children }: { children: string }) {
+  const { colors } = useTheme();
+  return <Text style={[styles.sectionLabel, { color: colors.textFaint }]}>{children}</Text>;
+}
+
+/** Una riga di un blocco: icona su un quadratino tinto, nome, e a
+ * destra un valore o una freccia. */
+function Row({
+  icon,
+  tint,
+  label,
+  value,
+  trailing,
+  danger,
+  first,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  tint: string;
+  label: string;
+  value?: string;
+  trailing?: React.ReactNode;
+  danger?: boolean;
+  first?: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable accessibilityRole="button"
+      onPress={onPress}
+      style={[styles.row, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}
+    >
+      <View style={[styles.rowIcon, { backgroundColor: tint + '26' }]}>{icon}</View>
+      <Text style={[styles.rowLabel, { color: danger ? colors.danger : colors.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <View style={styles.rowRight}>
+        {value ? <Text style={[styles.rowValue, { color: colors.textDim }]}>{value}</Text> : null}
+        {trailing}
+      </View>
+    </Pressable>
+  );
+}
+
+function Block({ children }: { children: React.ReactNode }) {
+  const { colors } = useTheme();
+  return <View style={[styles.block, { backgroundColor: colors.surface2 }]}>{children}</View>;
+}
+
+function ThemeOpt({ active, label, icon, onPress }: { active: boolean; label: string; icon: (c: string) => React.ReactNode; onPress: () => void }) {
+  const { colors } = useTheme();
+  const tone = active ? colors.inkOnAmber : colors.textDim;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={[styles.themeOpt, active && { backgroundColor: colors.amber }]}
+    >
+      {icon(tone)}
+      <Text style={[styles.themeLabel, { color: tone }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Come i bottoni del tema, ma senza icona: il nome di una lingua si
+ * riconosce da sé, e una bandiera direbbe il paese, non la lingua.
+ *
+ * Non c'è «Automatico»: finché la persona non tocca niente, l'app segue
+ * il telefono, e qui è acceso il bottone della lingua in uso. Toccarne
+ * un altro è la scelta, e da lì vale quella. */
+function LangOpt({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={[styles.themeOpt, styles.langOpt, active && { backgroundColor: colors.amber }]}
+    >
+      <Text
+        style={[styles.themeLabel, { color: active ? colors.inkOnAmber : colors.textDim }]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
