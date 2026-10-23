@@ -302,8 +302,8 @@ export const en: Dizionario = {
     stannoScrivendoTanti: (n: number) => `${n} people are typing…`,
     miaPosizione: 'My location',
     testoCopiato: 'Text copied',
-    salvatoNeiLink: 'Saved to Links',
-    giaNeiLink: 'It’s already in Links.',
+    salvatoNeiLink: 'Added to Saved',
+    giaNeiLink: 'It’s already in Saved.',
     segnalazioneInviata: 'Report sent. We’ll look at it as soon as we can.',
     bloccato: (chi: string) => `You won’t see ${chi}’s messages any more.`,
     erroreInvio: 'Message not sent, try again.',
@@ -353,7 +353,7 @@ export const en: Dizionario = {
     cercaLink: 'Search the group’s links',
     nessunRisultato: 'Nothing found.',
     nessunPosto: 'The group has no saved places yet: add them from the Map section.',
-    nessunLink: 'The group has no saved links yet: add them from the Links section.',
+    nessunLink: 'The group has no saved links yet: add them from the Saved section.',
   },
 
   menuMessaggio: {
@@ -413,7 +413,7 @@ export const en: Dizionario = {
   gruppo: {
     nomeMancante: 'Group',
     chat: 'Chat',
-    link: 'Links',
+    link: 'Saved',
     mappa: 'Map',
     nonDisponibile: 'Group not available',
     nonDisponibileTesto:
@@ -576,7 +576,7 @@ export const en: Dizionario = {
     testo: 'Text',
     inQualeGruppo: 'In which group',
     dove: 'Where',
-    linkEVideo: 'Links and videos',
+    linkEVideo: 'Saved',
     chat: 'Chat',
     categoria: 'Category',
     didascalia: 'CAPTION (OPTIONAL)',
@@ -635,12 +635,12 @@ export const en: Dizionario = {
     collegaLink: 'Attach a link',
     collegaA: (place: string) => `to “${place}”`,
     cercaLink: 'Search the saved links',
-    nessunLinkSalvato: 'The group has no saved links yet: add them from the Links section.',
+    nessunLinkSalvato: 'The group has no saved links yet: add them from the Saved section.',
     nessunLinkTrovato: 'No link matches the search.',
     tuttiCollegati: 'Every link in the group is already attached to this place.',
     eliminare: (nome: string) => `Delete “${nome}”?`,
     eliminaConLink: (n: number) =>
-      `The place disappears from the map for everyone. The ${n} attached links stay in the Links section, they only lose the connection.`,
+      `The place disappears from the map for everyone. The ${n} attached links stay in the Saved section, they only lose the connection.`,
     eliminaSemplice: 'The place disappears from the map for everyone in the group.',
     sullaMappa: 'On the map',
     portamiLi: 'Take me there',
@@ -657,7 +657,7 @@ export const en: Dizionario = {
     cercaPosti: 'Search the saved places',
     nessunPostoTrovato: 'No place matches the search.',
     nessunPostoSalvato: 'There are no saved places yet. Add one from the Map section, then come back here.',
-    eliminaConLinkBreve: 'The place disappears from the map for everyone in the group. The attached links stay in the Links section, they only lose the connection.',
+    eliminaConLinkBreve: 'The place disappears from the map for everyone in the group. The attached links stay in the Saved section, they only lose the connection.',
     fatto: 'Done',
   },
 

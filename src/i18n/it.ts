@@ -315,8 +315,8 @@ export const it = {
     stannoScrivendoTanti: (n: number) => `${n} persone stanno scrivendo…`,
     miaPosizione: 'La mia posizione',
     testoCopiato: 'Testo copiato',
-    salvatoNeiLink: 'Salvato nella sezione Link',
-    giaNeiLink: 'È già nella sezione Link.',
+    salvatoNeiLink: 'Aggiunto ai Salvati',
+    giaNeiLink: 'È già fra i Salvati.',
     segnalazioneInviata: 'Segnalazione inviata. La guarderemo al più presto.',
     bloccato: (chi: string) => `Non vedrai più i messaggi di ${chi}.`,
     erroreInvio: 'Messaggio non inviato, riprova.',
@@ -366,7 +366,7 @@ export const it = {
     cercaLink: 'Cerca fra i link del gruppo',
     nessunRisultato: 'Nessun risultato.',
     nessunPosto: 'Il gruppo non ha ancora posti salvati: aggiungili dalla sezione Mappa.',
-    nessunLink: 'Il gruppo non ha ancora link salvati: aggiungili dalla sezione Link.',
+    nessunLink: 'Il gruppo non ha ancora link salvati: aggiungili dalla sezione Salvati.',
   },
 
   menuMessaggio: {
@@ -427,7 +427,7 @@ export const it = {
   gruppo: {
     nomeMancante: 'Gruppo',
     chat: 'Chat',
-    link: 'Link',
+    link: 'Salvati',
     mappa: 'Mappa',
     nonDisponibile: 'Gruppo non disponibile',
     nonDisponibileTesto:
@@ -593,7 +593,7 @@ export const it = {
     testo: 'Testo',
     inQualeGruppo: 'In quale gruppo',
     dove: 'Dove',
-    linkEVideo: 'Link e video',
+    linkEVideo: 'Salvati',
     chat: 'Chat',
     categoria: 'Categoria',
     didascalia: 'DIDASCALIA (FACOLTATIVA)',
@@ -652,12 +652,12 @@ export const it = {
     collegaLink: 'Collega un link',
     collegaA: (posto: string) => `a «${posto}»`,
     cercaLink: 'Cerca fra i link salvati',
-    nessunLinkSalvato: 'Il gruppo non ha ancora link salvati: aggiungili dalla sezione Link.',
+    nessunLinkSalvato: 'Il gruppo non ha ancora link salvati: aggiungili dalla sezione Salvati.',
     nessunLinkTrovato: 'Nessun link corrisponde alla ricerca.',
     tuttiCollegati: 'Tutti i link del gruppo sono già collegati a questo posto.',
     eliminare: (nome: string) => `Eliminare «${nome}»?`,
     eliminaConLink: (n: number) =>
-      `Il posto sparisce dalla mappa per tutti. I ${n} link collegati restano nella sezione Link, perdono solo il collegamento.`,
+      `Il posto sparisce dalla mappa per tutti. I ${n} link collegati restano nella sezione Salvati, perdono solo il collegamento.`,
     eliminaSemplice: 'Il posto sparisce dalla mappa per tutti nel gruppo.',
     sullaMappa: 'Sulla mappa',
     portamiLi: 'Portami lì',
@@ -674,7 +674,7 @@ export const it = {
     cercaPosti: 'Cerca fra i posti salvati',
     nessunPostoTrovato: 'Nessun posto corrisponde alla ricerca.',
     nessunPostoSalvato: 'Non ci sono ancora posti salvati. Aggiungine uno dalla sezione Mappa, poi torna qui.',
-    eliminaConLinkBreve: 'Il posto sparisce dalla mappa per tutti nel gruppo. I link collegati restano nella sezione Link, perdono solo il collegamento.',
+    eliminaConLinkBreve: 'Il posto sparisce dalla mappa per tutti nel gruppo. I link collegati restano nella sezione Salvati, perdono solo il collegamento.',
     fatto: 'Fatto',
   },
 
