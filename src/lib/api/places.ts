@@ -1,3 +1,4 @@
+import * as Crypto from 'expo-crypto';
 import { Linking } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { mapsUrlForPlace } from '@/lib/utils';
@@ -55,14 +56,20 @@ export async function openPinInMaps(pin: RawPin): Promise<void> {
   }
 }
 
-/** Un luogo trovato cercando per nome. */
+/** Un luogo trovato cercando per nome. La posizione non c'è ancora: la dà
+ * `placeLocation`, per il solo luogo scelto. */
 export interface FoundPlace {
   placeId: string;
   name: string;
   address: string;
-  lat: number;
-  lng: number;
+  /** Distanza da chi cerca, se se n'è data la posizione. */
+  distanceM?: number;
 }
+
+/** Lega i suggerimenti mentre si scrive alla posizione del luogo scelto:
+ * Google li conta come una ricerca sola, e costa molto meno. Si rinnova a
+ * ogni luogo scelto. */
+let session = Crypto.randomUUID();
 
 /**
  * Cerca un luogo per nome (vedi supabase/functions/search-places). Con la
@@ -76,10 +83,24 @@ export async function searchPlaces(
 ): Promise<FoundPlace[] | null> {
   try {
     const { data, error } = await supabase.functions.invoke('search-places', {
-      body: { query, ...(near ? { lat: near.lat, lng: near.lng } : {}) },
+      body: { query, session, ...(near ? { lat: near.lat, lng: near.lng } : {}) },
     });
     if (error || !data) return null;
     return ((data as { results?: FoundPlace[] }).results ?? []).slice(0, 5);
+  } catch {
+    return null;
+  }
+}
+
+/** La posizione di un luogo trovato con `searchPlaces`, oppure `null` se
+ * Google non risponde. Chiude la ricerca in corso. */
+export async function placeLocation(placeId: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('search-places', { body: { placeId, session } });
+    session = Crypto.randomUUID();
+    const pos = data as { lat?: unknown; lng?: unknown } | null;
+    if (error || typeof pos?.lat !== 'number' || typeof pos.lng !== 'number') return null;
+    return { lat: pos.lat, lng: pos.lng };
   } catch {
     return null;
   }

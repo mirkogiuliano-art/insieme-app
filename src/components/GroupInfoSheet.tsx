@@ -9,13 +9,14 @@ import { groupColor, useAppStore } from '@/lib/appStore';
 import { useToast } from '@/components/Toast';
 import { LogoutIcon, EditIcon, CalendarIcon, MapIcon, PlusIcon, CloseIcon, ChevronIcon, CheckIcon, SearchIcon } from '@/components/Icon';
 import { listPins, type RawPin } from '@/lib/api/pins';
-import { searchPlaces, type FoundPlace } from '@/lib/api/places';
+import { searchPlaces, placeLocation, type FoundPlace } from '@/lib/api/places';
 import { CampoData } from '@/components/CampoData';
 import { listFacts, addFact, editFact, removeFact, subscribeToFacts, type RawFact } from '@/lib/api/groupFacts';
 import { setGroupInfo } from '@/lib/api/groups';
 import { rangeLabel, countdownLabel } from '@/lib/groupInfo';
 import { listLastReads, subscribeToLastReads, countMembers } from '@/lib/api/groupMembers';
 import { AddPeopleContent } from '@/components/AddPeopleSheet';
+import { RigaVisibilita, ContenutoVisibilita } from '@/components/Visibilita';
 import { invitiInAttesa } from '@/lib/api/invitiPersona';
 import { initials, colorForUser, dateLabel, inkOn, googleMapsPlaceUrl, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
 import type { Group, MetaLibera } from '@/types';
@@ -170,21 +171,27 @@ function InfoEditor({
       // Arrivata dopo una ricerca più recente: si butta.
       if (mia !== ultima.current) return;
       setRicerca(posti ? { stato: 'trovati', posti: posti.slice(0, 5) } : { stato: 'errore' });
-    }, 450);
+    }, 700);
     return () => clearTimeout(timer);
   }, [query]);
 
-  const scegliTrovato = (posto: FoundPlace) => {
+  const scegliTrovato = async (posto: FoundPlace) => {
     // Se è già nella mappa del gruppo si sceglie quello, senza doppioni.
     const giaSalvato = pins.find((p) => p.mapsUrl?.includes(posto.placeId));
-    setMeta(
-      giaSalvato
-        ? { tipo: 'posto', id: giaSalvato.id }
-        : {
-            tipo: 'libera',
-            posto: { nome: posto.name, lat: posto.lat, lng: posto.lng, mapsUrl: googleMapsPlaceUrl(posto.name, posto.placeId) },
-          },
-    );
+    if (giaSalvato) {
+      setMeta({ tipo: 'posto', id: giaSalvato.id });
+      setQuery('');
+      return;
+    }
+    const mia = ++ultima.current;
+    setRicerca({ stato: 'cerca' });
+    const pos = await placeLocation(posto.placeId);
+    if (mia !== ultima.current) return;
+    if (!pos) {
+      setRicerca({ stato: 'errore' });
+      return;
+    }
+    setMeta({ tipo: 'libera', posto: { nome: posto.name, ...pos, mapsUrl: googleMapsPlaceUrl(posto.name, posto.placeId) } });
     setQuery('');
   };
 
@@ -358,10 +365,13 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
   const [lastReads, setLastReads] = useState<Record<string, number | null>>({});
   /** «Aggiungi persone», mostrato al posto delle info. */
   const [aggiungendo, setAggiungendo] = useState(false);
+  /** La pagina «Visibilità», al posto delle info. */
+  const [visibilita, setVisibilita] = useState(false);
+  const [pubblico, setPubblico] = useState(!!group.pubblico);
   /** Chi è stato invitato e non ha ancora risposto. */
   const [inAttesa, setInAttesa] = useState<{ id: string; nome: string }[]>([]);
   const [cardWidth, setCardWidth] = useState(0);
-  const { leaveGroup, offlineDal } = useAppStore();
+  const { leaveGroup, offlineDal, refreshGroups } = useAppStore();
   /** Conferma per l'uscita dal gruppo, mostrata al posto del contenuto
    * del foglio (vedi SettingsSheet per il perché non si usa Alert). */
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -390,6 +400,7 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
       setConfirmLeave(false);
       setEditingInfo(false);
       setAggiungendo(false);
+      setVisibilita(false);
       setFactDraft(null);
     }
   }, [visible]);
@@ -537,6 +548,23 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
     return (
       <BottomSheet visible={visible} onClose={onClose}>
         <AddPeopleContent visible={visible} onClose={onClose} group={group} onBack={() => setAggiungendo(false)} />
+      </BottomSheet>
+    );
+  }
+
+  if (visibilita) {
+    return (
+      <BottomSheet visible={visible} onClose={onClose}>
+        <ContenutoVisibilita
+          group={group}
+          pubblico={pubblico}
+          onBack={() => setVisibilita(false)}
+          onCambiato={(v) => {
+            setPubblico(v);
+            // Per «Pubblico» sotto il nome del gruppo, nella sua schermata.
+            refreshGroups().catch(() => {});
+          }}
+        />
       </BottomSheet>
     );
   }
@@ -702,6 +730,13 @@ export function GroupInfoSheet({ visible, onClose, group, roster, onLeaveGroup, 
           </Pressable>
         ) : null}
       </View>
+
+      <RigaVisibilita
+        pubblico={pubblico}
+        sonoAutore={!!session && group.createdBy === session.user.id && scrive}
+        autore={roster[group.createdBy ?? ''] ?? ''}
+        onPress={() => setVisibilita(true)}
+      />
 
       <Text style={[styles.sectionLabel, styles.membersLabel, { color: colors.textDim }]}>{t.infoGruppo.membriN(members.length)}</Text>
       <View style={[styles.membersBlock, { backgroundColor: colors.surface2 }]}>

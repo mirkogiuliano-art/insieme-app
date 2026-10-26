@@ -17,13 +17,14 @@ import { useAudioRecorder, useAudioPlayer, useAudioPlayerStatus, RecordingPreset
 import { useSpazioBarraAnimato } from '@/lib/tabBarSpace';
 import Animated from 'react-native-reanimated';
 import { useTheme, RADIUS } from '@/theme/theme';
-import { SendIcon, ChatIcon, CloseIcon, PlayIcon, MicIcon, TrashIcon, SearchIcon, CheckIcon, ChevronIcon, PlusIcon, ShareIcon, UsersIcon } from '@/components/Icon';
+import { SendIcon, ChatIcon, CloseIcon, PlayIcon, MicIcon, TrashIcon, SearchIcon, CheckIcon, ChevronIcon, PlusIcon, ShareIcon, LockIcon, PollIcon } from '@/components/Icon';
 import { ChatLinkPreview } from '@/components/ChatLinkPreview';
 import { ChatPlaceCard } from '@/components/ChatPlaceCard';
 import { VoiceBubble } from '@/components/VoiceBubble';
 import { FileAttachmentBubble } from '@/components/FileAttachmentBubble';
 import { ChatAttachSheet } from '@/components/ChatAttachSheet';
 import { PollCard } from '@/components/PollCard';
+import { BottomSheet } from '@/components/BottomSheet';
 import { NewPollSheet } from '@/components/NewPollSheet';
 import { PollVotersSheet } from '@/components/PollVotersSheet';
 import { MessageActionsSheet } from '@/components/MessageActionsSheet';
@@ -168,6 +169,8 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   const [newPollOpen, setNewPollOpen] = useState(false);
   /** Il sondaggio di cui si sta guardando chi ha votato. */
   const [votersFor, setVotersFor] = useState<RawPoll | null>(null);
+  /** Il sondaggio da votare aperto dalla riga «Da decidere». */
+  const [decidendo, setDecidendo] = useState<string | null>(null);
   /** Conversazione, o archivio di tutto ciò che vi è passato. */
   const mode: 'chat' | 'archive' = strumento === 'archivio' ? 'archive' : 'chat';
   /** Il messaggio a cui tornare uscendo dall'archivio. */
@@ -279,6 +282,17 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
   // di scorrere le liste intere per ogni messaggio disegnato.
   const messaggiPerId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   const sondaggiPerId = useMemo(() => new Map(polls.map((p) => [p.id, p])), [polls]);
+  /** I sondaggi aperti in cui non ho ancora votato, il più recente prima:
+   * restano in cima alla chat finché non si vota. Quelli di chi ho
+   * bloccato no, come i suoi messaggi. */
+  const daDecidere = useMemo(() => {
+    const me = session?.user.id;
+    if (!me) return [];
+    return polls
+      .filter((p) => !p.closed && !bloccati.includes(p.createdBy) && !votes.some((v) => v.pollId === p.id && v.userId === me))
+      .sort((a, b) => b.ts - a.ts);
+  }, [polls, votes, bloccati, session?.user.id]);
+  const sondaggioAperto = decidendo ? (sondaggiPerId.get(decidendo) ?? null) : null;
   const posti = useMemo(() => {
     const perUrl = new Map<string, RawPin>();
     const perNome = new Map<string, RawPin>();
@@ -839,7 +853,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       segnalaErrore(err, 'chat.erroreAllegato');
-      toast.show(t.chat.erroreAllegato, 'error');
+      toast.show(messaggioErrore(err, t.chat.erroreAllegato), 'error');
     } finally {
       setUploading(false);
     }
@@ -888,7 +902,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       segnalaErrore(err, 'chat.erroreDocumento');
-      toast.show(t.chat.erroreDocumento, 'error');
+      toast.show(messaggioErrore(err, t.chat.erroreDocumento), 'error');
     } finally {
       setUploading(false);
     }
@@ -902,7 +916,7 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
       await withTimeout(deleteMessage(m.id), WRITE_TIMEOUT);
       // Foto, video, vocali e documenti: li toglie la spazzata, che
       // cerca i file rimasti senza messaggio.
-      if (m.attachmentUrl) sweepGroupMedia(groupId);
+      if (m.attachmentUrl) sweepGroupMedia(groupId, [m.attachmentUrl]);
     } catch (err) {
       setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m].sort((a, b) => b.ts - a.ts)));
       segnalaErrore(err, 'chat.erroreElimina');
@@ -1300,6 +1314,30 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
         <LoadError what={t.erroreCaricamento.messaggi} onRetry={loadAll} />
       ) : null}
 
+      {/* Il sondaggio aperto in cui manchi tu, in cima finché non voti: in
+          una chat lunga finiva su, fuori vista. Si vota da qui. */}
+      {mode === 'chat' && strumento === 'chat' && pronta && daDecidere.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setDecidendo(daDecidere[0].id)}
+          style={[styles.decidere, { backgroundColor: colors.lilac + '24' }]}
+        >
+          <PollIcon size={18} color={colors.lilac} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.decidereDomanda, { color: colors.text }]} numberOfLines={1}>
+              {daDecidere[0].question}
+            </Text>
+            <Text style={[styles.decidereSotto, { color: colors.textDim }]} numberOfLines={1}>
+              {/* Io non ho votato: i membri sono almeno uno più dei votanti. */}
+              {t.chat.manchiTu(daDecidere[0].votersCount, Math.max(Object.keys(roster).length, daDecidere[0].votersCount + 1))}
+              {daDecidere.length > 1 ? ` · ${t.chat.altriDaVotare(daDecidere.length - 1)}` : ''}
+            </Text>
+          </View>
+          <Text style={[styles.decidereVota, { color: colors.lilac }]}>{t.chat.vota}</Text>
+          <ChevronIcon size={15} color={colors.lilac} />
+        </Pressable>
+      ) : null}
+
       {mode === 'archive' ? (
         <ChatArchive
           messages={messaggiVisibili}
@@ -1322,18 +1360,18 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
             <View style={styles.empty}>
               {/* Con l’avviso d’errore sopra, «non c’è niente» sarebbe falso. */}
               {loadError ? null : soloIo ? (
-                // Un gruppo con una persona sola non è ancora un gruppo: la
-                // prima cosa da fare è far entrare qualcuno, non scrivere.
+                // Da soli il gruppo è uno spazio per sé: si scrive e si
+                // salva, e far entrare qualcuno resta a portata di mano.
                 <>
                   <View style={[styles.soloIcona, { backgroundColor: colors.surface }]}>
-                    <UsersIcon size={28} color={colors.textDim} strokeWidth={1.8} />
+                    <LockIcon size={26} color={colors.textDim} />
                   </View>
                   <Text style={[styles.soloTitolo, { color: colors.text }]}>{t.chat.soloTuTitolo}</Text>
                   <Text style={[styles.emptyText, styles.soloTesto, { color: colors.textDim }]}>{t.chat.soloTuTesto}</Text>
                   {onInvita ? (
-                    <Pressable accessibilityRole="button" onPress={onInvita} style={[styles.soloBtn, { backgroundColor: colors.amber }]}>
-                      <ShareIcon size={16} color={colors.inkOnAmber} />
-                      <Text style={[styles.soloBtnText, { color: colors.inkOnAmber }]}>{t.chat.soloTuInvita}</Text>
+                    <Pressable accessibilityRole="button" onPress={onInvita} style={[styles.soloBtn, { backgroundColor: colors.surface }]}>
+                      <ShareIcon size={16} color={colors.amberText} />
+                      <Text style={[styles.soloBtnText, { color: colors.text }]}>{t.chat.soloTuInvita}</Text>
                     </Pressable>
                   ) : null}
                 </>
@@ -1473,6 +1511,26 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
       {/* Il posto della barra delle sezioni, che galleggia qui sotto. */}
       <Animated.View style={spazioBarra} />
 
+      <BottomSheet visible={!!sondaggioAperto} onClose={() => setDecidendo(null)}>
+        {sondaggioAperto ? (
+          <PollCard
+            largo
+            poll={sondaggioAperto}
+            votes={votes.filter((v) => v.pollId === sondaggioAperto.id)}
+            myId={session?.user.id ?? ''}
+            roster={roster}
+            onVote={(scelte) => {
+              void vota(sondaggioAperto, scelte);
+              setDecidendo(null);
+            }}
+            onOpenVoters={() => {
+              setDecidendo(null);
+              setVotersFor(sondaggioAperto);
+            }}
+          />
+        ) : null}
+      </BottomSheet>
+
       <NewPollSheet visible={newPollOpen} onClose={() => setNewPollOpen(false)} onCreate={creaSondaggio} />
 
       <PollVotersSheet
@@ -1537,6 +1595,10 @@ export function ChatTab({ groupId, roster, strumento, onStrumento, onInvita, nom
 
 const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
+  decidere: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 4, marginBottom: 4, paddingVertical: 10, paddingLeft: 14, paddingRight: 12, borderRadius: 18 },
+  decidereDomanda: { fontSize: 14, fontWeight: '800' },
+  decidereSotto: { fontSize: 12, marginTop: 1 },
+  decidereVota: { fontSize: 13.5, fontWeight: '800' },
   search: { flex: 1, height: 40, borderRadius: RADIUS.sm, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11 },
   searchInput: { flex: 1, fontSize: 13.5, paddingVertical: 0 },
   searchCounter: { fontSize: 11.5, fontWeight: '700' },

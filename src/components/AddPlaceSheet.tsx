@@ -6,8 +6,8 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { PlaceTile } from '@/components/MapPin';
 import { useTheme, RADIUS } from '@/theme/theme';
 import { SearchIcon, LocateIcon, MapIcon, BackIcon, CloseIcon, ChainIcon } from '@/components/Icon';
-import { normalizeUrl, parseGoogleMapsUrl, distanceMeters, distanceLabel } from '@/lib/utils';
-import { searchPlaces, type FoundPlace } from '@/lib/api/places';
+import { normalizeUrl, parseGoogleMapsUrl, distanceLabel } from '@/lib/utils';
+import { searchPlaces, placeLocation, type FoundPlace } from '@/lib/api/places';
 import type { RawPlaceCategory } from '@/lib/api/placeCategories';
 import { useT } from '@/i18n';
 
@@ -130,11 +130,27 @@ export function AddPlaceSheet({
       // Arrivata tardi rispetto a una ricerca più recente: si butta.
       if (mio !== ultima.current) return;
       setSearch(results ? { status: 'done', results } : { status: 'error' });
-    }, 450);
+    }, 700);
     return () => clearTimeout(timer);
     // `near` non riparte la ricerca: serve solo a ordinarla.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
+
+  // La posizione si chiede solo per il luogo scelto (vedi placeLocation).
+  const pickResult = async (r: FoundPlace) => {
+    const results = search;
+    const mio = ++ultima.current;
+    setSearch({ status: 'loading' });
+    const pos = await placeLocation(r.placeId);
+    if (mio !== ultima.current) return;
+    if (!pos) {
+      setSearch({ status: 'error' });
+      return;
+    }
+    // Tornando indietro dalla conferma si ritrovano i risultati di prima.
+    setSearch(results);
+    openForm({ ...pos, name: r.name, placeId: r.placeId, address: r.address }, true);
+  };
 
   const pickMyPosition = async () => {
     if (locating) return;
@@ -271,7 +287,7 @@ export function AddPlaceSheet({
           {search.results.map((r, i) => (
             <Pressable accessibilityRole="button"
               key={r.placeId}
-              onPress={() => openForm({ lat: r.lat, lng: r.lng, name: r.name, placeId: r.placeId, address: r.address }, true)}
+              onPress={() => pickResult(r)}
               style={[styles.result, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
             >
               <MapIcon size={16} color={colors.teal} strokeWidth={2} />
@@ -283,8 +299,8 @@ export function AddPlaceSheet({
                   {r.address}
                 </Text>
               </View>
-              {near ? (
-                <Text style={[styles.resultDist, { color: colors.textDim }]}>{distanceLabel(distanceMeters(near, r))}</Text>
+              {r.distanceM !== undefined ? (
+                <Text style={[styles.resultDist, { color: colors.textDim }]}>{distanceLabel(r.distanceM)}</Text>
               ) : null}
             </Pressable>
           ))}

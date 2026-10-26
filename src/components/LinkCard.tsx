@@ -113,7 +113,8 @@ interface CardProps {
   item: RawLink;
   addedBy: string;
   places: LinkedPlace[];
-  onOpenMenu: () => void;
+  /** Senza, niente menu: nella pagina di un gruppo pubblico si guarda e basta. */
+  onOpenMenu?: () => void;
   onShowPlace: (pinId: string) => void;
 }
 
@@ -301,9 +302,10 @@ function PlaceChip({ place, onPress }: { place: LinkedPlace; onPress: () => void
   );
 }
 
-function MoreButton({ onPress }: { onPress: () => void }) {
+function MoreButton({ onPress }: { onPress?: () => void }) {
   const { colors } = useTheme();
   const t = useT();
+  if (!onPress) return null;
   return (
     <Pressable
       accessibilityRole="button"
@@ -344,7 +346,8 @@ export function LinkRow({ item, addedBy, places, onOpenMenu, onShowPlace }: Card
           {item.isFavorite ? <StarIcon size={12} color={colors.amberText} filled /> : null}
         </View>
         <Text style={[styles.meta, { color: colors.textFaint }]} numberOfLines={1}>
-          <Text style={{ color: colors.textDim, fontWeight: '700' }}>{addedBy}</Text> · {item.label}
+          {addedBy ? <Text style={{ color: colors.textDim, fontWeight: '700' }}>{addedBy} · </Text> : null}
+          {item.label}
         </Text>
         {places.length > 0 ? (
           <View style={styles.places}>

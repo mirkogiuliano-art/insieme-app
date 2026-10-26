@@ -1,14 +1,8 @@
 import { supabase } from '@/lib/supabase';
+import { dizionario } from '@/i18n';
+import { parsePlaceMessage } from '@/lib/chatPlace';
 
-/**
- * Quello che una scheda della home mostra oltre al nome del gruppo.
- *
- * La funzione `group_previews()` restituisce anche l'ultimo messaggio
- * (testo, tipo di allegato, autore, orario): la scheda per ora non lo
- * mostra, ma resta nel database così rimetterlo non richiede di
- * rilanciare una migrazione. Qui si dichiara solo ciò che serve
- * davvero.
- */
+/** Quello che una scheda della home mostra oltre al nome del gruppo. */
 export interface GroupPreview {
   groupId: string;
   /** Messaggi degli altri arrivati dopo l'ultima apertura della chat. */
@@ -20,14 +14,37 @@ export interface GroupPreview {
   /** Quando è arrivato l'ultimo messaggio: serve a ordinare i gruppi per
    * attività recente. `null` se nel gruppo non si è ancora scritto. */
   lastAt: number | null;
+  /** L'ultimo messaggio, senza quelli di chi ho bloccato: chi l'ha scritto
+   * e una riga da leggere al posto del messaggio intero. */
+  ultimo: { autore: string; testo: string } | null;
+  /** I sondaggi aperti in cui non ho ancora votato: la domanda del più
+   * recente e quanti sono. */
+  daVotare: { domanda: string; quanti: number } | null;
 }
 
 interface PreviewRow {
   group_id: string;
+  last_text: string | null;
+  last_kind: string | null;
+  last_name: string | null;
+  last_author: string | null;
   last_at: string | null;
   unread: number | null;
   member_count: number | null;
   member_names: string[] | null;
+  da_votare: string | null;
+  da_votare_n: number | null;
+}
+
+/** La riga da leggere sulla scheda: il nome per un posto, la prima riga per
+ * un testo, il tipo per un allegato senza testo. */
+function rigaDi(row: PreviewRow): string {
+  const s = dizionario().segnaposto;
+  if (row.last_text) return parsePlaceMessage(row.last_text)?.name ?? row.last_text.split('\n')[0];
+  if (row.last_kind === 'image') return s.foto;
+  if (row.last_kind === 'video') return s.video;
+  if (row.last_kind === 'file') return row.last_name || s.documento;
+  return s.allegato;
 }
 
 /**
@@ -50,6 +67,8 @@ export async function listGroupPreviews(): Promise<Record<string, GroupPreview>>
       memberCount: row.member_count ?? 0,
       memberNames: row.member_names ?? [],
       lastAt: row.last_at ? new Date(row.last_at).getTime() : null,
+      ultimo: row.last_at ? { autore: row.last_author ?? dizionario().segnaposto.qualcuno, testo: rigaDi(row) } : null,
+      daVotare: row.da_votare ? { domanda: row.da_votare, quanti: row.da_votare_n ?? 1 } : null,
     };
   }
   return byGroup;

@@ -20,6 +20,8 @@ interface PollCardProps {
   /** Apre l'elenco di chi ha votato cosa. */
   onOpenVoters: () => void;
   onMenu?: () => void;
+  /** Nel foglio di «Da decidere»: largo quanto il foglio, senza margini suoi. */
+  largo?: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ interface PollCardProps {
  * La scheda sta sotto al fumetto come quelle dei link e dei posti, e ha
  * sempre il colore delle schede: il lilla è il segno del sondaggio.
  */
-export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMenu }: PollCardProps) {
+export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMenu, largo }: PollCardProps) {
   const { colors } = useTheme();
   const t = useT();
   const mine = votes.filter((v) => v.userId === myId).map((v) => v.optionIndex);
@@ -60,7 +62,7 @@ export function PollCard({ poll, votes, myId, roster, onVote, onOpenVoters, onMe
   const membri = Object.keys(roster).length;
 
   return (
-    <Pressable onLongPress={onMenu} style={[styles.card, { backgroundColor: colors.surface }]}>
+    <Pressable onLongPress={onMenu} style={[styles.card, { backgroundColor: colors.surface }, largo && styles.largo]}>
       <View style={styles.top}>
         <View style={[styles.badge, { backgroundColor: colors.lilac + '2E' }]}>
           <PollIcon size={13} color={colors.lilac} />
@@ -171,6 +173,7 @@ function Riempimento({ pct, daZero, colore, opacita }: { pct: number; daZero: bo
 
 const styles = StyleSheet.create({
   card: { width: 292, borderRadius: 20, padding: 14, gap: 10 },
+  largo: { width: '100%', padding: 0 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   badge: { width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   eyebrow: { fontSize: 10.5, fontWeight: '800' },

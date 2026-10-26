@@ -59,7 +59,7 @@ import {
   subscribeToCategories,
   type RawPlaceCategory,
 } from '@/lib/api/placeCategories';
-import { useT, dizionario } from '@/i18n';
+import { useT, dizionario, localeAttuale } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
 import { messaggioErrore, eProblemaDiRete } from '@/lib/errori';
 import { leggiCopia, salvaCopia, useRiprovaDaSola } from '@/lib/copiaLocale';
@@ -72,6 +72,8 @@ interface MapTabProps {
   /** Posto su cui centrare la mappa arrivando dalla sezione Link. */
   focusPinId?: string | null;
   onFocusHandled?: () => void;
+  /** Un gruppo pubblico visto da fuori: si guarda e basta (vedi LinksTab). */
+  solaLettura?: boolean;
 }
 
 /** La categoria di un posto che non ne ha più una: il nome segue la
@@ -97,7 +99,7 @@ const SORT_ORDER: PlacesSort[] = ['recent', 'near', 'name', 'person'];
 
 type Point = { lat: number; lng: number };
 
-export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabProps) {
+export function MapTab({ groupId, roster, focusPinId, onFocusHandled, solaLettura = false }: MapTabProps) {
   const { colors } = useTheme();
   const t = useT();
   const SORT_LABELS: Record<PlacesSort, string> = {
@@ -158,7 +160,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   const [manageCat, setManageCat] = useState<RawPlaceCategory | null>(null);
 
   const catFor = (id: string | null) => categories.find((c) => c.id === id) ?? categoriaSenzaNome();
-  const authorOf = (p: RawPin) => roster[p.userId] ?? t.segnaposto.utente;
+  const authorOf = (p: RawPin) => (solaLettura ? '' : (roster[p.userId] ?? t.segnaposto.utente));
   const distanceOf = (p: RawPin) => (myPos ? distanceLabel(distanceMeters(myPos, p)) : null);
 
   /** Un solo caricamento per tutta la schermata: se una qualsiasi delle
@@ -328,6 +330,8 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   };
 
   const openAdd = (from: PlaceCandidate | null) => {
+    // Da fuori il tasto non c'è, e toccare la mappa non aggiunge niente.
+    if (solaLettura) return;
     setAnteprima(null);
     setAddFrom(from);
     setAddOpen(true);
@@ -480,6 +484,10 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
   // ── Cosa si vede ────────────────────────────────────────────────
 
   const term = query.trim().toLowerCase();
+  // Quanti posti per categoria: il numero nei filtri.
+  const perCategoria = new Map<string | null, number>();
+  for (const p of pins) perCategoria.set(p.categoryId, (perCategoria.get(p.categoryId) ?? 0) + 1);
+
   const filteredPins = pins
     .filter((p) => filter === 'all' || p.categoryId === filter)
     .filter((p) => !term || p.name.toLowerCase().includes(term) || authorOf(p).toLowerCase().includes(term));
@@ -504,9 +512,9 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
       case 'near':
         return distanceMeters(myPos!, a) - distanceMeters(myPos!, b);
       case 'name':
-        return a.name.localeCompare(b.name, 'it', { sensitivity: 'base' });
+        return a.name.localeCompare(b.name, localeAttuale(), { sensitivity: 'base' });
       case 'person':
-        return authorOf(a).localeCompare(authorOf(b), 'it', { sensitivity: 'base' }) || b.ts - a.ts;
+        return authorOf(a).localeCompare(authorOf(b), localeAttuale(), { sensitivity: 'base' }) || b.ts - a.ts;
       default:
         return b.ts - a.ts;
     }
@@ -573,7 +581,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
           <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder={pins.length > 0 ? t.mappa.cercaFra(pins.length) : t.mappa.cerca}
+            placeholder={t.mappa.cerca}
             placeholderTextColor={colors.textFaint}
             value={query}
             onChangeText={setQuery}
@@ -599,10 +607,12 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
             {mode === 'map' ? <ListIcon size={17} color={colors.textDim} /> : <MapIcon size={17} color={colors.textDim} />}
           </Pressable>
         )}
-        <Pressable accessibilityRole="button" onPress={() => openAdd(null)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
-          <PlusIcon size={13} color={colors.inkOnAmber} />
-          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.mappa.aggiungi}</Text>
-        </Pressable>
+        {solaLettura ? null : (
+          <Pressable accessibilityRole="button" onPress={() => openAdd(null)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
+            <PlusIcon size={13} color={colors.inkOnAmber} />
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.mappa.aggiungi}</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.filters}>
@@ -610,23 +620,24 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
           {mode === 'list' ? (
             <>
               <FilterChip
-                label={SORT_LABELS[effectiveSort]}
-                icon={<SortIcon size={12} color={colors.textDim} />}
+                label={t.accessibilita.ordina(SORT_LABELS[effectiveSort])}
+                soloIcona
+                icon={<SortIcon size={13} color={colors.textDim} />}
                 onPress={() => setSortOpen(true)}
               />
-              <View style={[styles.chipDivider, { backgroundColor: colors.border }]} />
             </>
           ) : null}
-          <FilterChip label={t.mappa.tutti} active={filter === 'all'} onPress={() => setFilter('all')} />
+          <FilterChip label={t.mappa.tutti} count={pins.length} active={filter === 'all'} onPress={() => setFilter('all')} />
           {categories.map((c) => (
             <FilterChip
               key={c.id}
               label={c.name}
+              count={perCategoria.get(c.id) ?? 0}
               dotColor={c.color}
               active={filter === c.id}
               onPress={() => setFilter(c.id)}
               // La matita solo sulla categoria scelta: su tutte era rumore.
-              onEdit={filter === c.id ? () => setManageCat(c) : undefined}
+              onEdit={!solaLettura && filter === c.id ? () => setManageCat(c) : undefined}
             />
           ))}
         </ScrollView>
@@ -701,11 +712,13 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
                 <Text style={[styles.anteprimaCat, { color: catFor(anteprima.categoryId).color }]} numberOfLines={1}>
                   {catFor(anteprima.categoryId).name}
                 </Text>
-                <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.altreAzioni} onPress={() => setActionsFor(anteprima)} hitSlop={10}>
-                  <View style={{ transform: [{ rotate: '90deg' }] }}>
-                    <MoreIcon size={16} color={colors.textFaint} />
-                  </View>
-                </Pressable>
+                {solaLettura ? null : (
+                  <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.altreAzioni} onPress={() => setActionsFor(anteprima)} hitSlop={10}>
+                    <View style={{ transform: [{ rotate: '90deg' }] }}>
+                      <MoreIcon size={16} color={colors.textFaint} />
+                    </View>
+                  </Pressable>
+                )}
               </View>
               <Text style={[styles.anteprimaNome, { color: colors.text }]} numberOfLines={2}>
                 {anteprima.name}
@@ -760,7 +773,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
                 <>
                   <MapIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
                   <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-                    {soloElenco ? t.mappa.vuotoWeb : t.mappa.vuoto}
+                    {solaLettura ? t.pubblico.nessunPosto : soloElenco ? t.mappa.vuotoWeb : t.mappa.vuoto}
                   </Text>
                 </>
               )}
@@ -797,7 +810,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
                   setOpenPinPicking(false);
                   setOpenPin(item);
                 }}
-                onOpenMenu={() => setActionsFor(item)}
+                onOpenMenu={solaLettura ? undefined : () => setActionsFor(item)}
               />
             );
           }}
@@ -811,9 +824,9 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         authorName={openPin ? authorOf(openPin) : ''}
         allLinks={links}
         linkedLinkIds={openPin ? linkIdsForPin(openPin.id) : []}
-        onAttach={(linkId) => openPin && attachLink(openPin.id, linkId)}
-        onDetach={(linkId) => openPin && detachLink(openPin.id, linkId)}
-        onDelete={() => openPin && removePin(openPin.id)}
+        onAttach={solaLettura ? undefined : (linkId) => openPin && attachLink(openPin.id, linkId)}
+        onDetach={solaLettura ? undefined : (linkId) => openPin && detachLink(openPin.id, linkId)}
+        onDelete={solaLettura ? undefined : () => openPin && removePin(openPin.id)}
         onShowOnMap={soloElenco ? undefined : () => {
           const target = openPin;
           setOpenPin(null);
@@ -821,7 +834,7 @@ export function MapTab({ groupId, roster, focusPinId, onFocusHandled }: MapTabPr
         }}
         startPicking={openPinPicking}
         distance={openPin ? distanceOf(openPin) : null}
-        onMenu={() => {
+        onMenu={solaLettura ? undefined : () => {
           const p = openPin;
           setOpenPin(null);
           setActionsFor(p);
@@ -899,7 +912,6 @@ const styles = StyleSheet.create({
   viewBtn: { width: 40, height: 40, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
   addBtn: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, borderRadius: 999 },
   filters: { paddingBottom: 8 },
-  chipDivider: { width: 1, alignSelf: 'stretch', marginVertical: 6, marginRight: 8 },
   // La scheda dell'anteprima: appoggiata sopra la mappa, non un foglio
   // che la copre. Le due ombre la staccano dal fondo anche quando sotto
   // ci passa una strada chiara.

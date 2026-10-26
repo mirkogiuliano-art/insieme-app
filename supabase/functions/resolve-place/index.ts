@@ -24,7 +24,7 @@
 //    servizio, dopo aver controllato che chi chiama sia nel gruppo.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { pickCandidate, placeUrl, type Candidate } from './pick.ts';
+import { boxAround, placeUrl } from './pick.ts';
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
@@ -34,29 +34,29 @@ const JSON_HEADERS = {
 
 const SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
 const FETCH_TIMEOUT_MS = 6000;
-/** Raggio entro cui Google privilegia i risultati. È solo una preferenza:
- * il taglio vero degli omonimi lontani lo fa `pickCandidate`. */
-const BIAS_RADIUS_M = 500;
 
 function reply(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
-async function searchPlaces(key: string, name: string, lat: number, lng: number): Promise<Candidate[]> {
+/** L'identificativo del primo luogo con quel nome dentro il riquadro
+ * attorno al punto, o `null`. Il primo nell'ordine di Google, che è per
+ * pertinenza col nome: cercando "Colosseo" vince il monumento anche se una
+ * fermata della metro "Colosseo" sta più vicina al nostro spillo. */
+async function searchPlaceId(key: string, name: string, lat: number, lng: number): Promise<string | null> {
   const res = await fetch(SEARCH_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': key,
-      // Si chiedono solo i campi che servono: Google fa pagare per
-      // gruppi di campi, e id/nome/posizione stanno nella fascia base.
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.location',
+      // Solo l'identificativo: è la fascia di Google che non si paga. Gli
+      // omonimi lontani li scarta Google stesso, col recinto qui sotto.
+      'X-Goog-FieldMask': 'places.id',
     },
     body: JSON.stringify({
       textQuery: name,
-      languageCode: 'it',
-      maxResultCount: 5,
-      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: BIAS_RADIUS_M } },
+      maxResultCount: 1,
+      locationRestriction: { rectangle: boxAround(lat, lng) },
     }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
@@ -67,17 +67,8 @@ async function searchPlaces(key: string, name: string, lat: number, lng: number)
     console.error('Places', res.status, await res.text());
     throw new Error(`Places ${res.status}`);
   }
-  const data = (await res.json()) as {
-    places?: { id: string; displayName?: { text?: string }; location?: { latitude: number; longitude: number } }[];
-  };
-  return (data.places ?? [])
-    .filter((p) => p.id && p.location)
-    .map((p) => ({
-      id: p.id,
-      name: p.displayName?.text ?? '',
-      lat: p.location!.latitude,
-      lng: p.location!.longitude,
-    }));
+  const data = (await res.json()) as { places?: { id?: string }[] };
+  return data.places?.[0]?.id || null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -125,19 +116,17 @@ Deno.serve(async (req: Request) => {
   // toccando l'icona): niente da cercare.
   if (pin.maps_url) return reply({ mapsUrl: pin.maps_url });
 
-  let candidates: Candidate[];
+  let placeId: string | null;
   try {
-    candidates = await searchPlaces(key, pin.name, pin.lat, pin.lng);
+    placeId = await searchPlaceId(key, pin.name, pin.lat, pin.lng);
   } catch {
     return reply({ error: 'Ricerca su Google non riuscita.' }, 502);
   }
+  if (!placeId) return reply({ mapsUrl: null });
 
-  const found = pickCandidate(candidates, pin.lat, pin.lng);
-  if (!found) return reply({ mapsUrl: null });
-
-  const mapsUrl = placeUrl(pin.name, found.id);
+  const mapsUrl = placeUrl(pin.name, placeId);
   // `is null` nella condizione: se nel frattempo qualcuno ha già scritto
   // il campo, vince il suo valore e questo aggiornamento non fa niente.
   await admin.from('pins').update({ maps_url: mapsUrl }).eq('id', pin.id).is('maps_url', null);
-  return reply({ mapsUrl, googleName: found.name });
+  return reply({ mapsUrl });
 });

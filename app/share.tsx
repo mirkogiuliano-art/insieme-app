@@ -32,6 +32,7 @@ import { ScrollConTastiera } from '@/components/ScrollConTastiera';
 import { LinkFallbackThumb } from '@/components/LinkCard';
 import { useT } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
+import { messaggioErrore } from '@/lib/errori';
 
 type Section = 'links' | 'chat';
 
@@ -209,7 +210,7 @@ export default function ShareScreen() {
       router.replace(`/group/${groupId}`);
     } catch (err) {
       segnalaErrore(err, 'condividi.errore');
-      toast.show(t.condividi.errore, 'error');
+      toast.show(messaggioErrore(err, t.condividi.errore), 'error');
     } finally {
       setSaving(false);
     }

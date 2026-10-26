@@ -10,7 +10,7 @@ export async function getMyProfile(): Promise<Profile | null> {
   if (!user) return null;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name')
+    .select('id, display_name, nome_utente')
     .eq('id', user.id)
     .maybeSingle();
   // Un errore si solleva invece di passare per «profilo senza nome»: chi
@@ -18,7 +18,7 @@ export async function getMyProfile(): Promise<Profile | null> {
   // vede chiedere il nome come al primo avvio.
   if (error) throw error;
   if (!data) return null;
-  return { id: data.id, displayName: data.display_name };
+  return { id: data.id, displayName: data.display_name, nomeUtente: data.nome_utente };
 }
 
 export async function updateDisplayName(name: string): Promise<void> {

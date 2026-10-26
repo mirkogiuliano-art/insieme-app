@@ -17,7 +17,11 @@ import {
   ExternalIcon,
   LogoutIcon,
   TrashIcon,
+  GlobeIcon,
 } from '@/components/Icon';
+import { CampoNomeUtente } from '@/components/CampoNomeUtente';
+import { scegliNomeUtente } from '@/lib/api/pubblici';
+import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/authStore';
 import { updateDisplayName } from '@/lib/api/profiles';
 import { deleteMyAccount } from '@/lib/api/account';
@@ -35,7 +39,7 @@ import { messaggioErrore } from '@/lib/errori';
  * iniziali in alto a destra.
  */
 export type SettingsPage = 'settings' | 'profile';
-type Page = SettingsPage | 'name' | 'blocked';
+type Page = SettingsPage | 'name' | 'username' | 'blocked';
 
 interface SettingsSheetProps {
   visible: boolean;
@@ -62,6 +66,10 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
   const [page, setPage] = useState<Page>(startAt);
   const [nameDraft, setNameDraft] = useState(profile?.displayName ?? '');
   const [savingName, setSavingName] = useState(false);
+  const toast = useToast();
+  const [nomeUtenteBozza, setNomeUtenteBozza] = useState('');
+  const [nomeUtentePronto, setNomeUtentePronto] = useState<string | null>(null);
+  const [salvandoNomeUtente, setSalvandoNomeUtente] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [busy, setBusy] = useState(false);
   // Solo la cancellazione dell'account mostra i propri errori: se non
@@ -104,6 +112,26 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
       setPage('profile');
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const openUsernameEditor = () => {
+    setNomeUtenteBozza(profile?.nomeUtente ?? '');
+    setPage('username');
+  };
+
+  const saveUsername = async () => {
+    if (!nomeUtentePronto || salvandoNomeUtente) return;
+    setSalvandoNomeUtente(true);
+    try {
+      await scegliNomeUtente(nomeUtentePronto);
+      await refreshProfile();
+      setPage('profile');
+    } catch (err) {
+      segnalaErrore(err, 'pubblico.erroreNome');
+      toast.show(t.pubblico.erroreNome, 'error');
+    } finally {
+      setSalvandoNomeUtente(false);
     }
   };
 
@@ -218,6 +246,17 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
             trailing={chevron}
             onPress={openNameEditor}
           />
+          {/* Solo per chi ne ha uno: nasce con il primo gruppo pubblico. */}
+          {profile?.nomeUtente ? (
+            <Row
+              icon={<GlobeIcon size={15} color={colors.teal} strokeWidth={2} />}
+              tint={colors.teal}
+              label={t.pubblico.nomeUtente}
+              value={`@${profile.nomeUtente}`}
+              trailing={chevron}
+              onPress={openUsernameEditor}
+            />
+          ) : null}
         </Block>
 
         {documenti.pubblicati ? (
@@ -268,6 +307,30 @@ export function SettingsSheet({ visible, onClose, startAt = 'settings' }: Settin
           />
         </Block>
         <View style={{ height: 6 }} />
+      </BottomSheet>
+    );
+  }
+
+  // ── Cambio nome utente ──────────────────────────────────────────
+
+  if (page === 'username') {
+    const cambiato = !!nomeUtentePronto && nomeUtentePronto !== profile?.nomeUtente;
+    return (
+      <BottomSheet visible={visible} onClose={closeSheet}>
+        <PageTitle title={t.pubblico.nomeUtente} onBack={() => setPage('profile')} />
+        <Text style={[styles.note, { color: colors.textDim }]}>{t.pubblico.nomeUtenteNota}</Text>
+        <CampoNomeUtente valore={nomeUtenteBozza} onCambia={setNomeUtenteBozza} attuale={profile?.nomeUtente} onPronto={setNomeUtentePronto} />
+        <Pressable accessibilityRole="button"
+          onPress={saveUsername}
+          disabled={!cambiato || salvandoNomeUtente}
+          style={[styles.saveBtn, { backgroundColor: colors.amber, opacity: !cambiato || salvandoNomeUtente ? 0.5 : 1 }]}
+        >
+          {salvandoNomeUtente ? (
+            <ActivityIndicator size="small" color={colors.inkOnAmber} />
+          ) : (
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '700', fontSize: 14 }}>{t.comune.salva}</Text>
+          )}
+        </Pressable>
       </BottomSheet>
     );
   }

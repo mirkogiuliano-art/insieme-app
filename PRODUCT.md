@@ -13,7 +13,15 @@ amici, coppie, famiglie, colleghi. Il viaggio organizzato insieme è il caso
 più forte, non l'unico: lo stesso spazio serve per la lista dei posti dove
 andare, una serata da decidere, un progetto che dura mesi.
 
-Sono gruppi piccoli e chiusi: si entra solo con un invito di chi c'è già.
+Sono gruppi piccoli: si entra solo con un invito di chi c'è già. Chi ha
+creato un gruppo può renderlo pubblico: allora chiunque su Insieme ne vede
+info, «cose da sapere», salvati e posti, ma la chat e i membri restano del
+gruppo.
+
+Un gruppo può essere anche di una persona sola: uno spazio per le proprie
+cose, che vede solo chi l'ha creato finché non invita qualcuno. È anche il
+modo di cominciare: chi organizza riempie il gruppo da solo e lo apre agli
+amici quando vuole.
 
 ## Product Purpose
 
@@ -46,7 +54,9 @@ contenuti in app che non si parlano fra loro.
 
 ## Capabilities and Constraints
 
-- **Gruppi:** solo su invito, con un link revocabile e rigenerabile. Non
+- **Gruppi:** si entra solo su invito, con un link revocabile e
+  rigenerabile. Chi ha creato un gruppo può renderlo pubblico, con un nome
+  utente con cui gli altri lo trovano; torna privato quando vuole. Non
   esistono ruoli: ogni membro può aggiungere, correggere e togliere tutto
   (info, categorie, posti, link). Un gruppo si elimina quando ne esce
   l'ultima persona.
@@ -76,7 +86,11 @@ contenuti in app che non si parlano fra loro.
 
 - Il nome è **Insieme**. Logo e icone sono in `assets/` (`logo.svg`,
   `icon.png`, `adaptive-icon.png`, `notification-icon.png`, `splash.png`).
-- Lo slogan in uso è «Tutto quello che vuoi vivere, in un posto solo.».
+- Lo slogan in uso è «I posti da vedere e le cose da fare, salvati
+  insieme.» (in inglese «Places to see and things to do, saved
+  together.»). Dal 26 ottobre 2026: mette al centro quello che in una chat
+  qualunque si perde, i posti e le idee salvati. Prima era «Tutto quello
+  che vuoi vivere, in un posto solo.».
 - La voce è un italiano piano e diretto, a frasi intere, dalla parte di chi
   usa l'app. Gli errori dicono cosa è successo e cosa fare. Anche i
   documenti legali sono scritti per essere letti.
@@ -94,8 +108,9 @@ contenuti in app che non si parlano fra loro.
    (chat, link, posti), invece di diventare un'altra isola.
 2. **Il gruppo è di tutti.** Nessun capo e nessun ruolo: chiunque ne faccia
    parte può aggiungere, correggere e togliere.
-3. **Privato per come è fatto.** Si entra solo su invito. Niente pubblicità,
-   niente profilazione, niente elenchi pubblici.
+3. **Privato per come è fatto.** Ogni gruppo nasce privato e si entra solo
+   su invito; renderlo pubblico è una scelta di chi l'ha creato, e la chat
+   resta sempre dei membri. Niente pubblicità, niente profilazione.
 4. **Il viaggio è il caso più forte, non l'unico.** Quello che serve solo a
    chi viaggia resta facoltativo, e un gruppo qualunque non deve sentirsi
    fuori posto.

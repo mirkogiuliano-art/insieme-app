@@ -1,0 +1,60 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.118.0"
+  },
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.118.0": "56fce2ec273698af8a739c03a005c4b2160e163e5d2c0ede05de7e9bd47e28b8"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@babel/core@^7.25.2",
+        "npm:@expo-google-fonts/nunito@~0.4.2",
+        "npm:@react-native-async-storage/async-storage@2.2.0",
+        "npm:@react-native-community/datetimepicker@9.1.0",
+        "npm:@react-native-google-signin/google-signin@^16.1.5",
+        "npm:@react-navigation/native@^7.0.14",
+        "npm:@sentry/react-native@7.11",
+        "npm:@supabase/supabase-js@^2.112.4",
+        "npm:@types/react@~19.2.4",
+        "npm:aes-js@^3.1.2",
+        "npm:eslint-config-expo@~57.0.2",
+        "npm:eslint@9",
+        "npm:expo-audio@~57.0.4",
+        "npm:expo-clipboard@~57.0.2",
+        "npm:expo-constants@~57.0.14",
+        "npm:expo-crypto@~57.0.2",
+        "npm:expo-document-picker@~57.0.1",
+        "npm:expo-font@~57.0.4",
+        "npm:expo-image-manipulator@~57.0.21",
+        "npm:expo-image-picker@~57.0.15",
+        "npm:expo-linking@~57.0.9",
+        "npm:expo-localization@~57.0.2",
+        "npm:expo-location@~57.0.15",
+        "npm:expo-notifications@~57.0.17",
+        "npm:expo-router@~57.0.18",
+        "npm:expo-secure-store@~57.0.3",
+        "npm:expo-share-intent@^8.0.1",
+        "npm:expo-status-bar@~57.0.1",
+        "npm:expo-system-ui@~57.0.4",
+        "npm:expo@~57.0.19",
+        "npm:react-dom@19.2.3",
+        "npm:react-native-gesture-handler@2.32",
+        "npm:react-native-get-random-values@1.11",
+        "npm:react-native-keyboard-controller@1.21.9",
+        "npm:react-native-maps@1.27.2",
+        "npm:react-native-reanimated@4.5.1",
+        "npm:react-native-safe-area-context@5.7",
+        "npm:react-native-screens@4.26",
+        "npm:react-native-svg@15.15.4",
+        "npm:react-native-url-polyfill@4",
+        "npm:react-native-web@~0.21.2",
+        "npm:react-native-worklets@0.10.1",
+        "npm:react-native@0.86.3",
+        "npm:react@19.2.3",
+        "npm:typescript@~6.0.3"
+      ]
+    }
+  }
+}

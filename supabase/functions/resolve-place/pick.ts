@@ -1,51 +1,42 @@
-// Scelta del luogo Google giusto fra i risultati di una ricerca.
+// Il riquadro in cui cercare il luogo Google giusto, e l'indirizzo della
+// sua scheda.
 //
-// Sta in un file a parte, senza API di Deno, per poterla collaudare da
-// sola (stesso schema di link-preview/parse.ts).
+// Sta in un file a parte, senza API di Deno, per poterlo collaudare da
+// solo (stesso schema di link-preview/parse.ts).
 
-export interface Candidate {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-}
-
-/** Oltre questa distanza dal punto salvato un risultato non è "quel"
- * posto ma un omonimo: meglio non collegare niente che collegare il
- * Colosseo di un'altra città. È largo abbastanza da coprire un tocco
- * impreciso e i luoghi grandi (un parco, una piazza), dove il punto di
- * Google sta al centro e il nostro magari sul bordo. */
+/** Mezzo lato del riquadro attorno al punto salvato. Fuori da qui un
+ * risultato non è "quel" posto ma un omonimo: meglio non collegare niente
+ * che collegare il Colosseo di un'altra città. È largo abbastanza da
+ * coprire un tocco impreciso e i luoghi grandi (un parco, una piazza),
+ * dove il punto di Google sta al centro e il nostro magari sul bordo. */
 export const MAX_DISTANCE_M = 400;
 
-/** Distanza in metri fra due punti (formula dell'emisenoverso). */
-export function distanceM(aLat: number, aLng: number, bLat: number, bLng: number): number {
-  const R = 6371000;
-  const rad = Math.PI / 180;
-  const dLat = (bLat - aLat) * rad;
-  const dLng = (bLng - aLng) * rad;
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
+const M_PER_DEG_LAT = 111320;
+
+interface LatLng {
+  latitude: number;
+  longitude: number;
 }
 
 /**
- * Il primo risultato abbastanza vicino al punto salvato.
+ * Il riquadro di `halfSide` metri per lato attorno al punto, nel formato
+ * di `locationRestriction.rectangle` di Google Places. Un riquadro e non un
+ * cerchio perché Google accetta solo quello come recinto: negli angoli si
+ * arriva a circa 1,4 volte `halfSide`.
  *
- * Si rispetta l'ordine di Google, che è per pertinenza col nome: cercando
- * "Colosseo" il primo è il monumento anche se una fermata della metro
- * "Colosseo" sta più vicina al nostro spillo. La distanza serve solo a
- * scartare gli omonimi lontani, non a decidere fra quelli vicini.
+ * A cavallo del meridiano 180 l'ovest resta maggiore dell'est, che per
+ * Google vuol dire proprio "attraversa il meridiano".
  */
-export function pickCandidate(
-  candidates: Candidate[],
-  lat: number,
-  lng: number,
-  maxDistance = MAX_DISTANCE_M,
-): Candidate | null {
-  for (const c of candidates) {
-    if (distanceM(lat, lng, c.lat, c.lng) <= maxDistance) return c;
-  }
-  return null;
+export function boxAround(lat: number, lng: number, halfSide = MAX_DISTANCE_M): { low: LatLng; high: LatLng } {
+  const dLat = halfSide / M_PER_DEG_LAT;
+  // Verso i poli un grado di longitudine si accorcia: servono più gradi.
+  const dLng = halfSide / (M_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180));
+  const wrap = (x: number) => ((((x + 180) % 360) + 360) % 360) - 180;
+  const fullLng = !(dLng < 180);
+  return {
+    low: { latitude: Math.max(-90, lat - dLat), longitude: fullLng ? -180 : wrap(lng - dLng) },
+    high: { latitude: Math.min(90, lat + dLat), longitude: fullLng ? 180 : wrap(lng + dLng) },
+  };
 }
 
 /** Indirizzo della scheda di un luogo — identico a `googleMapsPlaceUrl`

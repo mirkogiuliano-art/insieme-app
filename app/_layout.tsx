@@ -21,27 +21,6 @@ import * as Linking from 'expo-linking';
 import { gestisciLink } from '@/lib/linkAccesso';
 import { avviaSentry, avvolgiApp, navigazioneSentry, segnalaErrore, sentryAttivo } from '@/lib/sentry';
 import { dizionario } from '@/i18n';
-import * as Sentry from '@sentry/react-native';
-
-Sentry.init({
-  dsn: 'https://8c521f0ab53a3d46a6fe66e45e6fead2@o4512169067085824.ingest.de.sentry.io/4512169074294864',
-
-  // Adds more context data to events (IP address, cookies, user, etc.)
-  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
-  sendDefaultPii: true,
-
-  // Enable Logs
-  enableLogs: true,
-
-  // Configure Session Replay
-  replaysSessionSampleRate: 0.1,
-  replaysOnErrorSampleRate: 1,
-  integrations: [Sentry.mobileReplayIntegration(), Sentry.feedbackIntegration()],
-
-  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
-  // spotlight: __DEV__,
-});
-
 // Prima di tutto il resto: un errore durante l'avvio va raccolto anche lui.
 avviaSentry();
 
@@ -213,6 +192,8 @@ function RootLayout() {
                       <Stack screenOptions={{ headerShown: false, freezeOnBlur: true }}>
                         <Stack.Screen name="index" />
                         <Stack.Screen name="group/[id]" />
+                        <Stack.Screen name="pubblico/[id]" />
+                        <Stack.Screen name="persona/[id]" />
                         <Stack.Screen name="reset-password" />
                         <Stack.Screen name="invite/[token]" />
                         <Stack.Screen name="share" options={{ presentation: 'modal' }} />
@@ -229,4 +210,4 @@ function RootLayout() {
   );
 }
 
-export default Sentry.wrap(avvolgiApp(RootLayout));
+export default avvolgiApp(RootLayout);

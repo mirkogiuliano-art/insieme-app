@@ -31,7 +31,8 @@ export function PlaceRow({
   /** "1,2 km", quando si conosce la propria posizione. */
   distance?: string | null;
   onPress: () => void;
-  onOpenMenu: () => void;
+  /** Senza, niente menu (la pagina di un gruppo pubblico). */
+  onOpenMenu?: () => void;
 }) {
   const { colors } = useTheme();
   const t = useT();
@@ -57,20 +58,22 @@ export function PlaceRow({
         </View>
       </View>
       {distance ? <Text style={[styles.distance, { color: colors.textDim }]}>{distance}</Text> : null}
-      <Pressable
-        onPress={(e) => {
-          e.stopPropagation?.();
-          onOpenMenu();
-        }}
-        hitSlop={10}
-        style={styles.more}
-        accessibilityRole="button"
-        accessibilityLabel={t.accessibilita.altreAzioni}
-      >
-        <View style={{ transform: [{ rotate: '90deg' }] }}>
-          <MoreIcon size={16} color={colors.textFaint} />
-        </View>
-      </Pressable>
+      {onOpenMenu ? (
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation?.();
+            onOpenMenu();
+          }}
+          hitSlop={10}
+          style={styles.more}
+          accessibilityRole="button"
+          accessibilityLabel={t.accessibilita.altreAzioni}
+        >
+          <View style={{ transform: [{ rotate: '90deg' }] }}>
+            <MoreIcon size={16} color={colors.textFaint} />
+          </View>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }

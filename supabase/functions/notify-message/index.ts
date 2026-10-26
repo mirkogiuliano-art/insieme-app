@@ -46,17 +46,41 @@ interface MessageRow {
   attachment_name: string | null;
 }
 
+/** L'avviso nella lingua di chi lo riceve: quella che l'app tiene nei suoi
+ * dati (`user_metadata.lang`), la stessa delle email. Senza, l'inglese. */
+const TESTI = {
+  it: {
+    qualcuno: 'Qualcuno',
+    foto: 'Ha mandato una foto',
+    video: 'Ha mandato un video',
+    vocale: 'Ha mandato un messaggio vocale',
+    documento: 'Ha mandato un documento',
+    altro: 'Ha scritto qualcosa',
+  },
+  en: {
+    qualcuno: 'Someone',
+    foto: 'Sent a photo',
+    video: 'Sent a video',
+    vocale: 'Sent a voice message',
+    documento: 'Sent a document',
+    altro: 'Wrote something',
+  },
+};
+type Testi = (typeof TESTI)[keyof typeof TESTI];
+const testiPer = (lang: unknown): Testi =>
+  typeof lang === 'string' && Object.hasOwn(TESTI, lang) ? TESTI[lang as keyof typeof TESTI] : TESTI.en;
+
 /** Cosa si legge nell'avviso. Un allegato senza testo non ha niente da
  * citare, quindi si nomina la cosa. */
-function corpoAvviso(m: MessageRow, autore: string): string {
+function corpoAvviso(m: MessageRow, autore: string | undefined, T: Testi): string {
   let cosa: string;
   if (m.text && m.text.trim()) cosa = m.text.trim().slice(0, MAX_BODY);
-  else if (m.attachment_type === 'image') cosa = 'Ha mandato una foto';
-  else if (m.attachment_type === 'video') cosa = 'Ha mandato un video';
-  else if (m.attachment_type === 'audio') cosa = 'Ha mandato un messaggio vocale';
-  else if (m.attachment_type === 'file') cosa = m.attachment_name ?? 'Ha mandato un documento';
-  else cosa = 'Ha scritto qualcosa';
-  return `${autore}: ${cosa}`;
+  else if (m.attachment_type === 'image') cosa = T.foto;
+  else if (m.attachment_type === 'video') cosa = T.video;
+  else if (m.attachment_type === 'audio') cosa = T.vocale;
+  else if (m.attachment_type === 'file') cosa = m.attachment_name ?? T.documento;
+  else cosa = T.altro;
+  return `${autore || T.qualcuno}: ${cosa}`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -123,25 +147,29 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ inviati: 0, motivo: 'nessun altro membro' }), { headers: JSON_HEADERS });
   }
 
-  const { data: righe } = await admin.from('push_tokens').select('token').in('user_id', destinatari);
-  const tokens = (righe ?? []).map((r) => (r as { token: string }).token);
-  if (tokens.length === 0) {
+  const { data: righe } = await admin.from('push_tokens').select('token, user_id').in('user_id', destinatari);
+  const dispositivi = (righe ?? []) as { token: string; user_id: string }[];
+  if (dispositivi.length === 0) {
     return new Response(JSON.stringify({ inviati: 0, motivo: 'nessun dispositivo registrato' }), { headers: JSON_HEADERS });
   }
 
+  // shortcut: una lettura per destinatario; con gruppi da centinaia di persone conviene salvare la lingua in push_tokens.
+  const ids = [...new Set(dispositivi.map((d) => d.user_id))];
+  const utenti = await Promise.all(ids.map((id) => admin.auth.admin.getUserById(id)));
+  const lingue = new Map(ids.map((id, k) => [id, utenti[k].data.user?.user_metadata?.lang]));
+
   const titolo = (gruppo as { name?: string } | null)?.name ?? 'Insieme';
-  const autore = (profilo as { display_name?: string } | null)?.display_name || 'Qualcuno';
-  const testo = corpoAvviso(msg, autore);
+  const autore = (profilo as { display_name?: string } | null)?.display_name;
 
   let inviati = 0;
   const daDimenticare: string[] = [];
 
-  for (let i = 0; i < tokens.length; i += CHUNK) {
-    const lotto = tokens.slice(i, i + CHUNK);
-    const avvisi = lotto.map((to) => ({
-      to,
+  for (let i = 0; i < dispositivi.length; i += CHUNK) {
+    const lotto = dispositivi.slice(i, i + CHUNK);
+    const avvisi = lotto.map((d) => ({
+      to: d.token,
       title: titolo,
-      body: testo,
+      body: corpoAvviso(msg, autore, testiPer(lingue.get(d.user_id))),
       sound: 'default',
       channelId: 'messaggi',
       // Serve al telefono per aprire il gruppo giusto quando si tocca
@@ -165,7 +193,7 @@ Deno.serve(async (req: Request) => {
       } else if (d?.details?.error === 'DeviceNotRegistered') {
         // App disinstallata o permesso revocato: il codice non vale più,
         // e tenerlo significherebbe ritentare a vuoto per sempre.
-        daDimenticare.push(lotto[k]);
+        daDimenticare.push(lotto[k].token);
       }
     });
   }

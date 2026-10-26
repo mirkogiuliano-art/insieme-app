@@ -72,7 +72,7 @@ import { sendMessage } from '@/lib/api/messages';
 import { avvisaDelMessaggio } from '@/lib/api/push';
 import { colorForUser } from '@/lib/utils';
 import { CATEGORY_PALETTE } from '@/types';
-import { useT, dizionario } from '@/i18n';
+import { useT, dizionario, localeAttuale } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
 import { messaggioErrore, eProblemaDiRete } from '@/lib/errori';
 import { leggiCopia, salvaCopia, useRiprovaDaSola } from '@/lib/copiaLocale';
@@ -84,6 +84,9 @@ interface LinksTabProps {
   roster: Record<string, string>;
   /** Passa alla sezione Mappa centrata su quel posto. */
   onShowPlaceOnMap?: (pinId: string) => void;
+  /** Un gruppo pubblico visto da fuori: si guarda, non si aggiunge né si
+   * modifica niente, e non si vede chi ha aggiunto cosa. */
+  solaLettura?: boolean;
 }
 
 /** La categoria di un posto che non ne ha più una: il nome segue la
@@ -108,7 +111,7 @@ function pairs<T>(list: T[]): T[][] {
   return out;
 }
 
-export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
+export function LinksTab({ groupId, roster, onShowPlaceOnMap, solaLettura = false }: LinksTabProps) {
   const { colors } = useTheme();
   const t = useT();
   const SORT_LABELS: Record<LinksSort, string> = {
@@ -445,7 +448,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       return true;
     } catch (err) {
       segnalaErrore(err, 'link.erroreCaricamentoFile');
-      toast.show(t.link.erroreCaricamentoFile, 'error');
+      toast.show(messaggioErrore(err, t.link.erroreCaricamentoFile), 'error');
       return false;
     } finally {
       setUploadingFile(false);
@@ -479,7 +482,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       return true;
     } catch (err) {
       segnalaErrore(err, 'link.erroreCaricamentoDoc');
-      toast.show(t.link.erroreCaricamentoDoc, 'error');
+      toast.show(messaggioErrore(err, t.link.erroreCaricamentoDoc), 'error');
       return false;
     } finally {
       setUploadingFile(false);
@@ -509,12 +512,12 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
     }
   };
 
-  const removeLink = async (id: string) => {
+  const removeLink = async (link: RawLink) => {
     try {
-      await deleteLink(id);
+      await deleteLink(link.id);
       // Se il link era una foto o un video caricati, il file resterebbe
       // nel deposito: la spazzata lo toglie di mezzo.
-      sweepGroupMedia(groupId);
+      sweepGroupMedia(groupId, [link.url, link.thumb]);
     } catch (err) {
       segnalaErrore(err, 'link.erroreElimina');
       toast.show(t.link.erroreElimina, 'error');
@@ -571,6 +574,10 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
   };
 
 
+  // Quanti link per categoria: il numero nei filtri.
+  const perCategoria = new Map<string | null, number>();
+  for (const it of items) perCategoria.set(it.categoryId, (perCategoria.get(it.categoryId) ?? 0) + 1);
+
   const term = query.trim().toLowerCase();
   const filtered = items
     .filter((it) =>
@@ -594,9 +601,9 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
       case 'oldest':
         return a.ts - b.ts;
       case 'title':
-        return displayTitle(a).localeCompare(displayTitle(b), 'it', { sensitivity: 'base' });
+        return displayTitle(a).localeCompare(displayTitle(b), localeAttuale(), { sensitivity: 'base' });
       case 'person':
-        return authorOf(a).localeCompare(authorOf(b), 'it', { sensitivity: 'base' }) || b.ts - a.ts;
+        return authorOf(a).localeCompare(authorOf(b), localeAttuale(), { sensitivity: 'base' }) || b.ts - a.ts;
       default:
         return b.ts - a.ts;
     }
@@ -634,7 +641,8 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         ].filter((s) => s.items.length > 0);
   const listSections = sections.map((s) => ({
     key: s.key,
-    heading: s.heading,
+    // Con una categoria sola il titolo ripete il filtro scelto sopra.
+    heading: sections.length === 1 && sort !== 'person' ? null : s.heading,
     count: s.items.length,
     // Nella griglia ogni riga dell'elenco porta due link.
     data: view === 'grid' ? pairs(s.items) : s.items.map((it) => [it]),
@@ -650,9 +658,9 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
 
   const cardProps = (item: RawLink) => ({
     item,
-    addedBy: roster[item.userId] ?? t.segnaposto.utente,
+    addedBy: solaLettura ? '' : (roster[item.userId] ?? t.segnaposto.utente),
     places: placesFor(item.id),
-    onOpenMenu: () => setMenuFor(item),
+    onOpenMenu: solaLettura ? undefined : () => setMenuFor(item),
     onShowPlace: (pinId: string) => onShowPlaceOnMap?.(pinId),
   });
 
@@ -675,7 +683,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
           <SearchIcon size={15} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder={items.length > 0 ? t.link.cercaFra(items.length) : t.link.cerca}
+            placeholder={t.link.cerca}
             placeholderTextColor={colors.textFaint}
             value={query}
             onChangeText={setQuery}
@@ -696,23 +704,26 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         >
           {view === 'list' ? <GridIcon size={17} color={colors.textDim} /> : <ListIcon size={17} color={colors.textDim} />}
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => setAddOpen(true)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
-          <PlusIcon size={13} color={colors.inkOnAmber} />
-          <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.link.aggiungi}</Text>
-        </Pressable>
+        {solaLettura ? null : (
+          <Pressable accessibilityRole="button" onPress={() => setAddOpen(true)} style={[styles.addBtn, { backgroundColor: colors.amber }]}>
+            <PlusIcon size={13} color={colors.inkOnAmber} />
+            <Text style={{ color: colors.inkOnAmber, fontWeight: '800', fontSize: 13 }}>{t.link.aggiungi}</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.filters}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
           <FilterChip
-            label={SORT_LABELS[sort]}
-            icon={<SortIcon size={12} color={colors.textDim} />}
+            label={t.accessibilita.ordina(SORT_LABELS[sort])}
+            soloIcona
+            icon={<SortIcon size={13} color={colors.textDim} />}
             onPress={() => setSortOpen(true)}
           />
-          <View style={[styles.chipDivider, { backgroundColor: colors.border }]} />
-          <FilterChip label={t.link.tutti} active={filter === 'all'} onPress={() => setFilter('all')} />
+          <FilterChip label={t.link.tutti} count={items.length} active={filter === 'all'} onPress={() => setFilter('all')} />
           <FilterChip
             label={t.link.preferiti}
+            count={items.filter((it) => it.isFavorite).length}
             icon={<StarIcon size={12} color={colors.amberText} filled={filter === 'favorites'} />}
             active={filter === 'favorites'}
             onPress={() => setFilter('favorites')}
@@ -721,14 +732,15 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
             <FilterChip
               key={c.id}
               label={c.name}
+              count={perCategoria.get(c.id) ?? 0}
               dotColor={c.color}
               active={filter === c.id}
               onPress={() => setFilter(c.id)}
               // La matita solo sulla categoria scelta: su tutte era rumore.
-              onEdit={filter === c.id ? () => openManageCat(c) : undefined}
+              onEdit={!solaLettura && filter === c.id ? () => openManageCat(c) : undefined}
             />
           ))}
-          <FilterChip label={t.link.nuovaCategoriaChip} dashed onPress={() => setCatModalOpen(true)} />
+          {solaLettura ? null : <FilterChip label={t.link.nuovaCategoriaChip} dashed onPress={() => setCatModalOpen(true)} />}
         </ScrollView>
       </View>
 
@@ -761,7 +773,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
                 <>
                   <LinkIcon size={38} color={colors.textFaint} strokeWidth={1.6} />
                   <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-                    {t.link.vuoto}
+                    {solaLettura ? t.pubblico.nessunLink : t.link.vuoto}
                   </Text>
                 </>
               )}
@@ -904,7 +916,7 @@ export function LinksTab({ groupId, roster, onShowPlaceOnMap }: LinksTabProps) {
         onToggleFavorite={toggleFavorite}
         onPickPlace={(link) => setPickerLink(link)}
         onMove={moveLink}
-        onDelete={(link) => removeLink(link.id)}
+        onDelete={removeLink}
         onSendToChat={sendToChat}
       />
 
@@ -932,7 +944,6 @@ const styles = StyleSheet.create({
   viewBtn: { width: 40, height: 40, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
   addBtn: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, borderRadius: 999 },
   filters: { paddingBottom: 6 },
-  chipDivider: { width: 1, alignSelf: 'stretch', marginVertical: 6, marginRight: 8 },
   sortRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
   sortLabel: { flex: 1, fontSize: 15 },
   listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 },

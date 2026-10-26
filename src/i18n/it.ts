@@ -37,6 +37,7 @@ export const it = {
    * sola icona: senza, li annuncia come «pulsante» e basta. */
   accessibilita: {
     menuGruppo: 'Menu del gruppo',
+    ordina: (criterio: string) => `Ordina: ${criterio}`,
     profilo: 'Profilo',
     impostazioni: 'Impostazioni',
     chiudi: 'Chiudi',
@@ -73,7 +74,7 @@ export const it = {
   },
 
   accesso: {
-    slogan: 'Tutto quello che vuoi vivere,\nin un posto solo.',
+    slogan: 'I posti da vedere e le cose da fare,\nsalvati insieme.',
     sloganSub: 'Un viaggio con gli amici, le cene del giovedì,\nun progetto di famiglia: ognuno nel suo gruppo.',
     accedi: 'Accedi',
     registrati: 'Registrati',
@@ -101,7 +102,7 @@ export const it = {
     legaleCondizioni: 'condizioni d’uso',
     legale2: ' e l’',
     legalePrivacy: 'informativa sulla privacy',
-    legale3: '.',
+    legale3: ', e confermi di avere almeno 16 anni.',
   },
 
   /** I messaggi che arriverebbero in inglese da Supabase Auth. */
@@ -157,7 +158,10 @@ export const it = {
     nuovo: 'Nuovo',
     tutti: 'Tutti',
     conNovita: 'Con novità',
-    conNovitaN: (n: number) => `Con novità (${n})`,
+    inArrivo: 'In arrivo',
+    nessunoInArrivo: 'Nessun gruppo con le date davanti.',
+    nessunMessaggio: 'Nessun messaggio',
+    daVotare: (n: number) => (n > 1 ? `Da votare (${n})` : 'Da votare'),
     ordinaPer: 'Ordina per',
     ordineRecente: 'Attività recente',
     ordineNome: 'Nome (A–Z)',
@@ -170,8 +174,9 @@ export const it = {
     invitoTesto: (nome: string, url: string) => `Entra nel gruppo "${nome}" su Insieme:\n${url}`,
     creatoTitolo: 'Gruppo creato',
     creatoTesto: (nome: string) =>
-      `Ora aggiungi le persone a «${nome}»: chi conosci già riceve l’invito nell’app, agli altri mandi il link.`,
-    vaiAlGruppo: 'Vai al gruppo',
+      `Per ora «${nome}» lo vedi solo tu. Puoi tenerlo per te, o aggiungere i tuoi amici.`,
+    perOraSoloIo: 'Per ora solo io',
+    soloTu: 'Solo tu',
     erroreCrea: 'Non sono riuscito a creare il gruppo, riprova.',
     erroreColore: 'Non sono riuscito a cambiare il colore.',
     erroreLetto: 'Non sono riuscito a segnare come letto.',
@@ -194,7 +199,7 @@ export const it = {
     colore: 'Colore',
     nomeSegnaposto: 'Nome del gruppo',
     creaBottone: 'Crea il gruppo',
-    notaCrea: 'Dopo avrai il link di invito da mandare a chi vuoi far entrare.',
+    notaCrea: 'Puoi tenerlo per te, o invitare i tuoi amici.',
     hoCopiato: 'Hai copiato un invito',
     toccaPerEntrare: 'Tocca per entrare nel gruppo',
     incolla: 'Incolla il link di invito',
@@ -235,6 +240,56 @@ export const it = {
     entra: 'Entra',
     noGrazie: 'No, grazie',
     errore: 'Non sono riuscito a rispondere all’invito.',
+  },
+
+  pubblico: {
+    suInsieme: 'Su Insieme',
+    gruppiN: (n: number) => `${n} ${n === 1 ? 'gruppo pubblico' : 'gruppi pubblici'}`,
+    nienteCon: (q: string) => `Nessun gruppo o persona per «${q}».`,
+    personaSparita: 'Questa persona non ha più gruppi pubblici.',
+    gruppiPubbliciN: (n: number) => (n === 1 ? 'Gruppo pubblico' : `Gruppi pubblici (${n})`),
+    linkEPosti: (l: number, p: number) => `${l} link · ${p} ${p === 1 ? 'posto' : 'posti'}`,
+    gruppoSparito: 'Questo gruppo non è più pubblico.',
+    eAltri: (n: number) => (n === 1 ? 'con un’altra persona' : `con altre ${n} persone`),
+    nessunLink: 'Ancora nessun link.',
+    nessunPosto: 'Ancora nessun posto.',
+    chatPrivata: 'La chat di questo gruppo resta fra i membri.',
+    segnala: 'Segnala il gruppo',
+    profiloDi: (nome: string) => `Il profilo di ${nome}`,
+    segnalato: 'Segnalazione inviata. Grazie.',
+    erroreSegnala: 'Non sono riuscito a mandare la segnalazione.',
+    nomeUtente: 'Nome utente',
+    erroreNome: 'Non sono riuscito a salvare il nome utente.',
+    visibilita: 'Visibilità',
+    pubblico: 'Pubblico',
+    privato: 'Privato',
+    pubblicoSub: 'Chiunque su Insieme vede info, salvati e posti',
+    privatoSub: 'Lo vedono solo i membri',
+    resoPubblicoDa: (chi: string) => `Reso pubblico da ${chi}`,
+    renderePubblico: 'Rendere pubblico il gruppo?',
+    tornarePrivato: 'Tornare privato?',
+    tornarePrivatoTesto:
+      'Il gruppo sparisce dalla ricerca e dal tuo profilo, e chi non ne fa parte non lo vede più. Per i membri non cambia niente.',
+    loVedonoTutti: 'Lo vedranno tutti su Insieme',
+    vedeInfo: 'Nome, descrizione, date e meta',
+    vedeCose: 'Le cose da sapere',
+    vedeLink: 'I salvati: link e video',
+    vedePosti: 'Posti sulla mappa',
+    vedeAutore: 'Che l’hai creato tu, con il tuo nome utente',
+    restanoDentro: 'Restano solo dei membri',
+    restaChat: 'La chat',
+    restaMembri: 'I nomi degli altri membri',
+    tuoNomeUtente: 'Il tuo nome utente',
+    regoleNome: 'Da 3 a 24 caratteri: lettere, numeri, punto e trattino basso.',
+    nomePreso: 'Questo nome utente è già preso.',
+    nomeLibero: 'Libero.',
+    nomeUtenteNota: 'Ti trova chi lo cerca, e compare sui tuoi gruppi pubblici.',
+    avvisoMembri: 'Gli altri membri ricevono un avviso. Puoi tornare privato quando vuoi.',
+    rendiPubblico: 'Rendi pubblico',
+    tornaPrivato: 'Torna privato',
+    oraPubblico: 'Il gruppo ora è pubblico.',
+    oraPrivato: 'Il gruppo ora è privato.',
+    errore: 'Non sono riuscito a cambiare la visibilità del gruppo.',
   },
 
   menuGruppo: {
@@ -297,6 +352,10 @@ export const it = {
 
   chat: {
     cerca: 'Cerca nei messaggi',
+    vota: 'Vota',
+    manchiTu: (votanti: number, membri: number) =>
+      votanti === 0 ? 'Ancora nessun voto' : `${votanti} su ${membri} ${votanti === 1 ? 'ha' : 'hanno'} votato · manchi tu`,
+    altriDaVotare: (n: number) => `+${n} da votare`,
     cercaArchivio: 'Cerca nell’archivio',
     risultatoDi: (n: number, tot: number) => `${n} di ${tot}`,
     precedente: 'Risultato precedente',
@@ -304,7 +363,7 @@ export const it = {
     tornaChat: 'Torna alla chat',
     vuoto: 'Nessun messaggio ancora. Scrivi il primo per iniziare la conversazione.',
     soloTuTitolo: 'Ci sei solo tu',
-    soloTuTesto: 'Invita chi conosci già o manda il link: chi entra trova chat, link e posti.',
+    soloTuTesto: 'Quello che scrivi e salvi qui lo vedi solo tu: appunti, idee, posti. Quando vuoi, aggiungi qualcuno.',
     soloTuInvita: 'Aggiungi persone',
     scrivi: 'Scrivi un messaggio',
     allega: 'Manda foto, documenti, posti o link',
@@ -483,7 +542,6 @@ export const it = {
 
   link: {
     cerca: 'Cerca',
-    cercaFra: (n: number) => `Cerca fra ${n} link`,
     griglia: 'Mostra a griglia',
     elenco: 'Mostra a elenco',
     aggiungi: 'Aggiungi',
@@ -615,7 +673,6 @@ export const it = {
 
   mappa: {
     cerca: 'Cerca',
-    cercaFra: (n: number) => `Cerca fra ${n} ${n === 1 ? 'posto' : 'posti'}`,
     elenco: 'Mostra a elenco',
     mappa: 'Mostra la mappa',
     aggiungi: 'Aggiungi',
@@ -725,6 +782,7 @@ export const it = {
     eliminaMessaggio: 'Eliminazione del messaggio non riuscita.',
     tempoScaduto: 'Ci sta mettendo troppo. Controlla la connessione e riprova.',
     rete: 'Non riesco a raggiungere Insieme. Controlla la connessione e riprova.',
+    fileTroppoGrande: 'Il file è troppo grande: il massimo è 50 MB.',
   },
 
   /** I messaggi che le funzioni del database mandano indietro, nella lingua

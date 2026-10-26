@@ -18,7 +18,7 @@ import { SettingsSheet, type SettingsPage } from '@/components/SettingsSheet';
 import { LoadError } from '@/components/LoadError';
 import { InCaricamento } from '@/components/InCaricamento';
 import { SenzaRete } from '@/components/SenzaRete';
-import { SettingsIcon, PlusIcon, UsersIcon, SearchIcon, CloseIcon, SortIcon, CheckIcon, MoreIcon } from '@/components/Icon';
+import { SettingsIcon, PlusIcon, UsersIcon, SearchIcon, CloseIcon, SortIcon, CheckIcon, MoreIcon, CalendarIcon, PollIcon, LockIcon } from '@/components/Icon';
 import { FilterChip } from '@/components/FilterChip';
 import { NewGroupSheet } from '@/components/NewGroupSheet';
 import { GroupActionsSheet } from '@/components/GroupActionsSheet';
@@ -30,16 +30,17 @@ import { leggiCopia, salvaCopia } from '@/lib/copiaLocale';
 import { precaricaGruppi } from '@/lib/precarica';
 import { AddPeopleSheet } from '@/components/AddPeopleSheet';
 import { InvitoInArrivo } from '@/components/InvitoInArrivo';
+import { RisultatiPubblici } from '@/components/RisultatiPubblici';
 import { mieiInviti, rispondiInvito, type InvitoRicevuto } from '@/lib/api/invitiPersona';
 import { listGroupPreviews, type GroupPreview } from '@/lib/api/groupPreviews';
-import { initials, inkOn, withTimeout, WRITE_TIMEOUT } from '@/lib/utils';
+import { initials, inkOn, withTimeout, WRITE_TIMEOUT, timeLabel, dateLabel } from '@/lib/utils';
 import { countdownLabel, rangeLabel } from '@/lib/groupInfo';
 import { fitFontSize, LETTER_SPACING_EM } from '@/lib/fitText';
 import { useFinestra } from '@/lib/finestra';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { Logo } from '@/components/Logo';
-import { useT, dizionario } from '@/i18n';
+import { useT, dizionario, localeAttuale } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
 import { messaggioErrore } from '@/lib/errori';
 
@@ -63,6 +64,11 @@ function activityLabel(ts: number | null | undefined): string | null {
   if (ore < 24) return a.ore(ore);
   const giorni = Math.floor(ore / 24);
   return giorni === 1 ? a.ieri : a.giorni(giorni);
+}
+
+/** L'ora dell'ultimo messaggio se è di oggi, altrimenti il giorno. */
+function quandoUltimo(ts: number): string {
+  return new Date(ts).toDateString() === new Date().toDateString() ? timeLabel(ts) : dateLabel(ts);
 }
 
 /** Limiti del nome del gruppo. Sopra `MAX` un nome di tre lettere
@@ -152,7 +158,8 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
   const [rispondendo, setRispondendo] = useState<string | null>(null);
 
   const [query, setQuery] = useState('');
-  const [onlyNew, setOnlyNew] = useState(false);
+  /** Quali gruppi si vedono: tutti, quelli con novità, quelli con le date davanti. */
+  const [filtro, setFiltro] = useState<'tutti' | 'novita' | 'arrivo'>('tutti');
   const [sort, setSort] = useState<GroupsSort>('recent');
   const [sortOpen, setSortOpen] = useState(false);
   /** Il gruppo di cui è aperto il menu. */
@@ -283,17 +290,194 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
   };
 
   const term = query.trim().toLowerCase();
-  const newCount = myGroups.filter((g) => (previews[g.id]?.unread ?? 0) > 0).length;
+  const conNovita = (g: Group) => (previews[g.id]?.unread ?? 0) > 0;
+  // Le date ancora davanti, o in corso: dove c'è un conto alla rovescia.
+  const inArrivo = (g: Group) => countdownLabel(g.startsOn, g.endsOn) !== null;
   const shownGroups = myGroups
     .filter((g) => !term || g.name.toLowerCase().includes(term))
-    .filter((g) => !onlyNew || (previews[g.id]?.unread ?? 0) > 0)
+    .filter((g) => (filtro === 'novita' ? conNovita(g) : filtro === 'arrivo' ? inArrivo(g) : true))
     .sort((a, b) => {
-      if (sort === 'name') return a.name.localeCompare(b.name, 'it', { sensitivity: 'base' });
+      if (sort === 'name') return a.name.localeCompare(b.name, localeAttuale(), { sensitivity: 'base' });
       if (sort === 'created') return (b.createdAt ?? 0) - (a.createdAt ?? 0);
       const la = previews[a.id]?.lastAt ?? a.createdAt ?? 0;
       const lb = previews[b.id]?.lastAt ?? b.createdAt ?? 0;
       return lb - la;
     });
+
+  // Sul telefono un gruppo è grande, il primo con novità nell'ordine scelto
+  // (o il primo, se non ce ne sono), e gli altri vanno a coppie. Sugli
+  // schermi larghi e nel riquadro accanto al gruppo aperto sono tutti grandi.
+  const aCoppie = colonne === 1 && !pannello;
+  const inEvidenza = aCoppie ? (shownGroups.find(conNovita) ?? shownGroups[0]) : undefined;
+  const larghezzaPiccola = Math.floor((larghezza - 48 - 12) / 2);
+
+  const apri = (g: Group) => (pannello ? router.replace(`/group/${g.id}`) : router.push(`/group/${g.id}`));
+
+  /** Nel gruppo ci sono solo io e l'ultimo messaggio è mio: il nome non
+   * direbbe niente. Se è di qualcuno che poi è uscito, il nome resta. */
+  const scrittoDaMe = (g: Group) => {
+    const p = previews[g.id];
+    return p?.memberCount === 1 && p.ultimo?.autore === p.memberNames[0];
+  };
+
+  /** Le iniziali dei primi membri, appena sovrapposte: si leggono tutte. */
+  const facce = (g: Group, tint: string, ink: string, quante: number) => {
+    const preview = previews[g.id];
+    const shown = preview?.memberNames.slice(0, quante) ?? [];
+    const extra = (preview?.memberCount ?? 0) - shown.length;
+    if (shown.length === 0) return null;
+    if (preview?.memberCount === 1) {
+      return (
+        <View style={styles.soloTu}>
+          <LockIcon size={11} color={ink} />
+          <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: ink }]}>{t.home.soloTu}</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.avatars}>
+        {shown.map((name, i) => (
+          <View key={`${name}-${i}`} style={[styles.avatar, { borderColor: tint, marginLeft: i === 0 ? 0 : -4 }]}>
+            <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: ink }]}>{initials(name)}</Text>
+          </View>
+        ))}
+        {extra > 0 ? (
+          <View style={[styles.avatar, { borderColor: tint, marginLeft: -4 }]}>
+            <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: ink }]}>+{extra}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
+  /** Il menu del gruppo: anche tenendo premuta la scheda, ma sul web la
+   * pressione lunga non arriva. */
+  const tastoMenu = (g: Group, ink: string) => (
+    <Pressable
+      accessibilityRole="button"
+      onPress={(e) => {
+        e.stopPropagation?.();
+        setActionsFor(g);
+      }}
+      hitSlop={10}
+      style={styles.cardMore}
+      accessibilityLabel={t.home.menuDi(g.name)}
+    >
+      <MoreIcon size={18} color={ink} />
+    </Pressable>
+  );
+
+  const nuovi = (n: number, tint: string, ink: string) => (
+    <View style={[styles.unread, { backgroundColor: ink }]}>
+      <Text style={[styles.unreadText, { color: tint }]}>{t.home.nuoviN(n)}</Text>
+    </View>
+  );
+
+  /**
+   * La scheda grande: il nome, quanto manca e, in un riquadro un tono più
+   * scuro, l'ultimo messaggio e il sondaggio da votare. La scheda è tutta
+   * della tinta del gruppo, e il testo sopra è una versione molto scura
+   * della stessa tinta invece di un nero qualunque: contro sette colori
+   * diversi un nero unico risulta sempre un po' estraneo a ciascuno.
+   */
+  const schedaGrande = (g: Group) => {
+    const tint = groupColor(g);
+    const ink = inkOn(tint);
+    const preview = previews[g.id];
+    const quando = countdownLabel(g.startsOn, g.endsOn) ?? rangeLabel(g.startsOn, g.endsOn);
+    const ultimo = preview?.ultimo;
+    const daVotare = preview?.daVotare;
+    const mio = scrittoDaMe(g);
+    return (
+      <Pressable
+        key={g.id}
+        onPress={() => apri(g)}
+        onLongPress={() => setActionsFor(g)}
+        accessibilityState={pannello ? { selected: pannello.selezionato === g.id } : undefined}
+        style={[
+          styles.groupCard,
+          { backgroundColor: tint },
+          larghezzaScheda ? { width: larghezzaScheda } : null,
+          pannello?.selezionato === g.id ? [styles.aperta, { borderColor: colors.text }] : null,
+        ]}
+      >
+        <View style={styles.cardTesta}>
+          {preview && preview.unread > 0 ? nuovi(preview.unread, tint, ink) : <View />}
+          {facce(g, tint, ink, AVATARS_SHOWN)}
+        </View>
+        <NomeGruppo name={g.name} color={ink} />
+        <View style={styles.cardRiga}>
+          {quando ? <CalendarIcon size={14} color={ink} strokeWidth={2} /> : null}
+          <Text maxFontSizeMultiplier={1.3} style={[styles.cardStato, { color: ink }]} numberOfLines={1}>
+            {quando ?? (ultimo ? '' : t.home.nessunMessaggio)}
+          </Text>
+          {tastoMenu(g, ink)}
+        </View>
+        {ultimo || daVotare ? (
+          <View style={styles.dentro}>
+            {ultimo ? (
+              <View style={styles.dentroRiga}>
+                <Text maxFontSizeMultiplier={1.3} style={[styles.dentroChi, { color: ink }]} numberOfLines={1}>
+                  {mio ? null : <Text style={styles.dentroForte}>{ultimo.autore}</Text>}
+                  {preview?.lastAt ? `${mio ? '' : ' · '}${quandoUltimo(preview.lastAt)}` : ''}
+                </Text>
+                <Text maxFontSizeMultiplier={1.3} style={[styles.dentroTesto, { color: ink }]} numberOfLines={1}>
+                  {ultimo.testo}
+                </Text>
+              </View>
+            ) : null}
+            {daVotare ? (
+              <View style={[styles.dentroRiga, ultimo ? styles.dentroSotto : null]}>
+                <View style={styles.dentroEtichetta}>
+                  <PollIcon size={13} color={ink} />
+                  <Text maxFontSizeMultiplier={1.3} style={[styles.dentroChi, styles.dentroForte, { color: ink }]}>
+                    {t.home.daVotare(daVotare.quanti)}
+                  </Text>
+                </View>
+                <Text maxFontSizeMultiplier={1.3} style={[styles.dentroTesto, { color: ink }]} numberOfLines={1}>
+                  {daVotare.domanda}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  };
+
+  /** Le altre schede, a coppie: il nome su due righe, l'ultimo messaggio o
+   * quanto manca, le iniziali. */
+  const tessera = (g: Group) => {
+    const tint = groupColor(g);
+    const ink = inkOn(tint);
+    const preview = previews[g.id];
+    const ultimo = preview?.ultimo;
+    const riga = ultimo
+      ? (scrittoDaMe(g) ? ultimo.testo : `${ultimo.autore}: ${ultimo.testo}`)
+      : (countdownLabel(g.startsOn, g.endsOn) ?? rangeLabel(g.startsOn, g.endsOn) ?? t.home.nessunMessaggio);
+    return (
+      <Pressable
+        key={g.id}
+        onPress={() => apri(g)}
+        onLongPress={() => setActionsFor(g)}
+        style={[styles.tessera, { backgroundColor: tint, width: larghezzaPiccola }]}
+      >
+        <View style={styles.tesseraTesta}>
+          <Text maxFontSizeMultiplier={1.2} style={[styles.tesseraNome, { color: ink }]} numberOfLines={2}>
+            {g.name}
+          </Text>
+          {tastoMenu(g, ink)}
+        </View>
+        <Text maxFontSizeMultiplier={1.3} style={[styles.tesseraRiga, { color: ink }]} numberOfLines={2}>
+          {riga}
+        </Text>
+        <View style={styles.tesseraPiede}>
+          {facce(g, tint, ink, 2)}
+          {preview && preview.unread > 0 ? nuovi(preview.unread, tint, ink) : null}
+        </View>
+      </Pressable>
+    );
+  };
 
   const rispondi = async (invito: InvitoRicevuto, entra: boolean) => {
     if (rispondendo) return;
@@ -364,15 +548,11 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
       {myGroups.length > 1 ? (
         <View style={styles.filters}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 24 }}>
-            <FilterChip label={SORT_LABELS[sort]} icon={<SortIcon size={12} color={colors.textDim} />} onPress={() => setSortOpen(true)} />
-            <View style={[styles.chipDivider, { backgroundColor: colors.border }]} />
-            <FilterChip label={t.home.tutti} active={!onlyNew} onPress={() => setOnlyNew(false)} />
-            <FilterChip
-              label={newCount > 0 ? t.home.conNovitaN(newCount) : t.home.conNovita}
-              dotColor={colors.amber}
-              active={onlyNew}
-              onPress={() => setOnlyNew(true)}
-            />
+            {/* L'ordine è un'icona sola: il criterio lo dice il foglio che apre. */}
+            <FilterChip label={t.accessibilita.ordina(SORT_LABELS[sort])} soloIcona icon={<SortIcon size={13} color={colors.textDim} />} onPress={() => setSortOpen(true)} />
+            <FilterChip label={t.home.tutti} count={myGroups.length} active={filtro === 'tutti'} onPress={() => setFiltro('tutti')} />
+            <FilterChip label={t.home.conNovita} count={myGroups.filter(conNovita).length} active={filtro === 'novita'} onPress={() => setFiltro('novita')} />
+            <FilterChip label={t.home.inArrivo} count={myGroups.filter(inArrivo).length} active={filtro === 'arrivo'} onPress={() => setFiltro('arrivo')} />
           </ScrollView>
         </View>
       ) : null}
@@ -393,10 +573,10 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
             style={larghezzaScheda ? { width: larghezzaScheda } : null}
           />
         ))}
-        {pronta && myGroups.length > 0 && shownGroups.length === 0 ? (
+        {pronta && myGroups.length > 0 && shownGroups.length === 0 && !term ? (
           <View style={styles.empty}>
             <Text style={[styles.emptyText, { color: colors.textFaint }]}>
-              {term ? t.home.nessunoCon(query.trim()) : t.home.tuttiLetti}
+              {term ? t.home.nessunoCon(query.trim()) : filtro === 'arrivo' ? t.home.nessunoInArrivo : t.home.tuttiLetti}
             </Text>
           </View>
         ) : null}
@@ -413,90 +593,18 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
           <View style={styles.empty}>
             <InCaricamento />
           </View>
+        ) : aCoppie ? (
+          <>
+            {inEvidenza ? schedaGrande(inEvidenza) : null}
+            {shownGroups.length > 1 ? (
+              <View style={styles.coppie}>{shownGroups.filter((g) => g !== inEvidenza).map(tessera)}</View>
+            ) : null}
+          </>
         ) : (
-          shownGroups.map((g) => {
-            // La scheda è tutta della tinta del gruppo, e il testo sopra
-            // è una versione molto scura della stessa tinta invece di un
-            // nero qualunque: contro sette colori diversi un nero unico
-            // risulta sempre un po' estraneo a ciascuno.
-            const tint = groupColor(g);
-            const ink = inkOn(tint);
-            const preview = previews[g.id];
-            const shown = preview?.memberNames.slice(0, AVATARS_SHOWN) ?? [];
-            const extra = (preview?.memberCount ?? 0) - shown.length;
-            // Sotto il nome, nella fascia che era vuota: quanto manca, o
-            // le date, o (per i gruppi senza date) l'ultima attività.
-            const stato =
-              countdownLabel(g.startsOn, g.endsOn) ?? rangeLabel(g.startsOn, g.endsOn) ?? activityLabel(preview?.lastAt);
-
-            return (
-              <Pressable
-                key={g.id}
-                onPress={() => (pannello ? router.replace(`/group/${g.id}`) : router.push(`/group/${g.id}`))}
-                onLongPress={() => setActionsFor(g)}
-                accessibilityState={pannello ? { selected: pannello.selezionato === g.id } : undefined}
-                style={[
-                  styles.groupCard,
-                  { backgroundColor: tint },
-                  larghezzaScheda ? { width: larghezzaScheda } : null,
-                  pannello?.selezionato === g.id ? [styles.aperta, { borderColor: colors.text }] : null,
-                ]}
-              >
-                {/* Solo luce: un cerchio appena più scuro della tinta, che
-                    esce dall'angolo e viene ritagliato dalla scheda. */}
-                <View style={styles.cardBlob} />
-
-                {shown.length > 0 ? (
-                  <View style={styles.avatars}>
-                    {shown.map((name, i) => (
-                      <View
-                        key={`${name}-${i}`}
-                        style={[styles.avatar, { borderColor: tint, marginLeft: i === 0 ? 0 : -8 }]}
-                      >
-                        <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: ink }]}>{initials(name)}</Text>
-                      </View>
-                    ))}
-                    {extra > 0 ? (
-                      <View style={[styles.avatar, { borderColor: tint, marginLeft: -8 }]}>
-                        <Text maxFontSizeMultiplier={1} style={[styles.avatarText, { color: ink }]}>+{extra}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                ) : null}
-
-                <NomeGruppo name={g.name} color={ink} />
-
-                {stato ? (
-                  <Text maxFontSizeMultiplier={1.3} style={[styles.cardStato, { color: ink }]} numberOfLines={1}>
-                    {stato}
-                  </Text>
-                ) : null}
-
-                {preview && preview.unread > 0 ? (
-                  <View style={[styles.unread, { backgroundColor: ink }]}>
-                    <Text style={[styles.unreadText, { color: tint }]}>
-                      {t.home.nuoviN(preview.unread)}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* Il menu del gruppo: anche tenendo premuta la scheda, ma
-                    sul web la pressione lunga non arriva. */}
-                <Pressable accessibilityRole="button"
-                  onPress={(e) => {
-                    e.stopPropagation?.();
-                    setActionsFor(g);
-                  }}
-                  hitSlop={10}
-                  style={styles.cardMore}
-                  accessibilityLabel={t.home.menuDi(g.name)}
-                >
-                  <MoreIcon size={18} color={ink} />
-                </Pressable>
-              </Pressable>
-            );
-          })
+          shownGroups.map((g) => schedaGrande(g))
         )}
+        {/* Cercando, sotto i tuoi gruppi: gruppi pubblici e persone. */}
+        {term ? <RisultatiPubblici testo={query} tuoiTrovati={shownGroups.length} /> : null}
       </ScrollView>
 
       <SettingsSheet visible={settingsAt !== null} startAt={settingsAt ?? 'settings'} onClose={() => setSettingsAt(null)} />
@@ -559,8 +667,8 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
             <Text style={[styles.sheetSub, { color: colors.textDim }]}>
               {t.home.creatoTesto(inviteOpen.name)}
             </Text>
-            {/* Prima le persone: un gruppo con una persona sola non serve
-                ancora a niente. Il gruppo si apre lo stesso, dall'altro tasto. */}
+            {/* Un gruppo si può tenere per sé: «Per ora solo io» apre il
+                gruppo, l'invito resta il tasto principale. */}
             <View style={styles.sheetActions}>
               <Pressable accessibilityRole="button"
                 onPress={() => {
@@ -570,7 +678,7 @@ export function GroupsLanding({ pannello }: { pannello?: { selezionato: string }
                 }}
                 style={[styles.btnSecondary, { backgroundColor: colors.surface2 }]}
               >
-                <Text style={{ color: colors.textDim, fontWeight: '600' }}>{t.home.vaiAlGruppo}</Text>
+                <Text style={{ color: colors.text, fontWeight: '700' }}>{t.home.perOraSoloIo}</Text>
               </Pressable>
               <Pressable accessibilityRole="button"
                 onPress={() => {
@@ -616,11 +724,10 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 13.5, paddingVertical: 0 },
   newBtn: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, borderRadius: 999 },
   filters: { paddingBottom: 4 },
-  chipDivider: { width: 1, alignSelf: 'stretch', marginVertical: 6, marginRight: 8 },
   sortRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
   sortLabel: { flex: 1, fontSize: 15 },
-  cardMore: { position: 'absolute', right: 16, bottom: 12, opacity: 0.75 },
-  cardStato: { position: 'absolute', left: 18, right: 52, bottom: 15, fontSize: 13, fontWeight: '700' },
+  cardMore: { opacity: 0.75 },
+  cardStato: { flex: 1, fontSize: 13, fontWeight: '700' },
   list: { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 12, gap: 16, flexGrow: 1 },
   griglia: { flexDirection: 'row', flexWrap: 'wrap', alignContent: 'flex-start' },
   // Gli avvisi sopra le schede, con gli stessi margini delle schede.
@@ -630,29 +737,12 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30, paddingTop: 80 },
   emptyText: { fontSize: 13, textAlign: 'center', maxWidth: 240, lineHeight: 18 },
 
-  // Il nome sta al centro dello spazio fra le facce in alto e la riga di
-  // stato in basso. La fascia in basso c'è anche quando la riga manca:
-  // così in elenco e in griglia i nomi stanno tutti alla stessa altezza.
-  // `overflow: hidden` ritaglia il cerchio decorativo che sborda.
-  groupCard: {
-    minHeight: 144,
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 38,
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  cardBlob: {
-    position: 'absolute',
-    right: -34,
-    top: -42,
-    width: 124,
-    height: 124,
-    borderRadius: 62,
-    backgroundColor: 'rgba(0,0,0,0.09)',
-  },
-  avatars: { position: 'absolute', top: 18, right: 20, flexDirection: 'row' },
+  // La scheda grande: in cima i nuovi e le facce, poi il nome, quanto manca
+  // col menu, e il riquadro con l'ultimo messaggio e il sondaggio.
+  groupCard: { borderRadius: 24, padding: 18, paddingBottom: 16, gap: 8, overflow: 'hidden' },
+  cardTesta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 26 },
+  cardRiga: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  avatars: { flexDirection: 'row' },
   avatar: {
     width: 26,
     height: 26,
@@ -663,22 +753,29 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.42)',
   },
   avatarText: { fontSize: 9.5, fontWeight: '800' },
+  soloTu: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 26, paddingHorizontal: 9, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.42)' },
   // Dimensione, interlinea e spaziatura le calcola NomeGruppo in base alla
   // lunghezza del nome: qui resta solo il carattere, arrotondato perché
   // quello di sistema risultava spento in mezzo a tutto quel colore.
   groupName: { fontFamily: FONT_ROUNDED },
-  // In alto a sinistra: l'angolo libero, dall'altra parte delle facce.
-  unread: {
-    position: 'absolute',
-    left: 16,
-    top: 14,
-    height: 22,
-    paddingHorizontal: 9,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  unread: { height: 22, paddingHorizontal: 9, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   unreadText: { fontSize: 11, fontWeight: '800' },
+  // Un tono più scuro della tinta, senza bordo: si legge come parte della
+  // scheda.
+  dentro: { marginTop: 4, borderRadius: 16, paddingHorizontal: 12, backgroundColor: 'rgba(0,0,0,0.1)' },
+  dentroRiga: { paddingVertical: 9, gap: 2 },
+  dentroSotto: { borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.1)' },
+  dentroEtichetta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dentroChi: { fontSize: 12 },
+  dentroForte: { fontWeight: '800' },
+  dentroTesto: { fontSize: 14 },
+  // Le schede a coppie: due per riga, alte uguali.
+  coppie: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  tessera: { minHeight: 150, borderRadius: 22, padding: 14, gap: 6 },
+  tesseraTesta: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+  tesseraNome: { flex: 1, fontFamily: FONT_ROUNDED, fontSize: 19, lineHeight: 23, letterSpacing: 19 * LETTER_SPACING_EM },
+  tesseraRiga: { fontSize: 12.5, fontWeight: '700' },
+  tesseraPiede: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 
   actions: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 14 },
   actionPrimary: {

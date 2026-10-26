@@ -13,6 +13,9 @@ export type LanguagePreference = LanguageName | 'system';
 export interface Profile {
   id: string; // = auth.users.id
   displayName: string | null;
+  /** Il nome con cui gli altri la trovano: c'è solo da quando ha reso
+   * pubblico un gruppo (vedi Visibilita). */
+  nomeUtente?: string | null;
 }
 
 /** Una meta trovata cercando per nome, fuori dalla mappa del gruppo: al
@@ -40,6 +43,9 @@ export interface Group {
   placePinId?: string | null;
   /** ...oppure uno trovato cercando, che nella mappa non c'e'. */
   metaLibera?: MetaLibera | null;
+  /** Pubblico: chiunque su Insieme ne vede info, link e posti, mai la chat.
+   * Lo decide solo chi l'ha creato (vedi Visibilita). */
+  pubblico?: boolean;
   infoUpdatedBy?: string | null;
   infoUpdatedAt?: number | null;
 }

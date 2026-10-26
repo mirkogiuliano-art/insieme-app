@@ -1,8 +1,16 @@
 import * as Crypto from 'expo-crypto';
 import { supabase } from '@/lib/supabase';
 import { rimpicciolisciFoto } from '@/lib/foto';
+import { comprimiVideo } from '@/lib/video';
+import { dizionario } from '@/i18n';
 
 export type AttachmentKind = 'image' | 'video' | 'audio' | 'file';
+
+/** Il limite per file del progetto Supabase (Storage → 50 MB): se cambia lì,
+ * va cambiato qui e nel testo di `errori.fileTroppoGrande`. Controllarlo
+ * prima risparmia a chi invia di aspettare un caricamento che il server
+ * rifiuterebbe solo alla fine. */
+const PESO_MASSIMO = 50 * 1024 * 1024;
 
 const EXT_FROM_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -32,6 +40,7 @@ function extensionFromName(name: string): string | null {
 }
 
 async function uploadToStorage(groupId: string, blob: Blob, contentType: string, ext: string): Promise<string> {
+  if (blob.size > PESO_MASSIMO) throw new Error(dizionario().errori.fileTroppoGrande);
   const path = `${groupId}/${Crypto.randomUUID()}.${ext}`;
   const { error } = await supabase.storage.from('chat-media').upload(path, blob, { contentType });
   if (error) throw error;
@@ -46,12 +55,12 @@ async function uploadToStorage(groupId: string, blob: Blob, contentType: string,
  * affidabile per l'estensione — su web `localUri` è spesso un `blob:`/`data:`
  * senza nome file riconoscibile.
  *
- * Le foto partono rimpicciolite (vedi lib/foto.ts); video e audio così
- * come sono. */
+ * Le foto partono rimpicciolite (vedi lib/foto.ts) e i video compressi
+ * (lib/video.ts); l'audio così com'è. */
 export async function uploadGroupMedia(groupId: string, localUri: string): Promise<string> {
   const response = await fetch(localUri);
   const originale = await response.blob();
-  const ridotta = await rimpicciolisciFoto(localUri, originale);
+  const ridotta = (await rimpicciolisciFoto(localUri, originale)) ?? (await comprimiVideo(localUri, originale));
   const blob = ridotta?.blob ?? originale;
   const contentType = ridotta?.contentType ?? (originale.type || 'application/octet-stream');
   const ext = EXT_FROM_MIME[contentType] ?? extensionFromUri(localUri) ?? 'bin';
@@ -91,9 +100,14 @@ export async function uploadGroupFile(
  * spazzata, non una cancellazione mirata, quindi una chiamata persa viene
  * rimediata dalla successiva. Per questo non attende e non solleva errori:
  * non deve mai far fallire l'operazione dell'utente.
+ *
+ * `tolti` sono gli indirizzi dei file della riga appena eliminata: se ne
+ * vanno subito, anche se caricati da meno di un giorno (la foto mandata nel
+ * gruppo sbagliato e tolta un attimo dopo).
  */
-export function sweepGroupMedia(groupId?: string): void {
-  supabase.functions.invoke('storage-cleanup', { body: groupId ? { groupId } : {} }).catch(() => {
+export function sweepGroupMedia(groupId?: string, tolti: (string | null | undefined)[] = []): void {
+  const urls = tolti.filter((u): u is string => !!u);
+  supabase.functions.invoke('storage-cleanup', { body: groupId ? { groupId, urls } : {} }).catch(() => {
     // volutamente in silenzio: ci ripensa la prossima spazzata
   });
 }

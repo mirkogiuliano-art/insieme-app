@@ -28,6 +28,7 @@ export const en: Dizionario = {
 
   accessibilita: {
     menuGruppo: 'Group menu',
+    ordina: (criterio: string) => `Sort: ${criterio}`,
     profilo: 'Profile',
     impostazioni: 'Settings',
     chiudi: 'Close',
@@ -63,7 +64,7 @@ export const en: Dizionario = {
   },
 
   accesso: {
-    slogan: 'Everything you want to live,\nin one place.',
+    slogan: 'Places to see and things to do,\nsaved together.',
     sloganSub: 'A trip with friends, Thursday dinners,\na family project: each in its own group.',
     accedi: 'Sign in',
     registrati: 'Sign up',
@@ -90,7 +91,7 @@ export const en: Dizionario = {
     legaleCondizioni: 'terms of use',
     legale2: ' and the ',
     legalePrivacy: 'privacy policy',
-    legale3: '.',
+    legale3: ', and confirm you are at least 16.',
   },
 
   erroriAuth: {
@@ -145,7 +146,10 @@ export const en: Dizionario = {
     nuovo: 'New',
     tutti: 'All',
     conNovita: 'With news',
-    conNovitaN: (n: number) => `With news (${n})`,
+    inArrivo: 'Coming up',
+    nessunoInArrivo: 'No groups with dates ahead.',
+    nessunMessaggio: 'No messages yet',
+    daVotare: (n: number) => (n > 1 ? `To vote on (${n})` : 'To vote on'),
     ordinaPer: 'Sort by',
     ordineRecente: 'Recent activity',
     ordineNome: 'Name (A–Z)',
@@ -158,8 +162,9 @@ export const en: Dizionario = {
     invitoTesto: (nome: string, url: string) => `Join the group "${nome}" on Insieme:\n${url}`,
     creatoTitolo: 'Group created',
     creatoTesto: (nome: string) =>
-      `Now add people to “${nome}”: people you know get the invite in the app, everyone else gets the link.`,
-    vaiAlGruppo: 'Go to the group',
+      `For now only you can see “${nome}”. Keep it to yourself, or add your friends.`,
+    perOraSoloIo: 'Just me for now',
+    soloTu: 'Just you',
     erroreCrea: 'I couldn’t create the group, try again.',
     erroreColore: 'I couldn’t change the colour.',
     erroreLetto: 'I couldn’t mark it as read.',
@@ -182,7 +187,7 @@ export const en: Dizionario = {
     colore: 'Colour',
     nomeSegnaposto: 'Group name',
     creaBottone: 'Create the group',
-    notaCrea: 'Afterwards you’ll get the invite link to send to whoever you want in.',
+    notaCrea: 'You can keep it to yourself, or invite your friends.',
     hoCopiato: 'You copied an invite',
     toccaPerEntrare: 'Tap to join the group',
     incolla: 'Paste the invite link',
@@ -223,6 +228,56 @@ export const en: Dizionario = {
     entra: 'Join',
     noGrazie: 'No, thanks',
     errore: 'I couldn’t answer the invite.',
+  },
+
+  pubblico: {
+    suInsieme: 'On Insieme',
+    gruppiN: (n: number) => `${n} public ${n === 1 ? 'group' : 'groups'}`,
+    nienteCon: (q: string) => `No groups or people for “${q}”.`,
+    personaSparita: 'This person has no public groups anymore.',
+    gruppiPubbliciN: (n: number) => (n === 1 ? 'Public group' : `Public groups (${n})`),
+    linkEPosti: (l: number, p: number) => `${l} ${l === 1 ? 'link' : 'links'} · ${p} ${p === 1 ? 'place' : 'places'}`,
+    gruppoSparito: 'This group isn’t public anymore.',
+    eAltri: (n: number) => (n === 1 ? 'with one other person' : `with ${n} other people`),
+    nessunLink: 'No links yet.',
+    nessunPosto: 'No places yet.',
+    chatPrivata: 'This group’s chat stays between its members.',
+    segnala: 'Report the group',
+    profiloDi: (nome: string) => `${nome}’s profile`,
+    segnalato: 'Report sent. Thank you.',
+    erroreSegnala: 'I couldn’t send the report.',
+    nomeUtente: 'Username',
+    erroreNome: 'I couldn’t save the username.',
+    visibilita: 'Visibility',
+    pubblico: 'Public',
+    privato: 'Private',
+    pubblicoSub: 'Anyone on Insieme sees the info, saved items and places',
+    privatoSub: 'Only members can see it',
+    resoPubblicoDa: (chi: string) => `Made public by ${chi}`,
+    renderePubblico: 'Make the group public?',
+    tornarePrivato: 'Make it private again?',
+    tornarePrivatoTesto:
+      'The group disappears from search and from your profile, and people outside it can no longer see it. Nothing changes for members.',
+    loVedonoTutti: 'Everyone on Insieme will see',
+    vedeInfo: 'Name, description, dates and destination',
+    vedeCose: 'Things to know',
+    vedeLink: 'Saved items: links and videos',
+    vedePosti: 'Places on the map',
+    vedeAutore: 'That you created it, with your username',
+    restanoDentro: 'Only members will see',
+    restaChat: 'The chat',
+    restaMembri: 'The other members’ names',
+    tuoNomeUtente: 'Your username',
+    regoleNome: '3 to 24 characters: letters, numbers, dot and underscore.',
+    nomePreso: 'This username is already taken.',
+    nomeLibero: 'Available.',
+    nomeUtenteNota: 'People can find you by it, and it shows on your public groups.',
+    avvisoMembri: 'The other members get a notification. You can make it private again whenever you like.',
+    rendiPubblico: 'Make public',
+    tornaPrivato: 'Make private',
+    oraPubblico: 'The group is now public.',
+    oraPrivato: 'The group is now private.',
+    errore: 'I couldn’t change the group’s visibility.',
   },
 
   menuGruppo: {
@@ -284,6 +339,10 @@ export const en: Dizionario = {
 
   chat: {
     cerca: 'Search the messages',
+    vota: 'Vote',
+    manchiTu: (votanti: number, membri: number) =>
+      votanti === 0 ? 'No votes yet' : `${votanti} of ${membri} voted · not you yet`,
+    altriDaVotare: (n: number) => `+${n} more to vote on`,
     cercaArchivio: 'Search the archive',
     risultatoDi: (n: number, tot: number) => `${n} of ${tot}`,
     precedente: 'Previous result',
@@ -291,7 +350,7 @@ export const en: Dizionario = {
     tornaChat: 'Back to the chat',
     vuoto: 'No messages yet. Write the first one to get the conversation going.',
     soloTuTitolo: 'It’s just you',
-    soloTuTesto: 'Invite people you know or send the link: whoever joins finds the chat, links and places.',
+    soloTuTesto: 'Only you can see what you write and save here: notes, ideas, places. Add someone whenever you like.',
     soloTuInvita: 'Add people',
     scrivi: 'Write a message',
     allega: 'Send photos, documents, places or links',
@@ -469,7 +528,6 @@ export const en: Dizionario = {
 
   link: {
     cerca: 'Search',
-    cercaFra: (n: number) => `Search ${n} ${n === 1 ? 'link' : 'links'}`,
     griglia: 'Show as a grid',
     elenco: 'Show as a list',
     aggiungi: 'Add',
@@ -598,7 +656,6 @@ export const en: Dizionario = {
 
   mappa: {
     cerca: 'Search',
-    cercaFra: (n: number) => `Search ${n} ${n === 1 ? 'place' : 'places'}`,
     elenco: 'Show as a list',
     mappa: 'Show the map',
     aggiungi: 'Add',
@@ -707,6 +764,7 @@ export const en: Dizionario = {
     eliminaMessaggio: 'Deleting the message didn’t work.',
     tempoScaduto: 'This is taking too long. Check your connection and try again.',
     rete: 'I can’t reach Insieme. Check your connection and try again.',
+    fileTroppoGrande: 'The file is too big: the limit is 50 MB.',
   },
 
   erroriServer: {

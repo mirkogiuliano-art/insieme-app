@@ -19,10 +19,11 @@ export interface GroupRow {
   meta_maps_url: string | null;
   info_updated_by: string | null;
   info_updated_at: string | null;
+  pubblico: boolean | null;
 }
 
 const SELECT_COLUMNS =
-  'id, name, color, created_by, created_at, description, starts_on, ends_on, place_pin_id, meta_nome, meta_lat, meta_lng, meta_maps_url, info_updated_by, info_updated_at';
+  'id, name, color, created_by, created_at, description, starts_on, ends_on, place_pin_id, meta_nome, meta_lat, meta_lng, meta_maps_url, info_updated_by, info_updated_at, pubblico';
 
 export function toGroup(row: GroupRow, joinedAt?: number): Group {
   return {
@@ -42,6 +43,7 @@ export function toGroup(row: GroupRow, joinedAt?: number): Group {
         : null,
     infoUpdatedBy: row.info_updated_by,
     infoUpdatedAt: row.info_updated_at ? new Date(row.info_updated_at).getTime() : null,
+    pubblico: row.pubblico ?? false,
   };
 }
 

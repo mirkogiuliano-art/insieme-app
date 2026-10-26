@@ -12,12 +12,16 @@ interface FilterChipProps {
    * (i preferiti). Le due cose sono alternative: non ha senso averle insieme. */
   icon?: React.ReactNode;
   active?: boolean;
+  /** Quanti elementi ci sono sotto il filtro, scritto dopo il nome. */
+  count?: number;
+  /** Solo l'icona: il nome resta per chi usa un lettore di schermo. */
+  soloIcona?: boolean;
   dashed?: boolean;
   onPress: () => void;
   onEdit?: () => void;
 }
 
-export function FilterChip({ label, dotColor, icon, active, dashed, onPress, onEdit }: FilterChipProps) {
+export function FilterChip({ label, dotColor, icon, active, count, soloIcona, dashed, onPress, onEdit }: FilterChipProps) {
   const { colors } = useTheme();
   const t = useT();
   return (
@@ -31,17 +35,29 @@ export function FilterChip({ label, dotColor, icon, active, dashed, onPress, onE
         },
       ]}
     >
-      <Pressable accessibilityRole="button" accessibilityState={{ selected: !!active }} onPress={onPress} style={styles.main} hitSlop={onEdit ? undefined : 6}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={soloIcona ? label : undefined}
+        accessibilityState={{ selected: !!active }}
+        onPress={onPress}
+        style={[styles.main, soloIcona && styles.soloIcona]}
+        hitSlop={onEdit ? undefined : 6}
+      >
         {icon ?? (dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null)}
-        <Text
-          style={{
-            fontSize: 12,
-            fontWeight: '500',
-            color: active ? colors.text : dashed ? colors.amber : colors.textDim,
-          }}
-        >
-          {label}
-        </Text>
+        {soloIcona ? null : (
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: '500',
+              color: active ? colors.text : dashed ? colors.amber : colors.textDim,
+            }}
+          >
+            {label}
+          </Text>
+        )}
+        {count !== undefined ? (
+          <Text style={[styles.count, { color: active ? colors.amberText : colors.textFaint }]}>{count}</Text>
+        ) : null}
       </Pressable>
       {onEdit ? (
         <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.modificaCategoria(label)} onPress={onEdit} hitSlop={8} style={styles.editBtn}>
@@ -68,6 +84,8 @@ const styles = StyleSheet.create({
     paddingRight: 9,
     paddingVertical: 6,
   },
+  soloIcona: { paddingLeft: 10, paddingRight: 10 },
+  count: { fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
   editBtn: { paddingRight: 10, paddingLeft: 2, paddingVertical: 6 },
   dot: { width: 7, height: 7, borderRadius: 4 },
 });

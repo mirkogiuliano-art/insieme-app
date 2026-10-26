@@ -25,6 +25,14 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 const risposta = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status, headers: JSON_HEADERS });
 
+/** L'avviso nella lingua di chi lo riceve: quella che l'app tiene nei suoi
+ * dati (`user_metadata.lang`), la stessa delle email. Senza, l'inglese. */
+const TESTI = {
+  it: { qualcuno: 'Qualcuno', invito: (chi: string, nome: string) => `${chi} ti invita in «${nome}»` },
+  en: { qualcuno: 'Someone', invito: (chi: string, nome: string) => `${chi} invites you to “${nome}”` },
+};
+const testiPer = (lang: unknown) => (typeof lang === 'string' && Object.hasOwn(TESTI, lang) ? TESTI[lang as keyof typeof TESTI] : TESTI.en);
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: JSON_HEADERS });
 
@@ -53,15 +61,17 @@ Deno.serve(async (req: Request) => {
   if (errBlocco) return risposta({ error: 'Riprova più tardi.' }, 503);
   if (blocco) return risposta({ inviati: 0 });
 
-  const [{ data: gruppo }, { data: profilo }, { data: righe }] = await Promise.all([
+  const [{ data: gruppo }, { data: profilo }, { data: righe }, { data: invitato }] = await Promise.all([
     admin.from('groups').select('name').eq('id', groupId).maybeSingle(),
     admin.from('profiles').select('display_name').eq('id', callerId).maybeSingle(),
     admin.from('push_tokens').select('token').eq('user_id', utente),
+    admin.auth.admin.getUserById(utente),
   ]);
   const tokens = (righe ?? []).map((r) => (r as { token: string }).token);
   if (tokens.length === 0) return risposta({ inviati: 0, motivo: 'nessun dispositivo registrato' });
 
-  const chi = (profilo as { display_name?: string } | null)?.display_name || 'Qualcuno';
+  const T = testiPer(invitato.user?.user_metadata?.lang);
+  const chi = (profilo as { display_name?: string } | null)?.display_name || T.qualcuno;
   const nome = (gruppo as { name?: string } | null)?.name ?? '';
   const esito = await fetch(EXPO_PUSH_URL, {
     method: 'POST',
@@ -69,7 +79,7 @@ Deno.serve(async (req: Request) => {
     // Senza groupId nei dati: toccando l'avviso si apre la home, dove
     // l'invito aspetta in cima. L'invitato nel gruppo non c'è ancora.
     body: JSON.stringify(
-      tokens.map((to) => ({ to, title: 'Insieme', body: `${chi} ti invita in «${nome}»`, sound: 'default', channelId: 'messaggi', data: { invito: groupId } })),
+      tokens.map((to) => ({ to, title: 'Insieme', body: T.invito(chi, nome), sound: 'default', channelId: 'messaggi', data: { invito: groupId } })),
     ),
   }).catch(() => null);
   if (!esito || !esito.ok) return risposta({ inviati: 0 });

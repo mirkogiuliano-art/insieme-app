@@ -24,10 +24,18 @@ legge in un'altra lingua.
 
 Nei quattro file ci sono dei `[...]` da sostituire:
 
-- **nome e cognome** di chi offre il servizio (il titolare del trattamento);
-- **indirizzo** (solo nell'informativa);
+- **nome e cognome** di chi offre il servizio (il titolare del trattamento):
+  `[nome e cognome]` in italiano, `[full name]` in inglese;
 - **email di contatto**, che è l'indirizzo a cui arriveranno le richieste di
-  cancellazione da parte di chi non ha più l'app.
+  cancellazione da parte di chi non ha più l'app, le segnalazioni di chi non
+  usa Insieme e le richieste delle autorità: `[indirizzo email di contatto]`
+  in italiano, `[contact email address]` in inglese. Meglio un indirizzo
+  dedicato all'app, non quello personale.
+
+L'indirizzo postale non c'è di proposito (deciso il 28 ottobre 2026): il
+GDPR chiede identità e contatti del titolare, e l'email basta come contatto.
+Se un giorno servisse, per esempio dichiarandosi «commerciante» negli store,
+meglio una casella postale o una domiciliazione che l'indirizzo di casa.
 
 Poi va tolto il riquadro «⚠️ Da completare» in cima: serve solo finché i
 buchi ci sono.

@@ -28,8 +28,14 @@
 // Nei gruppi dove restano altre persone, invece, non si tocca niente
 // oltre alle proprie righe: chat, link e posti sono roba di tutti, e i
 // messaggi di chi se ne va spariscono insieme a lui.
+//
+//  3. Ma i file dei propri messaggi e link restano nel deposito anche lì.
+//     Si annotano prima, finché le righe ci sono, e dopo la cancellazione
+//     li toglie storage-cleanup, se nessun altro li usa (un link salvato da
+//     un altro membro con lo stesso file lo tiene in vita).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { tutteLeRighe } from '../_shared/righe.ts';
 
 const BUCKET = 'chat-media';
 const PAGE = 100;
@@ -97,6 +103,39 @@ Deno.serve(async (req: Request) => {
     if (count <= 1) daEliminare.push(groupId);
   }
 
+  // 1b. I miei file nei gruppi che restano, per gruppo. Anche qui una lettura
+  //     fallita ferma tutto: andrei via lasciando le mie foto dietro di me.
+  const restano = mieiGruppi.filter((g) => !daEliminare.includes(g));
+  const mieiFile = new Map<string, string[]>();
+  const annota = (groupId: string, url: string | null) => {
+    if (!url?.includes(`/${BUCKET}/`)) return;
+    mieiFile.set(groupId, [...(mieiFile.get(groupId) ?? []), url]);
+  };
+  if (restano.length > 0) {
+    try {
+      const messaggi = await tutteLeRighe<{ group_id: string; attachment_url: string }>((da, a) =>
+        admin
+          .from('messages')
+          .select('id, group_id, attachment_url')
+          .eq('user_id', userId)
+          .in('group_id', restano)
+          .not('attachment_url', 'is', null)
+          .order('id')
+          .range(da, a),
+      );
+      for (const m of messaggi) annota(m.group_id, m.attachment_url);
+      const link = await tutteLeRighe<{ group_id: string; url: string; thumb: string | null }>((da, a) =>
+        admin.from('links').select('id, group_id, url, thumb').eq('user_id', userId).in('group_id', restano).order('id').range(da, a),
+      );
+      for (const l of link) {
+        annota(l.group_id, l.url);
+        annota(l.group_id, l.thumb);
+      }
+    } catch {
+      return riprova();
+    }
+  }
+
   // 2. I file dei gruppi che spariscono, prima che spariscano le righe
   //    che li nominano: dopo non si saprebbe più dove guardare.
   let fileRimossi = 0;
@@ -112,6 +151,14 @@ Deno.serve(async (req: Request) => {
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: JSON_HEADERS });
+  }
+
+  // 4. Ora che le mie righe non ci sono più, i miei file nei gruppi che
+  //    restano. shortcut: se questa chiamata fallisce, i file restano fino
+  //    alla prossima pulizia di quel gruppo; una pulizia periodica di tutto
+  //    il deposito la renderebbe certa.
+  for (const [groupId, urls] of mieiFile) {
+    await admin.functions.invoke('storage-cleanup', { body: { groupId, urls } }).catch(() => {});
   }
 
   return new Response(

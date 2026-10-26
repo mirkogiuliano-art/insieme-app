@@ -279,12 +279,19 @@ export function AuthScreen() {
           </>
         ) : null}
 
+        {mode === 'login' ? (
+          <Pressable accessibilityRole="button" onPress={() => switchMode('forgot')}>
+            <Text style={[styles.link, { color: colors.textDim }]}>{t.accesso.dimenticata}</Text>
+          </Pressable>
+        ) : null}
+
         {/* L'accettazione è un fatto, non una casella da spuntare: si
-            dichiara al momento in cui si crea l'account. I due nomi
-            diventano toccabili solo quando i documenti sono davvero
-            pubblicati, così non si offrono collegamenti che non
-            portano da nessuna parte. */}
-        {mode === 'signup' ? (
+            dichiara al momento in cui si crea l'account. Con Google
+            l'account nasce anche da «Accedi», quindi la frase serve
+            anche lì. I due nomi diventano toccabili solo quando i
+            documenti sono davvero pubblicati, così non si offrono
+            collegamenti che non portano da nessuna parte. */}
+        {mode === 'signup' || googleAttivo ? (
           <Text style={[styles.legale, { color: colors.textFaint }]}>
             {t.accesso.legale1}
             {documenti.termini ? (
@@ -304,11 +311,7 @@ export function AuthScreen() {
             )}
             {t.accesso.legale3}
           </Text>
-        ) : (
-          <Pressable accessibilityRole="button" onPress={() => switchMode('forgot')}>
-            <Text style={[styles.link, { color: colors.textDim }]}>{t.accesso.dimenticata}</Text>
-          </Pressable>
-        )}
+        ) : null}
       </>
     );
 

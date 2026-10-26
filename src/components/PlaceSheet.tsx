@@ -22,8 +22,9 @@ interface PlaceSheetProps {
   allLinks: RawLink[];
   /** Id dei link già collegati a questo posto. */
   linkedLinkIds: string[];
-  onAttach: (linkId: string) => void;
-  onDetach: (linkId: string) => void;
+  /** Assenti dove i collegamenti non si toccano (un gruppo pubblico da fuori). */
+  onAttach?: (linkId: string) => void;
+  onDetach?: (linkId: string) => void;
   /** Assente dove l'eliminazione del posto non è prevista (mappa web). */
   onDelete?: () => void;
   /** Assente dove non c'è una mappa interattiva su cui centrare (web). */
@@ -51,7 +52,7 @@ function LinkThumb({ link, size }: { link: RawLink; size: number }) {
 
 /** Un link collegato al posto: le stesse righe della pagina Link, con la
  * × per scollegarlo (il link resta, si toglie solo il collegamento). */
-function LinkedRow({ link, first, onDetach }: { link: RawLink; first: boolean; onDetach: () => void }) {
+function LinkedRow({ link, first, onDetach }: { link: RawLink; first: boolean; onDetach?: () => void }) {
   const { colors } = useTheme();
   const t = useT();
   const { title } = useLinkPreview(link);
@@ -66,9 +67,11 @@ function LinkedRow({ link, first, onDetach }: { link: RawLink; first: boolean; o
           <Text style={{ fontSize: 11, color: colors.textFaint, marginTop: 2 }}>{link.label}</Text>
         </View>
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.scollega} hitSlop={8} onPress={onDetach} style={styles.detachBtn}>
-        <CloseIcon size={13} color={colors.textFaint} />
-      </Pressable>
+      {onDetach ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={t.accessibilita.scollega} hitSlop={8} onPress={onDetach} style={styles.detachBtn}>
+          <CloseIcon size={13} color={colors.textFaint} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -140,7 +143,7 @@ export function PlaceSheet({
               <Pressable accessibilityRole="button"
                 key={l.id}
                 onPress={() => {
-                  onAttach(l.id);
+                  onAttach?.(l.id);
                   setPicking(false);
                   setQuery('');
                 }}
@@ -209,6 +212,9 @@ export function PlaceSheet({
             </Pressable>
           </View>
 
+          {/* Da fuori, senza link collegati, non c'è niente da mostrare né da fare. */}
+          {onAttach || linked.length > 0 ? (
+          <>
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionLabel, { color: colors.textFaint }]}>{t.posto.linkCollegati}</Text>
             {linked.length > 0 ? <Text style={[styles.sectionLabel, { color: colors.textFaint }]}>{linked.length}</Text> : null}
@@ -219,18 +225,25 @@ export function PlaceSheet({
             </Text>
           ) : (
             linked.map((l, i) => (
-              <LinkedRow key={l.id} link={l} first={i === 0} onDetach={() => onDetach(l.id)} />
+              <LinkedRow key={l.id} link={l} first={i === 0} onDetach={onDetach ? () => onDetach(l.id) : undefined} />
             ))
           )}
+          </>
+          ) : null}
 
-          <Pressable accessibilityRole="button" onPress={() => setPicking(true)} style={[styles.attachRow, { borderColor: colors.border }]}>
-            <PlusIcon size={13} color={colors.textDim} />
-            <Text style={{ color: colors.textDim, fontWeight: '700', fontSize: 13 }}>{t.posto.collegaLink}</Text>
-          </Pressable>
+          {onAttach ? (
+            <Pressable accessibilityRole="button" onPress={() => setPicking(true)} style={[styles.attachRow, { borderColor: colors.border }]}>
+              <PlusIcon size={13} color={colors.textDim} />
+              <Text style={{ color: colors.textDim, fontWeight: '700', fontSize: 13 }}>{t.posto.collegaLink}</Text>
+            </Pressable>
+          ) : null}
 
-          <Text style={[styles.footer, { color: colors.textFaint }]}>
-            {t.posto.aggiuntoDa} <Text style={{ color: colors.textDim, fontWeight: '700' }}>{authorName}</Text> · {dateLabel(pin.ts)}
-          </Text>
+          {/* Da fuori non si sa chi l'ha aggiunto, e la data da sola non dice niente. */}
+          {authorName ? (
+            <Text style={[styles.footer, { color: colors.textFaint }]}>
+              {t.posto.aggiuntoDa} <Text style={{ color: colors.textDim, fontWeight: '700' }}>{authorName}</Text> · {dateLabel(pin.ts)}
+            </Text>
+          ) : null}
 
           {onDelete ? (
             <Pressable accessibilityRole="button" onPress={() => setConfirmDelete(true)} style={styles.deleteBtn}>

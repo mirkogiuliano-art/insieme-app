@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Pressable } from '@/components/Tocco';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,14 +28,14 @@ import {
   UsersIcon,
   CalendarIcon,
   GridIcon,
+  GlobeIcon,
 } from '@/components/Icon';
 import { listPins } from '@/lib/api/pins';
 import { rangeLabel, countdownLabel } from '@/lib/groupInfo';
 import type { Group } from '@/types';
 import { ScreenGlow } from '@/components/ScreenGlow';
-import { TabBarSpaceContext, TABBAR_SPACE, useBarraAnimata } from '@/lib/tabBarSpace';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { DECELERA } from '@/lib/movimento';
+import { TabBarSpaceContext, TABBAR_SPACE } from '@/lib/tabBarSpace';
+import { BarraSezioni, Sezione } from '@/components/BarraSezioni';
 import { useT } from '@/i18n';
 import { segnalaErrore } from '@/lib/sentry';
 import { useFinestra } from '@/lib/finestra';
@@ -150,20 +150,6 @@ export default function GroupScreen() {
   // spazio a quello che si sta scrivendo. Il selettore evita di ridisegnare
   // a ogni variazione dell'altezza della tastiera: serve solo il sì/no.
   const keyboardOpen = useKeyboardState((s) => s.isVisible);
-  const barraAnimata = useBarraAnimata();
-  // La pastiglia della sezione aperta scorre fino a quella nuova invece
-  // di saltarci: si vede da dove si arriva e dove si va.
-  const indiceTab = (['chat', 'links', 'map'] as const).indexOf(tab);
-  const posizioneTab = useSharedValue(indiceTab);
-  const larghezzaTab = useSharedValue(0);
-  useEffect(() => {
-    posizioneTab.value = withTiming(indiceTab, { duration: 260, easing: DECELERA });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indiceTab]);
-  const pastiglia = useAnimatedStyle(() => ({
-    width: larghezzaTab.value,
-    transform: [{ translateX: posizioneTab.value * (larghezzaTab.value + 4) }],
-  }));
 
   useEffect(() => {
     if (!localGroup) return;
@@ -257,13 +243,15 @@ export default function GroupScreen() {
     );
   }
 
-  // «Lisbona · mancano 39 giorni» sotto il nome. Niente info, niente riga.
+  // «mancano 39 giorni · Lisbona» sotto il nome. Niente info, niente riga.
   const quando = localGroup
     ? (countdownLabel(localGroup.startsOn, localGroup.endsOn) ?? rangeLabel(localGroup.startsOn, localGroup.endsOn))
     : null;
   // La meta fuori dalla mappa ha il nome sulla riga del gruppo.
   const nomeMeta = meta ?? localGroup?.metaLibera?.nome ?? null;
-  const sottotitolo = [nomeMeta, quando].filter(Boolean).join(' · ') || null;
+  // Prima quanto manca, che cambia, poi il posto: con la lente accanto la
+  // riga si accorcia, e restava tagliata proprio la parte utile.
+  const sottotitolo = [localGroup?.pubblico ? t.pubblico.pubblico : null, quando, nomeMeta].filter(Boolean).join(' · ') || null;
 
   const gruppo = (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
@@ -293,10 +281,12 @@ export default function GroupScreen() {
             </Text>
             {sottotitolo ? (
               <View style={styles.subRow}>
-                {nomeMeta ? (
-                  <MapIcon size={13} color={colors.teal} strokeWidth={2} />
-                ) : (
+                {localGroup?.pubblico ? (
+                  <GlobeIcon size={13} color={colors.teal} strokeWidth={2} />
+                ) : quando ? (
                   <CalendarIcon size={13} color={colors.amberText} strokeWidth={2} />
+                ) : (
+                  <MapIcon size={13} color={colors.teal} strokeWidth={2} />
                 )}
                 <Text style={[styles.sub, { color: colors.textDim }]} numberOfLines={1}>
                   {sottotitolo}
@@ -364,52 +354,15 @@ export default function GroupScreen() {
         />
       </Sezione>
 
-      {/* La barra galleggia davvero sopra il contenuto: le liste e la mappa
-          le passano sotto fino al bordo dello schermo, e lei resta leggibile
-          perché è quasi opaca e staccata da un'ombra. Quanto spazio lasciarle
-          libero in fondo, le sezioni lo leggono da TabBarSpaceContext.
-          È sempre presente: con la tastiera si dissolve seguendone il
-          movimento, invece di sparire di colpo (vedi useBarraAnimata), e
-          mentre è nascosta non si tocca. */}
-      <View pointerEvents="box-none" style={styles.tabbarZona}>
-      <Animated.View
-        accessibilityRole="tablist"
-        accessibilityLabel={t.accessibilita.sezioni}
-        pointerEvents={keyboardOpen ? 'none' : 'auto'}
-        style={[styles.tabbar, { backgroundColor: theme === 'light' ? 'rgba(255,255,255,0.9)' : 'rgba(33,44,56,0.9)' }, barraAnimata]}
-        onLayout={(e) => {
-          // Tre sezioni larghe uguali: la barra meno i 6 punti di bordo per
-          // lato e i 4 fra una sezione e l'altra.
-          larghezzaTab.value = (e.nativeEvent.layout.width - 12 - 8) / 3;
-        }}
-      >
-        <Animated.View pointerEvents="none" style={[styles.pastiglia, { backgroundColor: colors.amber }, pastiglia]} />
-        <TabButton
-          label={t.gruppo.chat}
-          active={tab === 'chat'}
-          onPress={() => apriSezione('chat')}
-          icon={<ChatIcon size={21} color={tab === 'chat' ? colors.inkOnAmber : colors.textFaint} />}
-          activeText={colors.inkOnAmber}
-          inactiveText={colors.textFaint}
-        />
-        <TabButton
-          label={t.gruppo.link}
-          active={tab === 'links'}
-          onPress={() => apriSezione('links')}
-          icon={<LinkIcon size={21} color={tab === 'links' ? colors.inkOnAmber : colors.textFaint} />}
-          activeText={colors.inkOnAmber}
-          inactiveText={colors.textFaint}
-        />
-        <TabButton
-          label={t.gruppo.mappa}
-          active={tab === 'map'}
-          onPress={() => apriSezione('map')}
-          icon={<MapIcon size={21} color={tab === 'map' ? colors.inkOnAmber : colors.textFaint} />}
-          activeText={colors.inkOnAmber}
-          inactiveText={colors.textFaint}
-        />
-      </Animated.View>
-      </View>
+      <BarraSezioni
+        voci={[
+          { chiave: 'chat', label: t.gruppo.chat, icona: (c) => <ChatIcon size={21} color={c} /> },
+          { chiave: 'links', label: t.gruppo.link, icona: (c) => <LinkIcon size={21} color={c} /> },
+          { chiave: 'map', label: t.gruppo.mappa, icona: (c) => <MapIcon size={21} color={c} /> },
+        ]}
+        attiva={tab}
+        onCambia={apriSezione}
+      />
       </TabBarSpaceContext.Provider>
       </KeyboardAvoidingView>
 
@@ -467,71 +420,7 @@ export default function GroupScreen() {
   );
 }
 
-/** Tutte e tre le sezioni portano il nome scritto: con la sola icona due
- * su tre si riconoscevano a memoria, e quella dei link sembrava un video. */
-function TabButton({
-  label,
-  active,
-  onPress,
-  icon,
-  activeText,
-  inactiveText,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-  icon: React.ReactNode;
-  activeText: string;
-  inactiveText: string;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityLabel={label}
-      accessibilityState={{ selected: active }}
-      hitSlop={3}
-      onPress={onPress}
-      style={styles.tabBtn}>
-      {icon}
-      <Text style={[styles.tabLabel, { color: active ? activeText : inactiveText }]} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-/**
- * Una sezione del gruppo. Si monta la prima volta che si apre e poi resta,
- * nascosta quando se ne apre un'altra: rimontarla a ogni cambio rifaceva
- * disegno, letture e iscrizioni al tempo reale, e il cambio si sentiva.
- * Tornando compare in dissolvenza, tranne quella aperta col gruppo, che
- * arriva già con la schermata. Con `resta={false}` si smonta uscendo.
- */
-function Sezione({ attiva, resta = true, children }: { attiva: boolean; resta?: boolean; children: React.ReactNode }) {
-  const [aperta, setAperta] = useState(attiva);
-  const opacita = useSharedValue(attiva ? 1 : 0);
-  const prima = useRef(true);
-  useEffect(() => {
-    const iniziale = prima.current;
-    prima.current = false;
-    if (!attiva) {
-      // Già trasparente quando torna: niente lampo prima della dissolvenza.
-      opacita.value = 0;
-      return;
-    }
-    setAperta(true);
-    if (iniziale) return;
-    opacita.value = withTiming(1, { duration: 200 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attiva]);
-  const dissolvenza = useAnimatedStyle(() => ({ opacity: opacita.value }));
-  if (!attiva && !(resta && aperta)) return null;
-  return <Animated.View style={[styles.sezione, dissolvenza, !attiva && styles.nascosta]}>{children}</Animated.View>;
-}
-
 const styles = StyleSheet.create({
-  sezione: { flex: 1 },
-  nascosta: { display: 'none' },
   container: { flex: 1 },
   affiancati: { flex: 1, flexDirection: 'row' },
   elenco: { width: 380, borderRightWidth: 1 },
@@ -552,36 +441,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 23, fontWeight: '800', letterSpacing: -0.4, marginTop: 1 },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   sub: { fontSize: 12.5, fontWeight: '700', flexShrink: 1 },
-  // La barra resta della misura di un telefono anche sugli schermi
-  // larghi, al centro: allungata su 1200 punti le tre sezioni finivano
-  // lontanissime fra loro.
-  tabbarZona: { position: 'absolute', left: 14, right: 14, bottom: 12, alignItems: 'center' },
-  tabbar: {
-    width: '100%',
-    maxWidth: 520,
-    flexDirection: 'row',
-    gap: 4,
-    padding: 6,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
-  },
-  // Il fondo della sezione aperta, uno solo per tutta la barra: scorre
-  // sotto i tasti (vedi `pastiglia` nella schermata).
-  pastiglia: { position: 'absolute', top: 6, bottom: 6, left: 6, borderRadius: 17 },
-  tabBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 11,
-    borderRadius: 17,
-  },
-  tabLabel: { fontSize: 13, fontWeight: '700' },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
   centerTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginTop: 4 },
   centerSub: { fontSize: 13, textAlign: 'center', lineHeight: 19, maxWidth: 300, marginBottom: 6 },

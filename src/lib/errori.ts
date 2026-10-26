@@ -67,6 +67,7 @@ export function messaggioErrore(err: unknown, riserva: string): string {
   const codice = (err as ErroreQualunque)?.code;
   if (eErroreDiRete(err)) return d.errori.rete;
   if (testo === it.errori.tempoScaduto || testo === en.errori.tempoScaduto) return d.errori.tempoScaduto;
+  if (testo === it.errori.fileTroppoGrande || testo === en.errori.fileTroppoGrande) return d.errori.fileTroppoGrande;
   const chiave = DAL_DATABASE[testo];
   if (chiave) return d.erroriServer[chiave];
   // 42501: una regola di accesso ha detto di no. Quasi sempre vuol dire
